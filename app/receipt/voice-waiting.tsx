@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,24 +19,16 @@ export default function VoiceWaitingScreen() {
           { paddingTop: insets.top + 12 },
         ]}
       >
-        {/* 상단 */}
         <View style={styles.topRow}>
           <TouchableOpacity style={styles.backButton}>
-            <Ionicons
-              name="chevron-back"
-              size={20}
-              color="#7A7A7A"
-            />
+            <Ionicons name="chevron-back" size={20} color="#7A7A7A" />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.modeButton}>
-            <Text style={styles.modeButtonText}>
-              대화 모드 변경
-            </Text>
+            <Text style={styles.modeButtonText}>대화 모드 변경</Text>
           </TouchableOpacity>
         </View>
 
-        {/* 텍스트 */}
         <View style={styles.header}>
           <Text style={styles.title}>곧 시작할게요</Text>
 
@@ -45,7 +38,6 @@ export default function VoiceWaitingScreen() {
           </Text>
         </View>
 
-        {/* 마이크 영역 */}
         <View style={styles.micArea}>
           {Array.from({ length: 10 }).map((_, index) => {
             const size = 426 - index * 24;
@@ -68,11 +60,8 @@ export default function VoiceWaitingScreen() {
           <View style={styles.micCircle}>
             <View style={styles.customMic}>
               <View style={styles.micHead} />
-
               <View style={styles.micArc} />
-
               <View style={styles.micStem} />
-
               <View style={styles.micBase} />
             </View>
           </View>
@@ -81,6 +70,8 @@ export default function VoiceWaitingScreen() {
     </View>
   );
 }
+
+const isIOS = Platform.OS === "ios";
 
 const styles = StyleSheet.create({
   container: {
@@ -144,66 +135,58 @@ const styles = StyleSheet.create({
 
   micArea: {
     position: "absolute",
-
     left: 0,
     right: 0,
-
     bottom: -20,
-
     justifyContent: "center",
     alignItems: "center",
   },
 
   waveCircle: {
-  position: "absolute",
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
 
-  backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: isIOS ? "#F7F7F7" : "#F4F4F4",
 
-  borderWidth: 1,
-  borderColor: "#F4F4F4",
+    shadowColor: "#DADADA",
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: isIOS ? 0.45 : 0.9,
+    shadowRadius: isIOS ? 18 : 36,
 
-  shadowColor: "#FFFFFF",
-  shadowOffset: {
-    width: 0,
-    height: 0,
+    elevation: 4,
   },
-
-  shadowOpacity: 0.9,
-  shadowRadius: 36,
-
-  elevation: 4,
-},
 
   micCircle: {
-  width: 174,
-  height: 174,
-  borderRadius: 87,
+    width: 174,
+    height: 174,
+    borderRadius: 87,
+    backgroundColor: "#FFFFFF",
 
-  backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: isIOS ? "#F5F5F5" : "#F1F1F1",
 
-  borderWidth: 1,
-  borderColor: "#F1F1F1",
+    justifyContent: "center",
+    alignItems: "center",
 
-  justifyContent: "center",
-  alignItems: "center",
+    shadowColor: "#A1A1A1",
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: isIOS ? 0.45 : 0.22,
+    shadowRadius: isIOS ? 34 : 28,
 
-  shadowColor: "#A1A1A1",
-  shadowOffset: {
-    width: 0,
-    height: 0,
+    elevation: 6,
   },
-
-  shadowOpacity: 0.22,
-  shadowRadius: 28,
-
-  elevation: 6,
-},
 
   customMic: {
     width: 52,
     height: 70,
     marginTop: -20,
-
     alignItems: "center",
     justifyContent: "flex-start",
   },
@@ -213,21 +196,18 @@ const styles = StyleSheet.create({
     width: 22,
     height: 40,
     borderRadius: 11,
-
     backgroundColor: "#D6D6D6",
   },
 
   micArc: {
     position: "absolute",
     top: 28,
-
     width: 42,
     height: 34,
 
     borderLeftWidth: 5,
     borderRightWidth: 5,
     borderBottomWidth: 5,
-
     borderColor: "#A1A1A1",
     borderTopWidth: 0,
 
@@ -237,21 +217,16 @@ const styles = StyleSheet.create({
 
   micStem: {
     marginTop: 8,
-
     width: 5,
     height: 18,
-
     borderRadius: 3,
-
     backgroundColor: "#A1A1A1",
   },
 
   micBase: {
     width: 28,
     height: 5,
-
     borderRadius: 3,
-
     backgroundColor: "#A1A1A1",
   },
 });
