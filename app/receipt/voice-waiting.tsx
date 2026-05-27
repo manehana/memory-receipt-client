@@ -18,6 +18,7 @@ export default function VoiceWaitingScreen() {
           { paddingTop: insets.top + 12 },
         ]}
       >
+        {/* 상단 */}
         <View style={styles.topRow}>
           <TouchableOpacity style={styles.backButton}>
             <Ionicons
@@ -28,10 +29,13 @@ export default function VoiceWaitingScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.modeButton}>
-            <Text style={styles.modeButtonText}>대화 모드 변경</Text>
+            <Text style={styles.modeButtonText}>
+              대화 모드 변경
+            </Text>
           </TouchableOpacity>
         </View>
 
+        {/* 텍스트 */}
         <View style={styles.header}>
           <Text style={styles.title}>곧 시작할게요</Text>
 
@@ -41,20 +45,35 @@ export default function VoiceWaitingScreen() {
           </Text>
         </View>
 
-        <Text style={styles.waitingText}>지금 응답해주세요..</Text>
-
+        {/* 마이크 영역 */}
         <View style={styles.micArea}>
-          <View style={styles.waveCircle1}>
-            <View style={styles.waveCircle2}>
-              <View style={styles.waveCircle3}>
-                <View style={styles.micCircle}>
-                  <Ionicons
-                    name="mic-outline"
-                    size={52}
-                    color="#BDBDBD"
-                  />
-                </View>
-              </View>
+          {Array.from({ length: 10 }).map((_, index) => {
+            const size = 426 - index * 24;
+
+            return (
+              <View
+                key={index}
+                style={[
+                  styles.waveCircle,
+                  {
+                    width: size,
+                    height: size,
+                    borderRadius: size / 2,
+                  },
+                ]}
+              />
+            );
+          })}
+
+          <View style={styles.micCircle}>
+            <View style={styles.customMic}>
+              <View style={styles.micHead} />
+
+              <View style={styles.micArc} />
+
+              <View style={styles.micStem} />
+
+              <View style={styles.micBase} />
             </View>
           </View>
         </View>
@@ -100,8 +119,8 @@ const styles = StyleSheet.create({
   },
 
   modeButtonText: {
-    fontSize: 13,
-    fontFamily: "PretendardSemiBold",
+    fontSize: 16,
+    fontFamily: "PretendardMedium",
     color: "#FFFFFF",
   },
 
@@ -123,55 +142,116 @@ const styles = StyleSheet.create({
     color: "#9C9C9C",
   },
 
-  waitingText: {
-    marginTop: 118,
-    textAlign: "center",
-    fontSize: 22,
-    fontFamily: "PretendardBold",
-    color: "#A6A6A6",
-  },
-
   micArea: {
     position: "absolute",
+
     left: 0,
     right: 0,
-    bottom: -85,
-    alignItems: "center",
-  },
 
-  waveCircle1: {
-    width: 340,
-    height: 340,
-    borderRadius: 170,
-    backgroundColor: "rgba(255,255,255,0.28)",
+    bottom: -20,
+
     justifyContent: "center",
     alignItems: "center",
   },
 
-  waveCircle2: {
-    width: 270,
-    height: 270,
-    borderRadius: 135,
-    backgroundColor: "rgba(255,255,255,0.38)",
-    justifyContent: "center",
-    alignItems: "center",
+  waveCircle: {
+  position: "absolute",
+
+  backgroundColor: "#FFFFFF",
+
+  borderWidth: 1,
+  borderColor: "#F4F4F4",
+
+  shadowColor: "#FFFFFF",
+  shadowOffset: {
+    width: 0,
+    height: 0,
   },
 
-  waveCircle3: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: "rgba(255,255,255,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  shadowOpacity: 0.9,
+  shadowRadius: 36,
+
+  elevation: 4,
+},
 
   micCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
+  width: 174,
+  height: 174,
+  borderRadius: 87,
+
+  backgroundColor: "#FFFFFF",
+
+  borderWidth: 1,
+  borderColor: "#F1F1F1",
+
+  justifyContent: "center",
+  alignItems: "center",
+
+  shadowColor: "#A1A1A1",
+  shadowOffset: {
+    width: 0,
+    height: 0,
+  },
+
+  shadowOpacity: 0.22,
+  shadowRadius: 28,
+
+  elevation: 6,
+},
+
+  customMic: {
+    width: 52,
+    height: 70,
+    marginTop: -20,
+
     alignItems: "center",
+    justifyContent: "flex-start",
+  },
+
+  micHead: {
+    marginTop: 10,
+    width: 22,
+    height: 40,
+    borderRadius: 11,
+
+    backgroundColor: "#D6D6D6",
+  },
+
+  micArc: {
+    position: "absolute",
+    top: 28,
+
+    width: 42,
+    height: 34,
+
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 5,
+
+    borderColor: "#A1A1A1",
+    borderTopWidth: 0,
+
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+  },
+
+  micStem: {
+    marginTop: 8,
+
+    width: 5,
+    height: 18,
+
+    borderRadius: 3,
+
+    backgroundColor: "#A1A1A1",
+  },
+
+  micBase: {
+    width: 28,
+    height: 5,
+
+    borderRadius: 3,
+
+    backgroundColor: "#A1A1A1",
   },
 });
