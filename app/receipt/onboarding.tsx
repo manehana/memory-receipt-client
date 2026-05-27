@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   StyleSheet,
@@ -9,6 +10,7 @@ import {
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   return (
     <View style={styles.container}>
@@ -117,9 +119,12 @@ export default function OnboardingScreen() {
 
         {/* 하단 */}
         <View>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>시작하기</Text>
-          </TouchableOpacity>
+          <TouchableOpacity
+          style={styles.button}
+          onPress={() => router.push("/receipt/voice-waiting")}
+        >
+          <Text style={styles.buttonText}>시작하기</Text>
+        </TouchableOpacity>
 
           <View style={styles.footerContainer}>
             <Text style={styles.footerText}>
