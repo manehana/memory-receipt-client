@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     width: 119.46,
     height: 37,
     borderRadius: 18.5,
-    backgroundColor: "#3D3D3A",
+    backgroundColor: "#EEEEEE",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   modeButtonText: {
     fontSize: 16,
     fontFamily: "PretendardMedium",
-    color: "#FFFFFF",
+    color: "#6D6D6D",
   },
 
   header: {
