@@ -20,22 +20,24 @@ export default function MemoryReceiptLoading() {
       </View>
 
       <View style={styles.centerArea}>
-        <View style={styles.blurCircle} />
+  <View style={styles.blurOuter} />
+  <View style={styles.blurMiddle} />
+  <View style={styles.blurInner} />
 
-        <View style={styles.iconWrap}>
-          <View style={styles.receiptIcon}>
-            <View style={styles.receiptLineLong} />
-            <View style={styles.receiptLineShort} />
-            <View style={styles.receiptLineLong} />
-            <View style={styles.receiptLineShort} />
-            <View style={styles.receiptLineLong} />
-          </View>
+  <View style={styles.iconWrap}>
+    <View style={styles.receiptIcon}>
+      <View style={styles.receiptLineLong} />
+      <View style={styles.receiptLineShort} />
+      <View style={styles.receiptLineLong} />
+      <View style={styles.receiptLineShort} />
+      <View style={styles.receiptLineLong} />
+    </View>
 
-          <View style={styles.clockIcon}>
-            <Ionicons name="time" size={34} color="#6F8991" />
-          </View>
-        </View>
-      </View>
+    <View style={styles.clockIcon}>
+      <Ionicons name="time" size={34} color="#6F8991" />
+    </View>
+  </View>
+</View>
 
       <View style={styles.progressBox}>
         <Text style={styles.progressLabel}>진행률 </Text>
@@ -83,23 +85,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  blurCircle: {
+  blurOuter: {
   position: 'absolute',
-  width: 260,
-  height: 260,
-  borderRadius: 130,
-  backgroundColor: 'rgba(255,255,255,0.9)',
-
-  shadowColor: '#FFFFFF',
-  shadowOpacity: 1,
-  shadowRadius: 80,
-  shadowOffset: {
-    width: 0,
-    height: 0,
-  },
-
-  elevation: 20,
+  width: 340,
+  height: 340,
+  borderRadius: 170,
+  backgroundColor: 'rgba(255,255,255,0.15)',
 },
+
+blurMiddle: {
+  position: 'absolute',
+  width: 280,
+  height: 280,
+  borderRadius: 140,
+  backgroundColor: 'rgba(255,255,255,0.35)',
+},
+
+blurInner: {
+  position: 'absolute',
+  width: 222,
+  height: 222,
+  borderRadius: 111,
+  backgroundColor: 'rgba(255,255,255,0.75)',
+},
+
   iconWrap: {
     width: 112,
     height: 112,
