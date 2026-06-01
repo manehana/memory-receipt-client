@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function MemoryReceipt() {
@@ -17,6 +17,18 @@ export default function MemoryReceipt() {
               기억 영수증
             </Text>
           </View>
+        </View>
+
+        <View style={{ marginTop: 45, alignItems: "center" }}>
+          <Image
+            source={require("../../assets/images/memory-receipt/receipt-slot.png")}
+            style={{
+              width: "100%",
+              maxWidth: 350,
+              height: 50,
+              resizeMode: "contain",
+            }}
+          />
         </View>
       </View>
     </SafeAreaView>
