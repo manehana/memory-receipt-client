@@ -30,6 +30,26 @@ export default function MemoryReceipt() {
             }}
           />
         </View>
+
+        <View style={{ flex: 1 }} />
+
+        <TouchableOpacity
+          style={{
+            width: "100%",
+            maxWidth: 370,
+            height: 55,
+            backgroundColor: "#363636",
+            borderRadius: 10,
+            justifyContent: "center",
+            alignItems: "center",
+            alignSelf: "center",
+            marginBottom: 80,
+          }}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "600" }}>
+            저장하기
+          </Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
