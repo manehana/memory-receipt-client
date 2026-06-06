@@ -12,7 +12,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const [id, setId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const canLogin = id.trim().length > 0;
+
+  const handleLogin = () => {
+    if (!canLogin || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    setTimeout(() => {
+      router.push("/receipt/design-loading");
+    }, 700);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -28,6 +41,7 @@ export default function LoginScreen() {
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
+            editable={!isSubmitting}
             placeholder="아이디를 입력하세요."
             placeholderTextColor="#9F9F9F"
             style={styles.input}
@@ -37,21 +51,29 @@ export default function LoginScreen() {
         </View>
 
         <Pressable
-          disabled={!canLogin}
+          disabled={!canLogin || isSubmitting}
           style={[
             styles.loginButton,
             canLogin && styles.loginButtonActive,
           ]}
-          onPress={() => router.push("/receipt/design-loading")}
+          onPress={handleLogin}
         >
-          <Text
-            style={[
-              styles.loginButtonText,
-              canLogin && styles.loginButtonTextActive,
-            ]}
-          >
-            로그인
-          </Text>
+          {isSubmitting ? (
+            <View style={styles.loadingDots}>
+              <View style={styles.loadingDot} />
+              <View style={styles.loadingDot} />
+              <View style={styles.loadingDot} />
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.loginButtonText,
+                canLogin && styles.loginButtonTextActive,
+              ]}
+            >
+              로그인
+            </Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>
@@ -115,5 +137,15 @@ const styles = StyleSheet.create({
   },
   loginButtonTextActive: {
     color: "#FFFFFF",
+  },
+  loadingDots: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  loadingDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: "#FFFFFF",
   },
 });
