@@ -1,6 +1,13 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
@@ -10,16 +17,19 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.brandSub}>HANA</Text>
-          <Text style={styles.brandTitle}>기억 명세서</Text>
-        </View>
+        <Image
+          source={require("../../assets/images/login/login-logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
         <View style={styles.form}>
           <Text style={styles.label}>아이디</Text>
           <TextInput
             autoCapitalize="none"
+            autoCorrect={false}
             placeholder="아이디를 입력하세요."
+            placeholderTextColor="#9F9F9F"
             style={styles.input}
             value={id}
             onChangeText={setId}
@@ -28,12 +38,10 @@ export default function LoginScreen() {
 
         <Pressable
           disabled={!canLogin}
-          style={[styles.loginButton, !canLogin && styles.loginButtonDisabled]}
+          style={styles.loginButton}
           onPress={() => router.push("/receipt/design-loading")}
         >
-          <Text style={[styles.loginButtonText, !canLogin && styles.loginButtonTextDisabled]}>
-            로그인
-          </Text>
+          <Text style={styles.loginButtonText}>로그인</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -47,61 +55,49 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 88,
+    paddingHorizontal: 23,
+    paddingBottom: 84,
   },
-  header: {
-    marginTop: 92,
-    alignItems: "center",
-  },
-  brandSub: {
-    color: "#69DDAE",
-    fontSize: 25,
-    fontFamily: "PretendardMedium",
-  },
-  brandTitle: {
-    marginTop: 2,
-    color: "#2ABD83",
-    fontSize: 29,
-    fontFamily: "PretendardBold",
+  logo: {
+    width: 139,
+    height: 121,
+    marginTop: 76,
+    alignSelf: "center",
   },
   form: {
-    marginTop: 64,
+    marginTop: 28,
   },
   label: {
-    marginBottom: 12,
-    color: "#3A3A3A",
-    fontSize: 18,
-    fontFamily: "PretendardBold",
+    marginBottom: 14,
+    color: "#3D3D3A",
+    fontSize: 20,
+    fontFamily: "PretendardSemiBold",
   },
   input: {
-    height: 54,
+    height: 55,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#D7D7D7",
+    borderColor: "#DADADA",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    color: "#333333",
-    fontSize: 18,
+    color: "#3D3D3A",
+    fontSize: 20,
     fontFamily: "PretendardMedium",
   },
   loginButton: {
+    width: "100%",
+    maxWidth: 370,
+    height: 55,
     marginTop: "auto",
-    height: 56,
+    alignSelf: "center",
     borderRadius: 8,
-    backgroundColor: "#29CB88",
+    backgroundColor: "#E2E2E2",
     alignItems: "center",
     justifyContent: "center",
   },
-  loginButtonDisabled: {
-    backgroundColor: "#DEDEDE",
-  },
   loginButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontFamily: "PretendardBold",
-  },
-  loginButtonTextDisabled: {
-    color: "#747474",
+    color: "#6C6C6C",
+    fontSize: 20,
+    fontFamily: "PretendardSemiBold",
   },
 });
