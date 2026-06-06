@@ -1,282 +1,270 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { router } from "expo-router";
+import { useState } from "react";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+const steps = [
+  {
+    icon: "megaphone-outline" as const,
+    title: "오늘의 대화는\n음성으로 진행돼요",
+    description: "시작 전에 마이크 허용 팝업이 떠요.\n허용을 눌러주세요.",
+    tip: "말하기 어려울 땐 카드를 선택해서 대답할 수 있어요.",
+  },
+  {
+    icon: "chatbubbles-outline" as const,
+    title: "질문을 듣고\n바로 말하면 돼요",
+    description: "모르겠다면 “모르겠어요”라고 말씀하셔도 괜찮아요.",
+    tip: "화면에 “듣고 있어요”가 뜨면 바로 말하면 돼요.",
+  },
+  {
+    icon: "checkbox-outline" as const,
+    title: "다 말했으면 응답\n완료 버튼을 눌러주세요",
+    description: "말을 시작하면 완료 버튼이 나타나요.\n다 말했으면 눌러주세요.",
+    tip: "",
+  },
+];
+
+const friends = ["아들", "딸", "강호동", "손흥민", "임영웅", "지드래곤", "안유진", "별봄이", "별송이"];
 
 export default function OnboardingScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [friendSheetVisible, setFriendSheetVisible] = useState(false);
+  const current = steps[step];
+
+  const goNext = () => {
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+      return;
+    }
+
+    setFriendSheetVisible(true);
+  };
 
   return (
-    <View style={styles.container}>
-      <View
-        style={[
-          styles.inner,
-          { paddingTop: insets.top + 12 },
-        ]}
-      >
-        {/* 뒤로가기 버튼 */}
-        <TouchableOpacity style={styles.backButton}>
-          <Ionicons
-            name="chevron-back"
-            size={20}
-            color="#7A7A7A"
-          />
-        </TouchableOpacity>
-
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <Text style={styles.title}>
-            오늘 하루에 대해{"\n"}
-            같이 대화해봐요.
-          </Text>
-
-          <Text style={styles.description}>
-            오늘 하루를 함께 돌아보며,{"\n"}
-            자연스럽게 기억을 기록해드려요.
-          </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.topRow}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => (step === 0 ? router.back() : setStep(step - 1))}
+          >
+            <Ionicons name="chevron-back" size={22} color="#7A7A7A" />
+          </Pressable>
         </View>
 
-        {/* 카드 영역 */}
-        <View style={styles.cardContainer}>
-          {/* 카드 1 */}
-          <View style={styles.card}>
-            <View style={styles.cardRow}>
-              <View style={styles.iconCircleYellow}>
-                <Ionicons
-                  name="mic"
-                  size={18}
-                  color="#F6B545"
-                />
-              </View>
-
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardTitle}>
-                  상황에 맞게 말씀해 주세요
-                </Text>
-
-                <Text style={styles.cardDescription}>
-                  말하기 불편할 땐 음성으로{"\n"}
-                  그렇지 않을 땐 카드를 골라 대화할 수 있어요.
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* 카드 2 */}
-          <View style={styles.card}>
-            <View style={styles.cardRow}>
-              <View style={styles.iconCircleGreen}>
-                <Ionicons
-                  name="card"
-                  size={18}
-                  color="#2ABD83"
-                />
-              </View>
-
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardTitle}>
-                  오늘 소비 내역을 돌아봐요
-                </Text>
-
-                <Text style={styles.cardDescription}>
-                  하나카드 결제 내역을 바탕으로{"\n"}
-                  자연스러운 질문을 드려요.
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* 카드 3 */}
-          <View style={styles.card}>
-            <View style={styles.cardRow}>
-              <View style={styles.iconCircleOrange}>
-                <Ionicons
-                  name="chatbubble"
-                  size={18}
-                  color="#F4A640"
-                />
-              </View>
-
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardTitle}>
-                  오늘의 기억 명세서가 만들어져요
-                </Text>
-
-                <Text style={styles.cardDescription}>
-                  대화가 끝나면 하루 기억이 예쁘게{"\n"}
-                  기록되어 저장돼요.
-                </Text>
-              </View>
-            </View>
-          </View>
+        <View style={styles.dots}>
+          {steps.map((_, index) => (
+            <View
+              key={index}
+              style={[styles.dot, index === step && styles.dotActive]}
+            />
+          ))}
         </View>
 
-        {/* 하단 */}
-        <View>
-          <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.push("/receipt/voice-waiting")}
-        >
-          <Text style={styles.buttonText}>시작하기</Text>
-        </TouchableOpacity>
+        <View style={styles.content}>
+          <Ionicons name={current.icon} size={92} color="#62DDAF" />
+          <Text style={styles.title}>{current.title}</Text>
+          <Text style={styles.description}>{current.description}</Text>
+          {current.tip ? <Text style={styles.tip}>{current.tip}</Text> : null}
+        </View>
 
-          <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>
-              <Text style={{ color: "#2ABD83" }}>ⓘ</Text>
-              {" "}음성 응답을 못하는 상황이에요
+        <View style={styles.footer}>
+          <Pressable style={styles.primaryButton} onPress={goNext}>
+            <Text style={styles.primaryButtonText}>
+              {step === steps.length - 1 ? "대화 친구 확인하기" : "이해했어요"}
             </Text>
-
-            <View style={styles.footerUnderline} />
-          </View>
+          </Pressable>
+          <Pressable onPress={() => router.replace("/receipt/voice-waiting")}>
+            <Text style={styles.skipText}>건너뛰기</Text>
+          </Pressable>
         </View>
       </View>
-    </View>
+
+      <Modal transparent visible={friendSheetVisible} animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>대화 친구 선택</Text>
+            <Text style={styles.sheetDescription}>이름을 누르면 목소리를 미리 들을 수 있어요.</Text>
+
+            <View style={styles.friendGrid}>
+              {friends.map((friend, index) => (
+                <Pressable key={friend} style={styles.friendItem}>
+                  <View style={[styles.avatar, index === 5 && styles.avatarSelected]}>
+                    <Text style={styles.avatarText}>{friend.slice(0, 1)}</Text>
+                  </View>
+                  <Text style={styles.friendName}>{friend}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable
+              style={styles.primaryButton}
+              onPress={() => router.replace("/receipt/voice-waiting")}
+            >
+              <Text style={styles.primaryButtonText}>선택 완료</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#F7F7F7",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
-  },
-
-  inner: {
-    flex: 1,
     paddingHorizontal: 24,
-    paddingBottom: 32,
-    justifyContent: "space-between",
+    paddingBottom: 42,
   },
-
+  topRow: {
+    height: 48,
+    justifyContent: "center",
+  },
   backButton: {
     width: 37,
     height: 37,
-    marginTop: 5,
     borderRadius: 18.5,
     backgroundColor: "#ECECEC",
-
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
-
-  header: {
-    marginTop: 0,
-  },
-
-  title: {
-    fontSize: 32,
-    fontFamily: "PretendardBold",
-    lineHeight: 40,
-    color: "#2ABD83",
-  },
-
-  description: {
-    marginTop: 18,
-    fontSize: 20,
-    fontFamily: "PretendardRegular",
-    lineHeight: 28,
-    color: "#9C9C9C",
-  },
-
-  cardContainer: {
-    gap: 14,
-  },
-
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-  },
-
-  cardRow: {
+  dots: {
+    marginTop: 16,
     flexDirection: "row",
-    alignItems: "center",
-  },
-
-  cardTextContainer: {
-    marginLeft: 14,
-    flex: 1,
-  },
-
-  iconCircleYellow: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#FFF4DE",
-
     justifyContent: "center",
-    alignItems: "center",
+    gap: 10,
   },
-
-  iconCircleGreen: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#E5F8F0",
-
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  iconCircleOrange: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#FFF1DF",
-
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  cardTitle: {
-    fontSize: 17,
-    fontFamily: "PretendardSemiBold",
-    color: "#505050",
-  },
-
-  cardDescription: {
-    marginTop: 6,
-    fontSize: 15,
-    fontFamily: "PretendardMedium",
-    lineHeight: 22,
-    color: "#9C9C9C",
-  },
-
-  button: {
-    height: 58,
-    backgroundColor: "#2F2F2F",
-    borderRadius: 16,
-
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  buttonText: {
-    fontSize: 17,
-    fontFamily: "PretendardBold",
-    color: "#FFFFFF",
-  },
-
-  footerContainer: {
-    marginTop: 14,
-    alignItems: "center",
-  },
-
-  footerText: {
-    fontSize: 13,
-    fontFamily: "PretendardRegular",
-    color: "#6D6D6D",
-  },
-
-  footerUnderline: {
-    marginTop: 3,
-    width: 170,
-    height: 1,
+  dot: {
+    width: 18,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: "#D9D9D9",
+  },
+  dotActive: {
+    width: 64,
+    backgroundColor: "#2ABD83",
+  },
+  content: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    marginTop: 38,
+    color: "#333333",
+    fontSize: 30,
+    lineHeight: 40,
+    textAlign: "center",
+    fontFamily: "PretendardBold",
+  },
+  description: {
+    marginTop: 28,
+    color: "#9C9C9C",
+    fontSize: 20,
+    lineHeight: 29,
+    textAlign: "center",
+    fontFamily: "PretendardSemiBold",
+  },
+  tip: {
+    marginTop: 36,
+    width: "100%",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    padding: 18,
+    color: "#555555",
+    fontSize: 17,
+    lineHeight: 24,
+    fontFamily: "PretendardMedium",
+  },
+  footer: {
+    gap: 22,
+  },
+  primaryButton: {
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "#3A3A3A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontFamily: "PretendardBold",
+  },
+  skipText: {
+    color: "#A2A2A2",
+    fontSize: 17,
+    textAlign: "center",
+    fontFamily: "PretendardMedium",
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.28)",
+  },
+  sheet: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    backgroundColor: "#FFFFFF",
+    padding: 24,
+    paddingTop: 8,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 94,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D9D9D9",
+    marginBottom: 20,
+  },
+  sheetTitle: {
+    color: "#222222",
+    fontSize: 18,
+    fontFamily: "PretendardBold",
+  },
+  sheetDescription: {
+    marginTop: 6,
+    color: "#A0A0A0",
+    fontSize: 14,
+    fontFamily: "PretendardMedium",
+  },
+  friendGrid: {
+    marginVertical: 24,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  friendItem: {
+    width: 58,
+    alignItems: "center",
+    gap: 6,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#EFEFEF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarSelected: {
+    borderWidth: 3,
+    borderColor: "#2ABD83",
+  },
+  avatarText: {
+    color: "#333333",
+    fontSize: 20,
+    fontFamily: "PretendardBold",
+  },
+  friendName: {
+    color: "#333333",
+    fontSize: 14,
+    fontFamily: "PretendardSemiBold",
   },
 });
