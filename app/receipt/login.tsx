@@ -1,4 +1,9 @@
-import { getScreenScale, scaled } from "@/constants/responsive";
+import {
+  fontScaled,
+  getFontScale,
+  getScreenScale,
+  scaled,
+} from "@/constants/responsive";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,7 +29,11 @@ export default function LoginScreen() {
   ]).current;
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
-  const styles = useMemo(() => createStyles(scale), [scale]);
+  const fontScale = getFontScale(width, height);
+  const styles = useMemo(
+    () => createStyles(scale, fontScale),
+    [fontScale, scale]
+  );
   const canLogin = id.trim().length > 0;
 
   useFocusEffect(
@@ -98,11 +107,14 @@ export default function LoginScreen() {
           />
 
           <View style={styles.form}>
-            <Text style={styles.label}>아이디</Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.label}>
+              아이디
+            </Text>
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
               editable={!isSubmitting}
+              maxFontSizeMultiplier={1.1}
               placeholder="아이디를 입력하세요."
               placeholderTextColor="#9F9F9F"
               style={styles.input}
@@ -131,6 +143,7 @@ export default function LoginScreen() {
             </View>
           ) : (
             <Text
+              maxFontSizeMultiplier={1.1}
               style={[
                 styles.loginButtonText,
                 canLogin && styles.loginButtonTextActive,
@@ -145,7 +158,7 @@ export default function LoginScreen() {
   );
 }
 
-function createStyles(scale: number) {
+function createStyles(scale: number, fontScale: number) {
   return StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -172,24 +185,24 @@ function createStyles(scale: number) {
     label: {
       marginBottom: scaled(14, scale),
       color: "#3D3D3A",
-      fontSize: 20,
+      fontSize: fontScaled(20, fontScale),
       fontFamily: "PretendardSemiBold",
     },
     input: {
-      height: 55,
+      height: scaled(55, scale),
       borderRadius: 6,
       borderWidth: 1,
       borderColor: "#DADADA",
       backgroundColor: "#FFFFFF",
       paddingHorizontal: 16,
       color: "#3D3D3A",
-      fontSize: 20,
+      fontSize: fontScaled(20, fontScale),
       fontFamily: "PretendardMedium",
     },
     loginButton: {
       width: "100%",
       maxWidth: 370,
-      height: 55,
+      height: scaled(55, scale),
       alignSelf: "center",
       borderRadius: 8,
       backgroundColor: "#E2E2E2",
@@ -201,7 +214,7 @@ function createStyles(scale: number) {
     },
     loginButtonText: {
       color: "#6C6C6C",
-      fontSize: 20,
+      fontSize: fontScaled(20, fontScale),
       fontFamily: "PretendardSemiBold",
     },
     loginButtonTextActive: {

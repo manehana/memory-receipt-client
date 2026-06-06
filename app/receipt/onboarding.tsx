@@ -1,4 +1,9 @@
-import { getScreenScale, scaled } from "@/constants/responsive";
+import {
+  fontScaled,
+  getFontScale,
+  getScreenScale,
+  scaled,
+} from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -94,11 +99,15 @@ function OnboardingCardText({
   styles: ReturnType<typeof createStyles>;
 }) {
   if (card.text) {
-    return <Text style={styles.cardText}>{card.text}</Text>;
+    return (
+      <Text maxFontSizeMultiplier={1.1} style={styles.cardText}>
+        {card.text}
+      </Text>
+    );
   }
 
   return (
-    <Text style={styles.cardText}>
+    <Text maxFontSizeMultiplier={1.1} style={styles.cardText}>
       {card.beforeHighlight}
       <Text style={styles.cardTextHighlight}>{card.highlight}</Text>
       {card.afterHighlight}
@@ -111,7 +120,11 @@ export default function OnboardingScreen() {
   const [friendSheetVisible, setFriendSheetVisible] = useState(false);
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
-  const styles = useMemo(() => createStyles(scale), [scale]);
+  const fontScale = getFontScale(width, height);
+  const styles = useMemo(
+    () => createStyles(scale, fontScale),
+    [fontScale, scale]
+  );
   const current = steps[step];
 
   const goNext = () => {
@@ -187,13 +200,22 @@ export default function OnboardingScreen() {
             ))}
           </View>
 
-          <Text style={styles.title}>{current.title}</Text>
+          <Text maxFontSizeMultiplier={1.1} style={styles.title}>
+            {current.title}
+          </Text>
           {current.description ? (
             <Text
+              maxFontSizeMultiplier={1.1}
               style={[
                 styles.description,
                 current.descriptionSize
-                  ? { fontSize: current.descriptionSize, lineHeight: 31 }
+                  ? {
+                      fontSize: fontScaled(
+                        current.descriptionSize,
+                        fontScale
+                      ),
+                      lineHeight: fontScaled(31, fontScale),
+                    }
                   : null,
               ]}
             >
@@ -217,13 +239,15 @@ export default function OnboardingScreen() {
           </View>
 
           <Pressable style={styles.primaryButton} onPress={goNext}>
-            <Text style={styles.primaryButtonText}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.primaryButtonText}>
               {step === steps.length - 1 ? "대화 친구 확인하기" : "이해했어요"}
             </Text>
           </Pressable>
 
           <Pressable onPress={() => router.replace("/receipt/voice-waiting")}>
-            <Text style={styles.skipText}>건너뛰기</Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.skipText}>
+              건너뛰기
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -232,8 +256,10 @@ export default function OnboardingScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>대화 친구 선택</Text>
-            <Text style={styles.sheetDescription}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.sheetTitle}>
+              대화 친구 선택
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.sheetDescription}>
               이름을 누르면 목소리를 미리 들을 수 있어요.
             </Text>
 
@@ -246,9 +272,13 @@ export default function OnboardingScreen() {
                       index === 5 && styles.avatarSelected,
                     ]}
                   >
-                    <Text style={styles.avatarText}>{friend.slice(0, 1)}</Text>
+                    <Text maxFontSizeMultiplier={1.1} style={styles.avatarText}>
+                      {friend.slice(0, 1)}
+                    </Text>
                   </View>
-                  <Text style={styles.friendName}>{friend}</Text>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.friendName}>
+                    {friend}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -257,7 +287,9 @@ export default function OnboardingScreen() {
               style={styles.primaryButton}
               onPress={() => router.replace("/receipt/voice-waiting")}
             >
-              <Text style={styles.primaryButtonText}>선택 완료</Text>
+              <Text maxFontSizeMultiplier={1.1} style={styles.primaryButtonText}>
+                선택 완료
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -266,7 +298,7 @@ export default function OnboardingScreen() {
   );
 }
 
-function createStyles(scale: number) {
+function createStyles(scale: number, fontScale: number) {
   return StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -284,6 +316,7 @@ function createStyles(scale: number) {
     backButton: {
       width: 37,
       height: 37,
+      marginTop: scaled(10, scale),
       borderRadius: 18.5,
       backgroundColor: "#ECECEC",
       alignItems: "center",
@@ -327,16 +360,16 @@ function createStyles(scale: number) {
     title: {
       marginTop: scaled(36, scale),
       color: "#353535",
-      fontSize: 32,
-      lineHeight: 43,
+      fontSize: fontScaled(32, fontScale),
+      lineHeight: fontScaled(43, fontScale),
       textAlign: "center",
       fontFamily: "PretendardBold",
     },
     description: {
       marginTop: scaled(28, scale),
       color: "#9F9F9F",
-      fontSize: 20,
-      lineHeight: 29,
+      fontSize: fontScaled(20, fontScale),
+      lineHeight: fontScaled(29, fontScale),
       textAlign: "center",
       fontFamily: "PretendardMedium",
     },
@@ -360,15 +393,15 @@ function createStyles(scale: number) {
       alignItems: "center",
     },
     cardIcon: {
-      width: 34,
-      height: 34,
+      width: scaled(34, scale),
+      height: scaled(34, scale),
       marginRight: scaled(25, scale),
     },
     cardText: {
       flex: 1,
       color: "#5D5D5D",
-      fontSize: 19,
-      lineHeight: 26,
+      fontSize: fontScaled(19, fontScale),
+      lineHeight: fontScaled(26, fontScale),
       fontFamily: "PretendardMedium",
     },
     cardTextHighlight: {
@@ -377,7 +410,7 @@ function createStyles(scale: number) {
     primaryButton: {
       width: "100%",
       maxWidth: 370,
-      height: 55,
+      height: scaled(55, scale),
       alignSelf: "center",
       borderRadius: 8,
       backgroundColor: "#444444",
@@ -386,13 +419,13 @@ function createStyles(scale: number) {
     },
     primaryButtonText: {
       color: "#FFFFFF",
-      fontSize: 20,
+      fontSize: fontScaled(20, fontScale),
       fontFamily: "PretendardSemiBold",
     },
     skipText: {
       marginTop: scaled(25, scale),
       color: "#9F9F9F",
-      fontSize: 20,
+      fontSize: fontScaled(20, fontScale),
       textAlign: "center",
       fontFamily: "PretendardMedium",
     },
@@ -418,13 +451,13 @@ function createStyles(scale: number) {
     },
     sheetTitle: {
       color: "#222222",
-      fontSize: 18,
+      fontSize: fontScaled(18, fontScale),
       fontFamily: "PretendardBold",
     },
     sheetDescription: {
       marginTop: 6,
       color: "#A0A0A0",
-      fontSize: 14,
+      fontSize: fontScaled(14, fontScale),
       fontFamily: "PretendardMedium",
     },
     friendGrid: {
@@ -452,12 +485,12 @@ function createStyles(scale: number) {
     },
     avatarText: {
       color: "#333333",
-      fontSize: 20,
+      fontSize: fontScaled(20, fontScale),
       fontFamily: "PretendardBold",
     },
     friendName: {
       color: "#333333",
-      fontSize: 14,
+      fontSize: fontScaled(14, fontScale),
       fontFamily: "PretendardSemiBold",
     },
   });
