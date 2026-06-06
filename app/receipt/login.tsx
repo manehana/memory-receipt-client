@@ -1,6 +1,7 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Image,
   Pressable,
   StyleSheet,
@@ -13,7 +14,46 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function LoginScreen() {
   const [id, setId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const dotAnimations = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
   const canLogin = id.trim().length > 0;
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      dotAnimations.forEach((animation) => animation.setValue(0));
+      return;
+    }
+
+    const makeWave = (animation: Animated.Value) =>
+      Animated.sequence([
+        Animated.timing(animation, {
+          toValue: -7,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(animation, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]);
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.stagger(110, dotAnimations.map(makeWave)),
+        Animated.delay(120),
+      ])
+    );
+
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [dotAnimations, isSubmitting]);
 
   const handleLogin = () => {
     if (!canLogin || isSubmitting) {
@@ -60,9 +100,15 @@ export default function LoginScreen() {
         >
           {isSubmitting ? (
             <View style={styles.loadingDots}>
-              <View style={styles.loadingDot} />
-              <View style={styles.loadingDot} />
-              <View style={styles.loadingDot} />
+              {dotAnimations.map((animation, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.loadingDot,
+                    { transform: [{ translateY: animation }] },
+                  ]}
+                />
+              ))}
             </View>
           ) : (
             <Text
