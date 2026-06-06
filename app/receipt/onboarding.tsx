@@ -43,6 +43,7 @@ type FriendGroupId = "protector" | "celebrity" | "default";
 type ConversationFriend = {
   id: string;
   name: string;
+  description: string;
   group: FriendGroupId;
   activeIcon: ImageSourcePropType;
   inactiveIcon: ImageSourcePropType;
@@ -93,6 +94,7 @@ const friends: ConversationFriend[] = [
   {
     id: "son",
     name: "아들",
+    description: "아들의 목소리로\n편하게 대화해봐요!",
     group: "protector",
     activeIcon: require("../../assets/images/onboarding/friend-son-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-son-inactive-icon.png"),
@@ -100,6 +102,7 @@ const friends: ConversationFriend[] = [
   {
     id: "daughter",
     name: "딸",
+    description: "딸의 목소리로\n다정하게 대화해봐요!",
     group: "protector",
     activeIcon: require("../../assets/images/onboarding/friend-daughter-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-daughter-inactive-icon.png"),
@@ -107,6 +110,7 @@ const friends: ConversationFriend[] = [
   {
     id: "hodong",
     name: "강호동",
+    description: "힘 있고 유쾌한 목소리로\n대화해봐요!",
     group: "celebrity",
     activeIcon: require("../../assets/images/onboarding/friend-hodong-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-hodong-inactive-icon.png"),
@@ -114,6 +118,7 @@ const friends: ConversationFriend[] = [
   {
     id: "heungmin",
     name: "손흥민",
+    description: "차분하고 밝은 목소리로\n편하게 대화해봐요!",
     group: "celebrity",
     activeIcon: require("../../assets/images/onboarding/friend-heungmin-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-heungmin-inactive-icon.png"),
@@ -121,6 +126,7 @@ const friends: ConversationFriend[] = [
   {
     id: "yeongung",
     name: "임영웅",
+    description: "부드럽고 깊은 목소리로\n마음을 나눠봐요!",
     group: "celebrity",
     activeIcon: require("../../assets/images/onboarding/friend-yeongung-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-yeongung-inactive-icon.png"),
@@ -128,6 +134,7 @@ const friends: ConversationFriend[] = [
   {
     id: "gdragon",
     name: "지드래곤",
+    description: "감각적이고 개성 있는 목소리로\n대화해봐요!",
     group: "celebrity",
     activeIcon: require("../../assets/images/onboarding/friend-gdragon-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-gdragon-inactive-icon.png"),
@@ -135,6 +142,7 @@ const friends: ConversationFriend[] = [
   {
     id: "yujin",
     name: "안유진",
+    description: "밝고 또렷한 목소리로\n대화를 이끌어줘요!",
     group: "celebrity",
     activeIcon: require("../../assets/images/onboarding/friend-yujin-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-yujin-inactive-icon.png"),
@@ -142,6 +150,7 @@ const friends: ConversationFriend[] = [
   {
     id: "hanaboy",
     name: "별봄이",
+    description: "따뜻한 목소리로\n마음을 들어줘요!",
     group: "default",
     activeIcon: require("../../assets/images/onboarding/friend-hanaboy-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png"),
@@ -149,6 +158,7 @@ const friends: ConversationFriend[] = [
   {
     id: "hanagirl",
     name: "별송이",
+    description: "상냥한 목소리로\n편안하게 대화해요!",
     group: "default",
     activeIcon: require("../../assets/images/onboarding/friend-hanagirl-active-icon.png"),
     inactiveIcon: require("../../assets/images/onboarding/friend-hanagirl-inactive-icon.png"),
@@ -347,7 +357,7 @@ export default function OnboardingScreen() {
                     maxFontSizeMultiplier={1.1}
                     style={styles.currentFriendDescription}
                   >
-                    따뜻하게 공감해주는 친구예요!
+                    {selectedFriend.description}
                   </Text>
                 </View>
                 <Pressable
@@ -632,6 +642,7 @@ const createStyles = (scale: number, fontScale: number) =>
       color: "#8A8A8A",
       fontFamily: "PretendardMedium",
       fontSize: fontScaled(16, fontScale),
+      lineHeight: fontScaled(22, fontScale),
       marginTop: scaled(4, scale),
     },
     changeFriendButton: {
