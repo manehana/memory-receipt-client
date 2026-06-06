@@ -1,5 +1,6 @@
-import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { getScreenScale, scaled } from "@/constants/responsive";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -7,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,12 +16,29 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function LoginScreen() {
   const [id, setId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const loginTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dotAnimations = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
   ]).current;
+  const { width, height } = useWindowDimensions();
+  const scale = getScreenScale(width, height);
+  const styles = useMemo(() => createStyles(scale), [scale]);
   const canLogin = id.trim().length > 0;
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsSubmitting(false);
+
+      return () => {
+        if (loginTimerRef.current) {
+          clearTimeout(loginTimerRef.current);
+          loginTimerRef.current = null;
+        }
+      };
+    }, [])
+  );
 
   useEffect(() => {
     if (!isSubmitting) {
@@ -62,7 +81,8 @@ export default function LoginScreen() {
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    loginTimerRef.current = setTimeout(() => {
+      loginTimerRef.current = null;
       router.push("/receipt/design-loading");
     }, 700);
   };
@@ -70,32 +90,31 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <Image
-          source={require("../../assets/images/login/login-logo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-
-        <View style={styles.form}>
-          <Text style={styles.label}>아이디</Text>
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isSubmitting}
-            placeholder="아이디를 입력하세요."
-            placeholderTextColor="#9F9F9F"
-            style={styles.input}
-            value={id}
-            onChangeText={setId}
+        <View style={styles.topContent}>
+          <Image
+            source={require("../../assets/images/login/login-logo.png")}
+            style={styles.logo}
+            resizeMode="contain"
           />
+
+          <View style={styles.form}>
+            <Text style={styles.label}>아이디</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isSubmitting}
+              placeholder="아이디를 입력하세요."
+              placeholderTextColor="#9F9F9F"
+              style={styles.input}
+              value={id}
+              onChangeText={setId}
+            />
+          </View>
         </View>
 
         <Pressable
           disabled={!canLogin || isSubmitting}
-          style={[
-            styles.loginButton,
-            canLogin && styles.loginButtonActive,
-          ]}
+          style={[styles.loginButton, canLogin && styles.loginButtonActive]}
           onPress={handleLogin}
         >
           {isSubmitting ? (
@@ -126,72 +145,77 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F7F7F7",
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 23,
-    paddingBottom: 84,
-  },
-  logo: {
-    width: 139,
-    height: 121,
-    marginTop: 76,
-    alignSelf: "center",
-  },
-  form: {
-    marginTop: 28,
-  },
-  label: {
-    marginBottom: 14,
-    color: "#3D3D3A",
-    fontSize: 20,
-    fontFamily: "PretendardSemiBold",
-  },
-  input: {
-    height: 55,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#DADADA",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    color: "#3D3D3A",
-    fontSize: 20,
-    fontFamily: "PretendardMedium",
-  },
-  loginButton: {
-    width: "100%",
-    maxWidth: 370,
-    height: 55,
-    marginTop: "auto",
-    alignSelf: "center",
-    borderRadius: 8,
-    backgroundColor: "#E2E2E2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loginButtonActive: {
-    backgroundColor: "#23CC89",
-  },
-  loginButtonText: {
-    color: "#6C6C6C",
-    fontSize: 20,
-    fontFamily: "PretendardSemiBold",
-  },
-  loginButtonTextActive: {
-    color: "#FFFFFF",
-  },
-  loadingDots: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  loadingDot: {
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
-    backgroundColor: "#FFFFFF",
-  },
-});
+function createStyles(scale: number) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: "#F7F7F7",
+    },
+    container: {
+      flex: 1,
+      paddingHorizontal: 23,
+      paddingBottom: scaled(84, scale),
+      justifyContent: "space-between",
+    },
+    topContent: {
+      flexShrink: 1,
+    },
+    logo: {
+      width: scaled(139, scale),
+      height: scaled(121, scale),
+      marginTop: scaled(76, scale),
+      alignSelf: "center",
+    },
+    form: {
+      marginTop: scaled(28, scale),
+    },
+    label: {
+      marginBottom: scaled(14, scale),
+      color: "#3D3D3A",
+      fontSize: 20,
+      fontFamily: "PretendardSemiBold",
+    },
+    input: {
+      height: 55,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: "#DADADA",
+      backgroundColor: "#FFFFFF",
+      paddingHorizontal: 16,
+      color: "#3D3D3A",
+      fontSize: 20,
+      fontFamily: "PretendardMedium",
+    },
+    loginButton: {
+      width: "100%",
+      maxWidth: 370,
+      height: 55,
+      alignSelf: "center",
+      borderRadius: 8,
+      backgroundColor: "#E2E2E2",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    loginButtonActive: {
+      backgroundColor: "#23CC89",
+    },
+    loginButtonText: {
+      color: "#6C6C6C",
+      fontSize: 20,
+      fontFamily: "PretendardSemiBold",
+    },
+    loginButtonTextActive: {
+      color: "#FFFFFF",
+    },
+    loadingDots: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    loadingDot: {
+      width: 11,
+      height: 11,
+      borderRadius: 5.5,
+      backgroundColor: "#FFFFFF",
+    },
+  });
+}
