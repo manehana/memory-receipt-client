@@ -38,10 +38,20 @@ export default function LoginScreen() {
 
         <Pressable
           disabled={!canLogin}
-          style={styles.loginButton}
+          style={[
+            styles.loginButton,
+            canLogin && styles.loginButtonActive,
+          ]}
           onPress={() => router.push("/receipt/design-loading")}
         >
-          <Text style={styles.loginButtonText}>로그인</Text>
+          <Text
+            style={[
+              styles.loginButtonText,
+              canLogin && styles.loginButtonTextActive,
+            ]}
+          >
+            로그인
+          </Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -95,9 +105,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  loginButtonActive: {
+    backgroundColor: "#23CC89",
+  },
   loginButtonText: {
     color: "#6C6C6C",
     fontSize: 20,
     fontFamily: "PretendardSemiBold",
+  },
+  loginButtonTextActive: {
+    color: "#FFFFFF",
   },
 });
