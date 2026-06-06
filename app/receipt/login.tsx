@@ -1,25 +1,89 @@
 import { router } from "expo-router";
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const [id, setId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const dotAnimations = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
   const canLogin = id.trim().length > 0;
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      dotAnimations.forEach((animation) => animation.setValue(0));
+      return;
+    }
+
+    const makeWave = (animation: Animated.Value) =>
+      Animated.sequence([
+        Animated.timing(animation, {
+          toValue: -7,
+          duration: 240,
+          useNativeDriver: true,
+        }),
+        Animated.timing(animation, {
+          toValue: 0,
+          duration: 240,
+          useNativeDriver: true,
+        }),
+      ]);
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.stagger(150, dotAnimations.map(makeWave)),
+        Animated.delay(120),
+      ])
+    );
+
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [dotAnimations, isSubmitting]);
+
+  const handleLogin = () => {
+    if (!canLogin || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    setTimeout(() => {
+      router.push("/receipt/design-loading");
+    }, 700);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.brandSub}>HANA</Text>
-          <Text style={styles.brandTitle}>기억 명세서</Text>
-        </View>
+        <Image
+          source={require("../../assets/images/login/login-logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
         <View style={styles.form}>
           <Text style={styles.label}>아이디</Text>
           <TextInput
             autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isSubmitting}
             placeholder="아이디를 입력하세요."
+            placeholderTextColor="#9F9F9F"
             style={styles.input}
             value={id}
             onChangeText={setId}
@@ -27,13 +91,35 @@ export default function LoginScreen() {
         </View>
 
         <Pressable
-          disabled={!canLogin}
-          style={[styles.loginButton, !canLogin && styles.loginButtonDisabled]}
-          onPress={() => router.push("/receipt/design-loading")}
+          disabled={!canLogin || isSubmitting}
+          style={[
+            styles.loginButton,
+            canLogin && styles.loginButtonActive,
+          ]}
+          onPress={handleLogin}
         >
-          <Text style={[styles.loginButtonText, !canLogin && styles.loginButtonTextDisabled]}>
-            로그인
-          </Text>
+          {isSubmitting ? (
+            <View style={styles.loadingDots}>
+              {dotAnimations.map((animation, index) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.loadingDot,
+                    { transform: [{ translateY: animation }] },
+                  ]}
+                />
+              ))}
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.loginButtonText,
+                canLogin && styles.loginButtonTextActive,
+              ]}
+            >
+              로그인
+            </Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>
@@ -47,61 +133,65 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 88,
+    paddingHorizontal: 23,
+    paddingBottom: 84,
   },
-  header: {
-    marginTop: 92,
-    alignItems: "center",
-  },
-  brandSub: {
-    color: "#69DDAE",
-    fontSize: 25,
-    fontFamily: "PretendardMedium",
-  },
-  brandTitle: {
-    marginTop: 2,
-    color: "#2ABD83",
-    fontSize: 29,
-    fontFamily: "PretendardBold",
+  logo: {
+    width: 139,
+    height: 121,
+    marginTop: 76,
+    alignSelf: "center",
   },
   form: {
-    marginTop: 64,
+    marginTop: 28,
   },
   label: {
-    marginBottom: 12,
-    color: "#3A3A3A",
-    fontSize: 18,
-    fontFamily: "PretendardBold",
+    marginBottom: 14,
+    color: "#3D3D3A",
+    fontSize: 20,
+    fontFamily: "PretendardSemiBold",
   },
   input: {
-    height: 54,
+    height: 55,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#D7D7D7",
+    borderColor: "#DADADA",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    color: "#333333",
-    fontSize: 18,
+    color: "#3D3D3A",
+    fontSize: 20,
     fontFamily: "PretendardMedium",
   },
   loginButton: {
+    width: "100%",
+    maxWidth: 370,
+    height: 55,
     marginTop: "auto",
-    height: 56,
+    alignSelf: "center",
     borderRadius: 8,
-    backgroundColor: "#29CB88",
+    backgroundColor: "#E2E2E2",
     alignItems: "center",
     justifyContent: "center",
   },
-  loginButtonDisabled: {
-    backgroundColor: "#DEDEDE",
+  loginButtonActive: {
+    backgroundColor: "#23CC89",
   },
   loginButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontFamily: "PretendardBold",
+    color: "#6C6C6C",
+    fontSize: 20,
+    fontFamily: "PretendardSemiBold",
   },
-  loginButtonTextDisabled: {
-    color: "#747474",
+  loginButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  loadingDots: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  loadingDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: "#FFFFFF",
   },
 });
