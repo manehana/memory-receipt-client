@@ -31,19 +31,19 @@ export default function LoginScreen() {
       Animated.sequence([
         Animated.timing(animation, {
           toValue: -7,
-          duration: 180,
+          duration: 240,
           useNativeDriver: true,
         }),
         Animated.timing(animation, {
           toValue: 0,
-          duration: 180,
+          duration: 240,
           useNativeDriver: true,
         }),
       ]);
 
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.stagger(110, dotAnimations.map(makeWave)),
+        Animated.stagger(150, dotAnimations.map(makeWave)),
         Animated.delay(120),
       ])
     );
