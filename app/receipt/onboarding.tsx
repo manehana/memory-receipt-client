@@ -1,35 +1,117 @@
+import { getScreenScale, scaled } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  Image,
+  ImageSourcePropType,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const steps = [
+type OnboardingCard = {
+  icon: ImageSourcePropType;
+  text?: string;
+  beforeHighlight?: string;
+  highlight?: string;
+  afterHighlight?: string;
+};
+
+type OnboardingStep = {
+  title: string;
+  description: string;
+  descriptionSize?: number;
+  mainImage: ImageSourcePropType;
+  mainImageScale?: number;
+  mainImageOffsetX?: number;
+  cards: OnboardingCard[];
+};
+
+const steps: OnboardingStep[] = [
   {
-    icon: "megaphone-outline" as const,
+    mainImage: require("../../assets/images/onboarding/onboarding1-main-icon.png"),
+    mainImageScale: 1.14,
+    mainImageOffsetX: -4,
     title: "오늘의 대화는\n음성으로 진행돼요",
-    description: "시작 전에 마이크 허용 팝업이 떠요.\n허용을 눌러주세요.",
-    tip: "말하기 어려울 땐 카드를 선택해서 대답할 수 있어요.",
+    description: "",
+    cards: [
+      {
+        icon: require("../../assets/images/onboarding/onboarding1-microphone.png"),
+        text: "시작 전에 마이크 허용 팝업이 떠요.\n허용을 눌러주세요.",
+      },
+      {
+        icon: require("../../assets/images/onboarding/onboarding1-finger.png"),
+        text: "말하기 어려울 땐 카드를 선택해서\n대답할 수 있어요.",
+      },
+    ],
   },
   {
-    icon: "chatbubbles-outline" as const,
+    mainImage: require("../../assets/images/onboarding/onboarding2-main-icon.png"),
     title: "질문을 듣고\n바로 말하면 돼요",
-    description: "모르겠다면 “모르겠어요”라고 말씀하셔도 괜찮아요.",
-    tip: "화면에 “듣고 있어요”가 뜨면 바로 말하면 돼요.",
+    description: "모르겠다면 “모르겠어요”\n라고 말씀하셔도 괜찮아요.",
+    descriptionSize: 22,
+    cards: [
+      {
+        icon: require("../../assets/images/onboarding/onboarding2-hand-gestures.png"),
+        beforeHighlight: "화면에 “",
+        highlight: "듣고 있어요",
+        afterHighlight: "”가 뜨면 바로\n말하면 돼요.",
+      },
+    ],
   },
   {
-    icon: "checkbox-outline" as const,
+    mainImage: require("../../assets/images/onboarding/onboarding3-tick.png"),
     title: "다 말했으면 응답\n완료 버튼을 눌러주세요",
     description: "말을 시작하면 완료 버튼이 나타나요.\n다 말했으면 눌러주세요.",
-    tip: "",
+    descriptionSize: 22,
+    cards: [],
   },
 ];
 
-const friends = ["아들", "딸", "강호동", "손흥민", "임영웅", "지드래곤", "안유진", "별봄이", "별송이"];
+const friends = [
+  "아들",
+  "딸",
+  "강호동",
+  "손흥민",
+  "임영웅",
+  "지드래곤",
+  "안유진",
+  "별봄이",
+  "별송이",
+];
+
+function OnboardingCardText({
+  card,
+  styles,
+}: {
+  card: OnboardingCard;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  if (card.text) {
+    return <Text style={styles.cardText}>{card.text}</Text>;
+  }
+
+  return (
+    <Text style={styles.cardText}>
+      {card.beforeHighlight}
+      <Text style={styles.cardTextHighlight}>{card.highlight}</Text>
+      {card.afterHighlight}
+    </Text>
+  );
+}
 
 export default function OnboardingScreen() {
   const [step, setStep] = useState(0);
   const [friendSheetVisible, setFriendSheetVisible] = useState(false);
+  const { width, height } = useWindowDimensions();
+  const scale = getScreenScale(width, height);
+  const styles = useMemo(() => createStyles(scale), [scale]);
   const current = steps[step];
 
   const goNext = () => {
@@ -53,28 +135,93 @@ export default function OnboardingScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.dots}>
+        <View style={styles.progressRow}>
           {steps.map((_, index) => (
             <View
               key={index}
-              style={[styles.dot, index === step && styles.dotActive]}
-            />
+              style={[
+                styles.progressDot,
+                index === step && styles.progressDotActive,
+              ]}
+            >
+              {index === step ? (
+                <LinearGradient
+                  colors={["#22CB88", "#14BC79"]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : null}
+            </View>
           ))}
         </View>
 
         <View style={styles.content}>
-          <Ionicons name={current.icon} size={92} color="#62DDAF" />
+          <View style={styles.mainIconFrame}>
+            {steps.map((item, index) => (
+              <Image
+                key={index}
+                source={item.mainImage}
+                fadeDuration={0}
+                style={[
+                  styles.mainIcon,
+                  {
+                    opacity: index === step ? 1 : 0,
+                    transform: [
+                      {
+                        translateX: item.mainImageOffsetX
+                          ? scaled(item.mainImageOffsetX, scale)
+                          : 0,
+                      },
+                    ],
+                  },
+                  item.mainImageScale
+                    ? {
+                        width: scaled(174 * item.mainImageScale, scale),
+                        height: scaled(127 * item.mainImageScale, scale),
+                      }
+                    : null,
+                ]}
+                resizeMode="contain"
+              />
+            ))}
+          </View>
+
           <Text style={styles.title}>{current.title}</Text>
-          <Text style={styles.description}>{current.description}</Text>
-          {current.tip ? <Text style={styles.tip}>{current.tip}</Text> : null}
+          {current.description ? (
+            <Text
+              style={[
+                styles.description,
+                current.descriptionSize
+                  ? { fontSize: current.descriptionSize, lineHeight: 31 }
+                  : null,
+              ]}
+            >
+              {current.description}
+            </Text>
+          ) : null}
         </View>
 
-        <View style={styles.footer}>
+        <View style={styles.bottomArea}>
+          <View style={styles.cardList}>
+            {current.cards.map((card, index) => (
+              <View key={`${step}-${index}`} style={styles.infoCard}>
+                <Image
+                  source={card.icon}
+                  style={styles.cardIcon}
+                  resizeMode="contain"
+                />
+                <OnboardingCardText card={card} styles={styles} />
+              </View>
+            ))}
+          </View>
+
           <Pressable style={styles.primaryButton} onPress={goNext}>
             <Text style={styles.primaryButtonText}>
               {step === steps.length - 1 ? "대화 친구 확인하기" : "이해했어요"}
             </Text>
           </Pressable>
+
           <Pressable onPress={() => router.replace("/receipt/voice-waiting")}>
             <Text style={styles.skipText}>건너뛰기</Text>
           </Pressable>
@@ -86,12 +233,19 @@ export default function OnboardingScreen() {
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>대화 친구 선택</Text>
-            <Text style={styles.sheetDescription}>이름을 누르면 목소리를 미리 들을 수 있어요.</Text>
+            <Text style={styles.sheetDescription}>
+              이름을 누르면 목소리를 미리 들을 수 있어요.
+            </Text>
 
             <View style={styles.friendGrid}>
               {friends.map((friend, index) => (
                 <Pressable key={friend} style={styles.friendItem}>
-                  <View style={[styles.avatar, index === 5 && styles.avatarSelected]}>
+                  <View
+                    style={[
+                      styles.avatar,
+                      index === 5 && styles.avatarSelected,
+                    ]}
+                  >
                     <Text style={styles.avatarText}>{friend.slice(0, 1)}</Text>
                   </View>
                   <Text style={styles.friendName}>{friend}</Text>
@@ -112,159 +266,199 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F7F7F7",
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 42,
-  },
-  topRow: {
-    height: 48,
-    justifyContent: "center",
-  },
-  backButton: {
-    width: 37,
-    height: 37,
-    borderRadius: 18.5,
-    backgroundColor: "#ECECEC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dots: {
-    marginTop: 16,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-  },
-  dot: {
-    width: 18,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#D9D9D9",
-  },
-  dotActive: {
-    width: 64,
-    backgroundColor: "#2ABD83",
-  },
-  content: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    marginTop: 38,
-    color: "#333333",
-    fontSize: 30,
-    lineHeight: 40,
-    textAlign: "center",
-    fontFamily: "PretendardBold",
-  },
-  description: {
-    marginTop: 28,
-    color: "#9C9C9C",
-    fontSize: 20,
-    lineHeight: 29,
-    textAlign: "center",
-    fontFamily: "PretendardSemiBold",
-  },
-  tip: {
-    marginTop: 36,
-    width: "100%",
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    padding: 18,
-    color: "#555555",
-    fontSize: 17,
-    lineHeight: 24,
-    fontFamily: "PretendardMedium",
-  },
-  footer: {
-    gap: 22,
-  },
-  primaryButton: {
-    height: 56,
-    borderRadius: 8,
-    backgroundColor: "#3A3A3A",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontFamily: "PretendardBold",
-  },
-  skipText: {
-    color: "#A2A2A2",
-    fontSize: 17,
-    textAlign: "center",
-    fontFamily: "PretendardMedium",
-  },
-  modalBackdrop: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0, 0, 0, 0.28)",
-  },
-  sheet: {
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    backgroundColor: "#FFFFFF",
-    padding: 24,
-    paddingTop: 8,
-  },
-  sheetHandle: {
-    alignSelf: "center",
-    width: 94,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#D9D9D9",
-    marginBottom: 20,
-  },
-  sheetTitle: {
-    color: "#222222",
-    fontSize: 18,
-    fontFamily: "PretendardBold",
-  },
-  sheetDescription: {
-    marginTop: 6,
-    color: "#A0A0A0",
-    fontSize: 14,
-    fontFamily: "PretendardMedium",
-  },
-  friendGrid: {
-    marginVertical: 24,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-  },
-  friendItem: {
-    width: 58,
-    alignItems: "center",
-    gap: 6,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#EFEFEF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarSelected: {
-    borderWidth: 3,
-    borderColor: "#2ABD83",
-  },
-  avatarText: {
-    color: "#333333",
-    fontSize: 20,
-    fontFamily: "PretendardBold",
-  },
-  friendName: {
-    color: "#333333",
-    fontSize: 14,
-    fontFamily: "PretendardSemiBold",
-  },
-});
+function createStyles(scale: number) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: "#F7F7F7",
+    },
+    container: {
+      flex: 1,
+      paddingHorizontal: 23,
+      paddingBottom: scaled(47, scale),
+    },
+    topRow: {
+      height: scaled(50, scale),
+      justifyContent: "center",
+    },
+    backButton: {
+      width: 37,
+      height: 37,
+      borderRadius: 18.5,
+      backgroundColor: "#ECECEC",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    progressRow: {
+      marginTop: scaled(34, scale),
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 8,
+    },
+    progressDot: {
+      width: 13,
+      height: 12,
+      borderRadius: 45,
+      backgroundColor: "#D9D9D9",
+      overflow: "hidden",
+    },
+    progressDotActive: {
+      width: 45,
+      height: 13,
+      backgroundColor: "#22CB88",
+    },
+    content: {
+      alignItems: "center",
+      flexShrink: 1,
+    },
+    mainIconFrame: {
+      width: scaled(205, scale),
+      height: scaled(150, scale),
+      marginTop: scaled(60, scale),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    mainIcon: {
+      position: "absolute",
+      width: scaled(174, scale),
+      height: scaled(127, scale),
+    },
+    title: {
+      marginTop: scaled(36, scale),
+      color: "#353535",
+      fontSize: 32,
+      lineHeight: 43,
+      textAlign: "center",
+      fontFamily: "PretendardBold",
+    },
+    description: {
+      marginTop: scaled(28, scale),
+      color: "#9F9F9F",
+      fontSize: 20,
+      lineHeight: 29,
+      textAlign: "center",
+      fontFamily: "PretendardMedium",
+    },
+    bottomArea: {
+      marginTop: "auto",
+    },
+    cardList: {
+      width: "100%",
+      maxWidth: 370,
+      alignSelf: "center",
+      gap: scaled(14, scale),
+      marginBottom: scaled(32, scale),
+    },
+    infoCard: {
+      minHeight: scaled(75, scale),
+      borderRadius: 8,
+      backgroundColor: "#FFFFFF",
+      paddingHorizontal: scaled(24, scale),
+      paddingVertical: scaled(15, scale),
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    cardIcon: {
+      width: 34,
+      height: 34,
+      marginRight: scaled(25, scale),
+    },
+    cardText: {
+      flex: 1,
+      color: "#5D5D5D",
+      fontSize: 19,
+      lineHeight: 26,
+      fontFamily: "PretendardMedium",
+    },
+    cardTextHighlight: {
+      color: "#13BB78",
+    },
+    primaryButton: {
+      width: "100%",
+      maxWidth: 370,
+      height: 55,
+      alignSelf: "center",
+      borderRadius: 8,
+      backgroundColor: "#444444",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    primaryButtonText: {
+      color: "#FFFFFF",
+      fontSize: 20,
+      fontFamily: "PretendardSemiBold",
+    },
+    skipText: {
+      marginTop: scaled(25, scale),
+      color: "#9F9F9F",
+      fontSize: 20,
+      textAlign: "center",
+      fontFamily: "PretendardMedium",
+    },
+    modalBackdrop: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "rgba(0, 0, 0, 0.28)",
+    },
+    sheet: {
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      backgroundColor: "#FFFFFF",
+      padding: 24,
+      paddingTop: 8,
+    },
+    sheetHandle: {
+      alignSelf: "center",
+      width: 94,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: "#D9D9D9",
+      marginBottom: 20,
+    },
+    sheetTitle: {
+      color: "#222222",
+      fontSize: 18,
+      fontFamily: "PretendardBold",
+    },
+    sheetDescription: {
+      marginTop: 6,
+      color: "#A0A0A0",
+      fontSize: 14,
+      fontFamily: "PretendardMedium",
+    },
+    friendGrid: {
+      marginVertical: 24,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 16,
+    },
+    friendItem: {
+      width: 58,
+      alignItems: "center",
+      gap: 6,
+    },
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: "#EFEFEF",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarSelected: {
+      borderWidth: 3,
+      borderColor: "#2ABD83",
+    },
+    avatarText: {
+      color: "#333333",
+      fontSize: 20,
+      fontFamily: "PretendardBold",
+    },
+    friendName: {
+      color: "#333333",
+      fontSize: 14,
+      fontFamily: "PretendardSemiBold",
+    },
+  });
+}
