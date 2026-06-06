@@ -38,6 +38,17 @@ type OnboardingStep = {
   cards: OnboardingCard[];
 };
 
+type FriendGroupId = "protector" | "celebrity" | "default";
+
+type ConversationFriend = {
+  id: string;
+  name: string;
+  description: string;
+  group: FriendGroupId;
+  activeIcon: ImageSourcePropType;
+  inactiveIcon: ImageSourcePropType;
+};
+
 const steps: OnboardingStep[] = [
   {
     mainImage: require("../../assets/images/onboarding/onboarding1-main-icon.png"),
@@ -79,61 +90,123 @@ const steps: OnboardingStep[] = [
   },
 ];
 
-const friends = [
-  "아들",
-  "딸",
-  "강호동",
-  "손흥민",
-  "임영웅",
-  "지드래곤",
-  "안유진",
-  "별봄이",
-  "별송이",
+const friends: ConversationFriend[] = [
+  {
+    id: "son",
+    name: "아들",
+    description: "아들의 목소리로\n편하게 대화해봐요!",
+    group: "protector",
+    activeIcon: require("../../assets/images/onboarding/friend-son-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-son-inactive-icon.png"),
+  },
+  {
+    id: "daughter",
+    name: "딸",
+    description: "딸의 목소리로\n다정하게 대화해봐요!",
+    group: "protector",
+    activeIcon: require("../../assets/images/onboarding/friend-daughter-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-daughter-inactive-icon.png"),
+  },
+  {
+    id: "hodong",
+    name: "강호동",
+    description: "힘 있고 유쾌한 목소리로\n대화해봐요!",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-hodong-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-hodong-inactive-icon.png"),
+  },
+  {
+    id: "heungmin",
+    name: "손흥민",
+    description: "차분하고 밝은 목소리로\n편하게 대화해봐요!",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-heungmin-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-heungmin-inactive-icon.png"),
+  },
+  {
+    id: "yeongung",
+    name: "임영웅",
+    description: "부드럽고 깊은 목소리로\n마음을 나눠봐요!",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-yeongung-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-yeongung-inactive-icon.png"),
+  },
+  {
+    id: "gdragon",
+    name: "지드래곤",
+    description: "감각적이고 개성 있는 목소리로\n대화해봐요!",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-gdragon-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-gdragon-inactive-icon.png"),
+  },
+  {
+    id: "yujin",
+    name: "안유진",
+    description: "밝고 또렷한 목소리로\n대화를 이끌어줘요!",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-yujin-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-yujin-inactive-icon.png"),
+  },
+  {
+    id: "hanaboy",
+    name: "별봄이",
+    description: "따뜻한 목소리로\n마음을 들어줘요!",
+    group: "default",
+    activeIcon: require("../../assets/images/onboarding/friend-hanaboy-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png"),
+  },
+  {
+    id: "hanagirl",
+    name: "별송이",
+    description: "상냥한 목소리로\n편안하게 대화해요!",
+    group: "default",
+    activeIcon: require("../../assets/images/onboarding/friend-hanagirl-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-hanagirl-inactive-icon.png"),
+  },
 ];
 
-function OnboardingCardText({
-  card,
-  styles,
-}: {
-  card: OnboardingCard;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  if (card.text) {
-    return (
-      <Text maxFontSizeMultiplier={1.1} style={styles.cardText}>
-        {card.text}
-      </Text>
-    );
-  }
-
-  return (
-    <Text maxFontSizeMultiplier={1.1} style={styles.cardText}>
-      {card.beforeHighlight}
-      <Text style={styles.cardTextHighlight}>{card.highlight}</Text>
-      {card.afterHighlight}
-    </Text>
-  );
-}
+const friendGroups: {
+  id: FriendGroupId;
+  label: string;
+  suffix?: string;
+}[] = [
+  { id: "protector", label: "보호자", suffix: "(딥보이스)" },
+  { id: "celebrity", label: "하나 연예인" },
+  { id: "default", label: "기본" },
+];
 
 export default function OnboardingScreen() {
-  const [step, setStep] = useState(0);
-  const [friendSheetVisible, setFriendSheetVisible] = useState(false);
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(scale, fontScale),
-    [fontScale, scale]
+    [fontScale, scale],
   );
+  const [step, setStep] = useState(0);
+  const [friendSheetVisible, setFriendSheetVisible] = useState(false);
+  const [friendSheetMode, setFriendSheetMode] = useState<"confirm" | "select">(
+    "confirm",
+  );
+  const [selectedFriendId, setSelectedFriendId] = useState("hanaboy");
+
   const current = steps[step];
+  const selectedFriend =
+    friends.find((friend) => friend.id === selectedFriendId) ?? friends[7];
 
   const goNext = () => {
     if (step < steps.length - 1) {
-      setStep(step + 1);
+      setStep((currentStep) => currentStep + 1);
       return;
     }
 
+    setFriendSheetMode("confirm");
     setFriendSheetVisible(true);
+  };
+
+  const startConversation = () => {
+    setFriendSheetVisible(false);
+    router.replace("/receipt/voice-waiting");
   };
 
   return (
@@ -141,32 +214,29 @@ export default function OnboardingScreen() {
       <View style={styles.container}>
         <View style={styles.topRow}>
           <Pressable
+            accessibilityLabel="뒤로가기"
+            hitSlop={10}
+            onPress={() => router.back()}
             style={styles.backButton}
-            onPress={() => (step === 0 ? router.back() : setStep(step - 1))}
           >
-            <Ionicons name="chevron-back" size={22} color="#7A7A7A" />
+            <Ionicons color="#7E7E7E" name="chevron-back" size={scaled(22, scale)} />
           </Pressable>
         </View>
 
         <View style={styles.progressRow}>
-          {steps.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.progressDot,
-                index === step && styles.progressDotActive,
-              ]}
-            >
-              {index === step ? (
-                <LinearGradient
-                  colors={["#22CB88", "#14BC79"]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              ) : null}
-            </View>
-          ))}
+          {steps.map((_, index) =>
+            index === step ? (
+              <LinearGradient
+                colors={["#22CB88", "#14BC79"]}
+                end={{ x: 1, y: 0 }}
+                key={index}
+                start={{ x: 0, y: 0 }}
+                style={styles.progressActive}
+              />
+            ) : (
+              <View key={index} style={styles.progressInactive} />
+            ),
+          )}
         </View>
 
         <View style={styles.content}>
@@ -174,28 +244,20 @@ export default function OnboardingScreen() {
             {steps.map((item, index) => (
               <Image
                 key={index}
+                resizeMode="contain"
                 source={item.mainImage}
-                fadeDuration={0}
                 style={[
                   styles.mainIcon,
                   {
                     opacity: index === step ? 1 : 0,
                     transform: [
                       {
-                        translateX: item.mainImageOffsetX
-                          ? scaled(item.mainImageOffsetX, scale)
-                          : 0,
+                        translateX: scaled(item.mainImageOffsetX ?? 0, scale),
                       },
+                      { scale: item.mainImageScale ?? 1 },
                     ],
                   },
-                  item.mainImageScale
-                    ? {
-                        width: scaled(174 * item.mainImageScale, scale),
-                        height: scaled(127 * item.mainImageScale, scale),
-                      }
-                    : null,
                 ]}
-                resizeMode="contain"
               />
             ))}
           </View>
@@ -203,6 +265,7 @@ export default function OnboardingScreen() {
           <Text maxFontSizeMultiplier={1.1} style={styles.title}>
             {current.title}
           </Text>
+
           {current.description ? (
             <Text
               maxFontSizeMultiplier={1.1}
@@ -210,11 +273,8 @@ export default function OnboardingScreen() {
                 styles.description,
                 current.descriptionSize
                   ? {
-                      fontSize: fontScaled(
-                        current.descriptionSize,
-                        fontScale
-                      ),
-                      lineHeight: fontScaled(31, fontScale),
+                      fontSize: fontScaled(current.descriptionSize, fontScale),
+                      lineHeight: fontScaled(current.descriptionSize + 9, fontScale),
                     }
                   : null,
               ]}
@@ -225,20 +285,28 @@ export default function OnboardingScreen() {
         </View>
 
         <View style={styles.bottomArea}>
-          <View style={styles.cardList}>
-            {current.cards.map((card, index) => (
-              <View key={`${step}-${index}`} style={styles.infoCard}>
-                <Image
-                  source={card.icon}
-                  style={styles.cardIcon}
-                  resizeMode="contain"
-                />
-                <OnboardingCardText card={card} styles={styles} />
-              </View>
-            ))}
-          </View>
+          {current.cards.length > 0 ? (
+            <View style={styles.cardList}>
+              {current.cards.map((card, index) => (
+                <View key={index} style={styles.infoCard}>
+                  <Image resizeMode="contain" source={card.icon} style={styles.cardIcon} />
+                  <Text maxFontSizeMultiplier={1.1} style={styles.cardText}>
+                    {card.text ? (
+                      card.text
+                    ) : (
+                      <>
+                        {card.beforeHighlight}
+                        <Text style={styles.highlightText}>{card.highlight}</Text>
+                        {card.afterHighlight}
+                      </>
+                    )}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
-          <Pressable style={styles.primaryButton} onPress={goNext}>
+          <Pressable onPress={goNext} style={styles.primaryButton}>
             <Text maxFontSizeMultiplier={1.1} style={styles.primaryButtonText}>
               {step === steps.length - 1 ? "대화 친구 확인하기" : "이해했어요"}
             </Text>
@@ -252,246 +320,439 @@ export default function OnboardingScreen() {
         </View>
       </View>
 
-      <Modal transparent visible={friendSheetVisible} animationType="slide">
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setFriendSheetVisible(false)}
+        transparent
+        visible={friendSheetVisible}
+      >
         <View style={styles.modalBackdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text maxFontSizeMultiplier={1.1} style={styles.sheetTitle}>
-              대화 친구 선택
-            </Text>
-            <Text maxFontSizeMultiplier={1.1} style={styles.sheetDescription}>
-              이름을 누르면 목소리를 미리 들을 수 있어요.
-            </Text>
+          <Pressable
+            accessibilityLabel="대화 친구 설정 닫기"
+            onPress={() => setFriendSheetVisible(false)}
+            style={StyleSheet.absoluteFill}
+          />
 
-            <View style={styles.friendGrid}>
-              {friends.map((friend, index) => (
-                <Pressable key={friend} style={styles.friendItem}>
-                  <View
-                    style={[
-                      styles.avatar,
-                      index === 5 && styles.avatarSelected,
-                    ]}
+          {friendSheetMode === "confirm" ? (
+            <View style={[styles.sheet, styles.confirmSheet]}>
+              <View style={styles.sheetHandle} />
+              <Text maxFontSizeMultiplier={1.1} style={styles.confirmTitle}>
+                오늘의 대화 친구
+              </Text>
+              <Text maxFontSizeMultiplier={1.1} style={styles.confirmDescription}>
+                원하는 목소리로 언제든 변경할 수 있어요.
+              </Text>
+
+              <View style={styles.currentFriendRow}>
+                <Image
+                  resizeMode="contain"
+                  source={selectedFriend.inactiveIcon}
+                  style={styles.currentFriendImage}
+                />
+                <View style={styles.currentFriendTextBox}>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.currentFriendName}>
+                    {selectedFriend.name}
+                  </Text>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.currentFriendDescription}
                   >
-                    <Text maxFontSizeMultiplier={1.1} style={styles.avatarText}>
-                      {friend.slice(0, 1)}
-                    </Text>
-                  </View>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.friendName}>
-                    {friend}
+                    {selectedFriend.description}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setFriendSheetMode("select")}
+                  style={styles.changeFriendButton}
+                >
+                  <Text maxFontSizeMultiplier={1.1} style={styles.changeFriendText}>
+                    변경
                   </Text>
                 </Pressable>
-              ))}
-            </View>
+              </View>
 
-            <Pressable
-              style={styles.primaryButton}
-              onPress={() => router.replace("/receipt/voice-waiting")}
-            >
-              <Text maxFontSizeMultiplier={1.1} style={styles.primaryButtonText}>
-                선택 완료
+              <Pressable onPress={startConversation} style={styles.startButton}>
+                <Text maxFontSizeMultiplier={1.1} style={styles.startButtonText}>
+                  시작하기
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={[styles.sheet, styles.selectSheet]}>
+              <View style={styles.sheetHandle} />
+              <Text maxFontSizeMultiplier={1.1} style={styles.sheetTitle}>
+                대화 친구 선택
               </Text>
-            </Pressable>
-          </View>
+              <Text maxFontSizeMultiplier={1.1} style={styles.sheetDescription}>
+                이름을 누르면 목소리를 미리 들을 수 있어요.
+              </Text>
+
+              <View style={styles.friendGrid}>
+                {friendGroups.map((group) => (
+                  <View key={group.id} style={styles.friendGroup}>
+                    <View style={styles.friendGroupHeader}>
+                      <Text maxFontSizeMultiplier={1.1} style={styles.friendGroupLabel}>
+                        {group.label}
+                        {group.suffix ? (
+                          <Text style={styles.friendGroupHighlight}>{group.suffix}</Text>
+                        ) : null}
+                      </Text>
+                      <View style={styles.friendGroupLine} />
+                    </View>
+
+                    <View style={styles.friendGroupList}>
+                      {friends
+                        .filter((friend) => friend.group === group.id)
+                        .map((friend) => {
+                          const isSelected = friend.id === selectedFriendId;
+
+                          return (
+                            <Pressable
+                              key={friend.id}
+                              onPress={() => setSelectedFriendId(friend.id)}
+                              style={styles.friendItem}
+                            >
+                              <View style={styles.friendAvatarBox}>
+                                <Image
+                                  resizeMode="contain"
+                                  source={
+                                    isSelected ? friend.activeIcon : friend.inactiveIcon
+                                  }
+                                  style={styles.friendAvatarImage}
+                                />
+                                {isSelected ? (
+                                  <Image
+                                    resizeMode="contain"
+                                    source={require("../../assets/images/onboarding/friend-check-icon.png")}
+                                    style={styles.friendCheckIcon}
+                                  />
+                                ) : null}
+                              </View>
+                              <Text maxFontSizeMultiplier={1.1} style={styles.friendName}>
+                                {friend.name}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <Pressable
+                onPress={() => setFriendSheetMode("confirm")}
+                style={styles.selectDoneButton}
+              >
+                <Text maxFontSizeMultiplier={1.1} style={styles.selectDoneButtonText}>
+                  선택 완료
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       </Modal>
     </SafeAreaView>
   );
 }
 
-function createStyles(scale: number, fontScale: number) {
-  return StyleSheet.create({
+const createStyles = (scale: number, fontScale: number) =>
+  StyleSheet.create({
     safeArea: {
-      flex: 1,
       backgroundColor: "#F7F7F7",
+      flex: 1,
     },
     container: {
       flex: 1,
-      paddingHorizontal: 23,
       paddingBottom: scaled(47, scale),
+      paddingHorizontal: scaled(23, scale),
     },
     topRow: {
       height: scaled(50, scale),
       justifyContent: "center",
     },
     backButton: {
-      width: 37,
-      height: 37,
-      marginTop: scaled(10, scale),
-      borderRadius: 18.5,
-      backgroundColor: "#ECECEC",
       alignItems: "center",
+      backgroundColor: "#ECECEC",
+      borderRadius: scaled(18.5, scale),
+      height: scaled(37, scale),
       justifyContent: "center",
+      width: scaled(37, scale),
     },
     progressRow: {
-      marginTop: scaled(34, scale),
-      flexDirection: "row",
-      justifyContent: "center",
       alignItems: "center",
-      gap: 8,
+      flexDirection: "row",
+      gap: scaled(8, scale),
+      justifyContent: "center",
+      marginTop: scaled(4, scale),
     },
-    progressDot: {
-      width: 13,
-      height: 12,
-      borderRadius: 45,
+    progressActive: {
+      borderRadius: scaled(45, scale),
+      height: scaled(13, scale),
+      width: scaled(45, scale),
+    },
+    progressInactive: {
       backgroundColor: "#D9D9D9",
-      overflow: "hidden",
-    },
-    progressDotActive: {
-      width: 45,
-      height: 13,
-      backgroundColor: "#22CB88",
+      borderRadius: scaled(45, scale),
+      height: scaled(12, scale),
+      width: scaled(13, scale),
     },
     content: {
       alignItems: "center",
-      flexShrink: 1,
+      flex: 1,
     },
     mainIconFrame: {
-      width: scaled(205, scale),
       height: scaled(150, scale),
-      marginTop: scaled(60, scale),
-      alignItems: "center",
-      justifyContent: "center",
+      marginTop: scaled(58, scale),
+      width: scaled(205, scale),
     },
     mainIcon: {
-      position: "absolute",
-      width: scaled(174, scale),
       height: scaled(127, scale),
+      left: scaled(15, scale),
+      position: "absolute",
+      top: scaled(12, scale),
+      width: scaled(174, scale),
     },
     title: {
-      marginTop: scaled(36, scale),
       color: "#353535",
+      fontFamily: "PretendardBold",
       fontSize: fontScaled(32, fontScale),
       lineHeight: fontScaled(43, fontScale),
+      marginTop: scaled(32, scale),
       textAlign: "center",
-      fontFamily: "PretendardBold",
     },
     description: {
-      marginTop: scaled(28, scale),
       color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
       fontSize: fontScaled(20, fontScale),
       lineHeight: fontScaled(29, fontScale),
+      marginTop: scaled(32, scale),
       textAlign: "center",
-      fontFamily: "PretendardMedium",
     },
     bottomArea: {
-      marginTop: "auto",
+      alignItems: "center",
     },
     cardList: {
-      width: "100%",
-      maxWidth: 370,
-      alignSelf: "center",
-      gap: scaled(14, scale),
+      gap: scaled(16, scale),
       marginBottom: scaled(32, scale),
+      maxWidth: scaled(370, scale),
+      width: "100%",
     },
     infoCard: {
-      minHeight: scaled(75, scale),
-      borderRadius: 8,
-      backgroundColor: "#FFFFFF",
-      paddingHorizontal: scaled(24, scale),
-      paddingVertical: scaled(15, scale),
-      flexDirection: "row",
       alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      borderRadius: scaled(8, scale),
+      flexDirection: "row",
+      minHeight: scaled(74, scale),
+      paddingHorizontal: scaled(22, scale),
+      paddingVertical: scaled(12, scale),
+      width: "100%",
     },
     cardIcon: {
-      width: scaled(34, scale),
       height: scaled(34, scale),
       marginRight: scaled(25, scale),
+      width: scaled(34, scale),
     },
     cardText: {
-      flex: 1,
       color: "#5D5D5D",
+      flex: 1,
+      fontFamily: "PretendardMedium",
       fontSize: fontScaled(19, fontScale),
       lineHeight: fontScaled(26, fontScale),
-      fontFamily: "PretendardMedium",
     },
-    cardTextHighlight: {
+    highlightText: {
       color: "#13BB78",
+      fontFamily: "PretendardSemiBold",
     },
     primaryButton: {
-      width: "100%",
-      maxWidth: 370,
-      height: scaled(55, scale),
-      alignSelf: "center",
-      borderRadius: 8,
-      backgroundColor: "#444444",
       alignItems: "center",
+      backgroundColor: "#444444",
+      borderRadius: scaled(8, scale),
+      height: scaled(55, scale),
       justifyContent: "center",
+      maxWidth: scaled(370, scale),
+      width: "100%",
     },
     primaryButtonText: {
       color: "#FFFFFF",
-      fontSize: fontScaled(20, fontScale),
       fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
     },
     skipText: {
-      marginTop: scaled(25, scale),
       color: "#9F9F9F",
-      fontSize: fontScaled(20, fontScale),
-      textAlign: "center",
       fontFamily: "PretendardMedium",
+      fontSize: fontScaled(20, fontScale),
+      marginTop: scaled(25, scale),
     },
     modalBackdrop: {
+      backgroundColor: "rgba(0, 0, 0, 0.28)",
       flex: 1,
       justifyContent: "flex-end",
-      backgroundColor: "rgba(0, 0, 0, 0.28)",
     },
     sheet: {
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
       backgroundColor: "#FFFFFF",
-      padding: 24,
-      paddingTop: 8,
+      borderTopLeftRadius: scaled(20, scale),
+      borderTopRightRadius: scaled(20, scale),
+      paddingBottom: scaled(25, scale),
+      paddingHorizontal: scaled(23, scale),
+      paddingTop: scaled(9, scale),
+    },
+    confirmSheet: {
+      paddingBottom: scaled(29, scale),
+    },
+    selectSheet: {
+      minHeight: scaled(575, scale),
     },
     sheetHandle: {
       alignSelf: "center",
-      width: 94,
-      height: 4,
-      borderRadius: 2,
       backgroundColor: "#D9D9D9",
-      marginBottom: 20,
+      borderRadius: scaled(2, scale),
+      height: scaled(4, scale),
+      marginBottom: scaled(25, scale),
+      width: scaled(95, scale),
+    },
+    confirmTitle: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
+    },
+    confirmDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, fontScale),
+      marginTop: scaled(8, scale),
+    },
+    currentFriendRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      marginTop: scaled(28, scale),
+    },
+    currentFriendImage: {
+      height: scaled(64, scale),
+      marginRight: scaled(15, scale),
+      width: scaled(64, scale),
+    },
+    currentFriendTextBox: {
+      flex: 1,
+    },
+    currentFriendName: {
+      color: "#353535",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(20, fontScale),
+    },
+    currentFriendDescription: {
+      color: "#8A8A8A",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, fontScale),
+      lineHeight: fontScaled(22, fontScale),
+      marginTop: scaled(4, scale),
+    },
+    changeFriendButton: {
+      alignItems: "center",
+      backgroundColor: "#EEEEEE",
+      borderRadius: scaled(45, scale),
+      height: scaled(50, scale),
+      justifyContent: "center",
+      width: scaled(92, scale),
+    },
+    changeFriendText: {
+      color: "#111111",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(20, fontScale),
+    },
+    startButton: {
+      alignItems: "center",
+      backgroundColor: "#23CC89",
+      borderRadius: scaled(8, scale),
+      height: scaled(55, scale),
+      justifyContent: "center",
+      marginTop: scaled(28, scale),
+      width: "100%",
+    },
+    startButtonText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
     },
     sheetTitle: {
       color: "#222222",
-      fontSize: fontScaled(18, fontScale),
       fontFamily: "PretendardBold",
+      fontSize: fontScaled(18, fontScale),
     },
     sheetDescription: {
-      marginTop: 6,
-      color: "#A0A0A0",
-      fontSize: fontScaled(14, fontScale),
+      color: "#9F9F9F",
       fontFamily: "PretendardMedium",
+      fontSize: fontScaled(14, fontScale),
+      marginTop: scaled(9, scale),
     },
     friendGrid: {
-      marginVertical: 24,
+      gap: scaled(16, scale),
+      marginTop: scaled(23, scale),
+    },
+    friendGroup: {
+      gap: scaled(12, scale),
+    },
+    friendGroupHeader: {
+      alignItems: "center",
+      flexDirection: "row",
+    },
+    friendGroupLabel: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, fontScale),
+    },
+    friendGroupHighlight: {
+      color: "#13BB78",
+      fontFamily: "PretendardMedium",
+    },
+    friendGroupLine: {
+      backgroundColor: "#E2E2E2",
+      flex: 1,
+      height: 1,
+      marginLeft: scaled(8, scale),
+    },
+    friendGroupList: {
+      columnGap: scaled(17, scale),
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 16,
+      rowGap: scaled(14, scale),
     },
     friendItem: {
-      width: 58,
       alignItems: "center",
-      gap: 6,
+      gap: scaled(6, scale),
+      width: scaled(58, scale),
     },
-    avatar: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: "#EFEFEF",
-      alignItems: "center",
-      justifyContent: "center",
+    friendAvatarBox: {
+      height: scaled(52, scale),
+      width: scaled(52, scale),
     },
-    avatarSelected: {
-      borderWidth: 3,
-      borderColor: "#2ABD83",
+    friendAvatarImage: {
+      height: "100%",
+      width: "100%",
     },
-    avatarText: {
-      color: "#333333",
-      fontSize: fontScaled(20, fontScale),
-      fontFamily: "PretendardBold",
+    friendCheckIcon: {
+      height: scaled(22, scale),
+      position: "absolute",
+      right: scaled(-4, scale),
+      top: scaled(-3, scale),
+      width: scaled(22, scale),
     },
     friendName: {
-      color: "#333333",
-      fontSize: fontScaled(14, fontScale),
+      color: "#353535",
       fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(14, fontScale),
+      textAlign: "center",
+    },
+    selectDoneButton: {
+      alignItems: "center",
+      backgroundColor: "#444444",
+      borderRadius: scaled(8, scale),
+      height: scaled(55, scale),
+      justifyContent: "center",
+      marginTop: scaled(16, scale),
+      width: "100%",
+    },
+    selectDoneButtonText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
     },
   });
-}
