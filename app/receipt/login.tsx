@@ -1,5 +1,6 @@
 import {
   fontScaled,
+  getButtonWidth,
   getFontScale,
   getScreenScale,
   scaled,
@@ -31,8 +32,8 @@ export default function LoginScreen() {
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
-    () => createStyles(scale, fontScale),
-    [fontScale, scale]
+    () => createStyles(scale, fontScale, width),
+    [fontScale, scale, width]
   );
   const canLogin = id.trim().length > 0;
 
@@ -158,7 +159,9 @@ export default function LoginScreen() {
   );
 }
 
-function createStyles(scale: number, fontScale: number) {
+function createStyles(scale: number, fontScale: number, screenWidth: number) {
+  const buttonWidth = getButtonWidth(screenWidth);
+
   return StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -200,8 +203,7 @@ function createStyles(scale: number, fontScale: number) {
       fontFamily: "PretendardMedium",
     },
     loginButton: {
-      width: "100%",
-      maxWidth: 370,
+      width: buttonWidth,
       height: scaled(55, scale),
       alignSelf: "center",
       borderRadius: 8,

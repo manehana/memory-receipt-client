@@ -19,3 +19,7 @@ export function scaled(value: number, scale: number) {
 export function fontScaled(value: number, scale: number) {
   return Math.round(value * scale);
 }
+
+export function getButtonWidth(width: number, horizontalPadding = 23) {
+  return Math.min(width - horizontalPadding * 2, 370);
+}

@@ -1,5 +1,6 @@
 import {
   fontScaled,
+  getButtonWidth,
   getFontScale,
   getScreenScale,
   scaled,
@@ -106,6 +107,7 @@ export default function MemoryReceipt() {
 const createStyles = (scale: number, fontScale: number, screenWidth: number) => {
   const receiptWidth = Math.round(Math.min(screenWidth * 0.64, 272));
   const slotWidth = Math.round(Math.min(receiptWidth + scaled(44, scale), 324));
+  const buttonWidth = getButtonWidth(screenWidth);
 
   return StyleSheet.create({
   safeArea: {
@@ -218,11 +220,13 @@ const createStyles = (scale: number, fontScale: number, screenWidth: number) => 
     paddingBottom: scaled(44, scale),
   },
   saveButton: {
+    alignSelf: "center",
     height: scaled(56, scale),
     borderRadius: scaled(8, scale),
     backgroundColor: "#363636",
     alignItems: "center",
     justifyContent: "center",
+    width: buttonWidth,
   },
   saveButtonText: {
     color: "#FFFFFF",
