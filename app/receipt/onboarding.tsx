@@ -1,5 +1,6 @@
 import {
   fontScaled,
+  getButtonWidth,
   getFontScale,
   getScreenScale,
   scaled,
@@ -122,6 +123,7 @@ const createStyles = (
   const splashScale = Math.min(widthRatio, heightRatio);
   const logoWidth = Math.round(LOGO_WIDTH * splashScale);
   const logoHeight = Math.round(LOGO_HEIGHT * splashScale);
+  const buttonWidth = getButtonWidth(screenWidth);
 
   return StyleSheet.create({
     background: {
@@ -147,7 +149,7 @@ const createStyles = (
     logo: {
       alignSelf: "center",
       height: logoHeight,
-      marginTop: Math.round(screenHeight * 0.36),
+      marginTop: Math.round(screenHeight * 0.34),
       width: logoWidth,
     },
     buttonWrap: {
@@ -161,8 +163,7 @@ const createStyles = (
       borderRadius: scaled(8, scale),
       height: scaled(55, scale),
       justifyContent: "center",
-      maxWidth: scaled(370, scale),
-      width: "100%",
+      width: buttonWidth,
     },
     primaryButtonText: {
       color: "#FFFFFF",

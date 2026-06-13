@@ -1,8 +1,24 @@
+import {
+  fontScaled,
+  getButtonWidth,
+  getFontScale,
+  getScreenScale,
+  scaled,
+} from "@/constants/responsive";
 import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useMemo } from "react";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ReceiptStartScreen() {
+  const { width, height } = useWindowDimensions();
+  const scale = getScreenScale(width, height);
+  const fontScale = getFontScale(width, height);
+  const styles = useMemo(
+    () => createStyles(scale, fontScale, width),
+    [fontScale, scale, width],
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -21,15 +37,18 @@ export default function ReceiptStartScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (scale: number, fontScale: number, screenWidth: number) => {
+  const buttonWidth = getButtonWidth(screenWidth);
+
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#F7FFFA",
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 56,
+    paddingHorizontal: scaled(23, scale),
+    paddingBottom: scaled(84, scale),
     justifyContent: "space-between",
   },
   logoBox: {
@@ -38,34 +57,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   logoMark: {
-    width: 76,
-    height: 76,
-    borderRadius: 18,
+    width: scaled(76, scale),
+    height: scaled(76, scale),
+    borderRadius: scaled(18, scale),
     backgroundColor: "#2ABD83",
     alignItems: "center",
     justifyContent: "center",
   },
   logoBars: {
     color: "#FFFFFF",
-    fontSize: 32,
+    fontSize: fontScaled(32, fontScale),
     fontFamily: "PretendardBold",
   },
   title: {
-    marginTop: 24,
+    marginTop: scaled(24, scale),
     color: "#2ABD83",
-    fontSize: 36,
+    fontSize: fontScaled(36, fontScale),
     fontFamily: "PretendardBold",
   },
   primaryButton: {
-    height: 56,
-    borderRadius: 8,
+    alignSelf: "center",
+    height: scaled(55, scale),
+    borderRadius: scaled(8, scale),
     backgroundColor: "#29CB88",
     alignItems: "center",
     justifyContent: "center",
+    width: buttonWidth,
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: fontScaled(20, fontScale),
     fontFamily: "PretendardBold",
   },
-});
+  });
+};
