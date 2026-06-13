@@ -2,14 +2,14 @@ export function getScreenScale(width: number, height: number) {
   const widthScale = Math.min(width / 428, 1);
   const heightScale = Math.min(height / 926, 1);
 
-  return Math.max(Math.min(widthScale, heightScale), 0.72);
+  return Math.max(Math.min(widthScale, heightScale), 0.64);
 }
 
 export function getFontScale(width: number, height: number) {
   const widthScale = Math.min(width / 428, 1);
   const heightScale = Math.min(height / 926, 1);
 
-  return Math.max(Math.min(widthScale, heightScale), 0.82);
+  return Math.max(Math.min(widthScale, heightScale), 0.76);
 }
 
 export function scaled(value: number, scale: number) {
