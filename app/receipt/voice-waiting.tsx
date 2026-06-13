@@ -1,7 +1,20 @@
+import {
+  fontScaled,
+  getFontScale,
+  getScreenScale,
+  scaled,
+} from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const questions = [
@@ -12,6 +25,13 @@ const questions = [
 
 export default function VoiceWaitingScreen() {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const scale = getScreenScale(width, height);
+  const fontScale = getFontScale(width, height);
+  const styles = useMemo(
+    () => createStyles(scale, fontScale),
+    [fontScale, scale],
+  );
   const [questionIndex, setQuestionIndex] = useState(-1);
   const [isListening, setIsListening] = useState(false);
 
@@ -83,7 +103,7 @@ export default function VoiceWaitingScreen() {
 
         <Pressable style={styles.micArea} onPress={handleMainAction}>
           {Array.from({ length: 10 }).map((_, index) => {
-            const size = 426 - index * 24;
+            const size = scaled(426 - index * 24, scale);
 
             return (
               <View
@@ -116,14 +136,14 @@ export default function VoiceWaitingScreen() {
 
 const isIOS = Platform.OS === "ios";
 
-const styles = StyleSheet.create({
+const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F7F7F7",
   },
   inner: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: scaled(24, scale),
   },
   topRow: {
     flexDirection: "row",
@@ -131,84 +151,84 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    width: 37,
-    height: 37,
-    borderRadius: 18.5,
+    width: scaled(37, scale),
+    height: scaled(37, scale),
+    borderRadius: scaled(18.5, scale),
     backgroundColor: "#ECECEC",
     alignItems: "center",
     justifyContent: "center",
   },
   modeButton: {
-    height: 37,
-    borderRadius: 18.5,
+    height: scaled(37, scale),
+    borderRadius: scaled(18.5, scale),
     backgroundColor: "#EEEEEE",
-    paddingHorizontal: 16,
+    paddingHorizontal: scaled(16, scale),
     alignItems: "center",
     justifyContent: "center",
   },
   modeButtonText: {
     color: "#6D6D6D",
-    fontSize: 14,
+    fontSize: fontScaled(14, fontScale),
     fontFamily: "PretendardMedium",
   },
   header: {
-    marginTop: 48,
+    marginTop: scaled(36, scale),
   },
   readyTitle: {
     color: "#2ABD83",
-    fontSize: 30,
+    fontSize: fontScaled(30, fontScale),
     fontFamily: "PretendardBold",
   },
   readyDescription: {
-    marginTop: 12,
+    marginTop: scaled(12, scale),
     color: "#9C9C9C",
-    fontSize: 20,
-    lineHeight: 29,
+    fontSize: fontScaled(20, fontScale),
+    lineHeight: fontScaled(29, fontScale),
     fontFamily: "PretendardSemiBold",
   },
   questionBox: {
-    marginTop: 34,
+    marginTop: scaled(26, scale),
   },
   questionCount: {
     color: "#333333",
-    fontSize: 14,
+    fontSize: fontScaled(14, fontScale),
     fontFamily: "PretendardBold",
   },
   friendAvatar: {
-    marginTop: 14,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    marginTop: scaled(14, scale),
+    width: scaled(52, scale),
+    height: scaled(52, scale),
+    borderRadius: scaled(26, scale),
     backgroundColor: "#D7F8EA",
     alignItems: "center",
     justifyContent: "center",
   },
   friendAvatarText: {
     color: "#2ABD83",
-    fontSize: 24,
+    fontSize: fontScaled(24, fontScale),
     fontFamily: "PretendardBold",
   },
   questionText: {
-    marginTop: 14,
+    marginTop: scaled(14, scale),
     color: "#2ABD83",
-    fontSize: 27,
-    lineHeight: 36,
+    fontSize: fontScaled(27, fontScale),
+    lineHeight: fontScaled(36, fontScale),
     fontFamily: "PretendardBold",
   },
   answerPrompt: {
-    marginTop: 74,
+    marginTop: scaled(42, scale),
     color: "#A0A0A0",
-    fontSize: 24,
+    fontSize: fontScaled(24, fontScale),
     textAlign: "right",
     fontFamily: "PretendardSemiBold",
   },
   listeningPill: {
     alignSelf: "center",
-    marginTop: 86,
-    height: 44,
-    borderRadius: 22,
+    marginTop: scaled(50, scale),
+    height: scaled(44, scale),
+    borderRadius: scaled(22, scale),
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 18,
+    paddingHorizontal: scaled(18, scale),
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -218,22 +238,22 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   listeningDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: scaled(12, scale),
+    height: scaled(12, scale),
+    borderRadius: scaled(6, scale),
     backgroundColor: "#62DDAF",
   },
   listeningText: {
     color: "#9A9A9A",
-    fontSize: 18,
+    fontSize: fontScaled(18, fontScale),
     fontFamily: "PretendardBold",
   },
   micArea: {
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: -20,
-    height: 260,
+    bottom: scaled(-16, scale),
+    height: scaled(260, scale),
     alignItems: "center",
     justifyContent: "center",
   },
@@ -248,9 +268,9 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   micCircle: {
-    width: 174,
-    height: 174,
-    borderRadius: 87,
+    width: scaled(174, scale),
+    height: scaled(174, scale),
+    borderRadius: scaled(87, scale),
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: isIOS ? "#F5F5F5" : "#F1F1F1",
@@ -266,9 +286,9 @@ const styles = StyleSheet.create({
     borderColor: "#DFF8ED",
   },
   micDots: {
-    marginTop: -28,
+    marginTop: scaled(-28, scale),
     color: "#2ABD83",
-    fontSize: 36,
+    fontSize: fontScaled(36, fontScale),
     fontFamily: "PretendardBold",
   },
 });
