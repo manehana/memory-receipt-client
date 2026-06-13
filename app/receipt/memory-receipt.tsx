@@ -1,17 +1,45 @@
+import {
+  fontScaled,
+  getFontScale,
+  getScreenScale,
+  scaled,
+} from "@/constants/responsive";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useRef } from "react";
-import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function MemoryReceipt() {
   const receiptHeight = useRef(new Animated.Value(0)).current;
   const receiptOpacity = useRef(new Animated.Value(0)).current;
+  const { width, height } = useWindowDimensions();
+  const scale = getScreenScale(width, height);
+  const fontScale = getFontScale(width, height);
+  const styles = useMemo(
+    () => createStyles(scale, fontScale, width),
+    [fontScale, scale, width],
+  );
+  const receiptMaxHeight = Math.max(
+    460,
+    Math.min(560, height - scaled(220, scale)),
+  );
 
   useEffect(() => {
+    receiptHeight.setValue(0);
+    receiptOpacity.setValue(0);
+
     Animated.sequence([
       Animated.timing(receiptHeight, {
-        toValue: 560,
+        toValue: receiptMaxHeight,
         duration: 900,
         useNativeDriver: false,
       }),
@@ -21,7 +49,7 @@ export default function MemoryReceipt() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [receiptHeight, receiptOpacity]);
+  }, [receiptHeight, receiptMaxHeight, receiptOpacity]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -75,46 +103,51 @@ export default function MemoryReceipt() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (scale: number, fontScale: number, screenWidth: number) => {
+  const receiptWidth = Math.round(Math.min(screenWidth * 0.64, 272));
+  const slotWidth = Math.round(Math.min(receiptWidth + scaled(44, scale), 324));
+
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#F7F7F7",
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: scaled(24, scale),
+    paddingTop: scaled(12, scale),
   },
   header: {
-    height: 58,
+    height: scaled(58, scale),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   headerTitle: {
     color: "#5E5E5E",
-    fontSize: 20,
+    fontSize: fontScaled(20, fontScale),
     fontFamily: "PretendardSemiBold",
   },
   headerSpacer: {
-    width: 28,
+    width: scaled(28, scale),
   },
   receiptArea: {
-    marginTop: 16,
+    marginTop: scaled(12, scale),
     alignItems: "center",
   },
   slot: {
-    width: "100%",
-    height: 50,
+    width: slotWidth,
+    height: scaled(50, scale),
     resizeMode: "contain",
     zIndex: 10,
   },
   receiptPaper: {
     position: "absolute",
-    top: 22,
-    width: "84%",
+    top: scaled(22, scale),
+    width: receiptWidth,
     backgroundColor: "#FFFDF7",
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+    borderBottomLeftRadius: scaled(12, scale),
+    borderBottomRightRadius: scaled(12, scale),
     zIndex: 20,
     overflow: "hidden",
     shadowColor: "#000000",
@@ -123,77 +156,78 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   receiptContent: {
-    padding: 24,
+    padding: scaled(20, scale),
   },
   receiptTitle: {
     color: "#009B66",
-    fontSize: 18,
+    fontSize: fontScaled(18, fontScale),
     textAlign: "center",
     fontFamily: "PretendardBold",
   },
   photoPlaceholder: {
-    marginTop: 20,
-    height: 124,
-    borderRadius: 8,
+    marginTop: scaled(16, scale),
+    height: scaled(104, scale),
+    borderRadius: scaled(8, scale),
     backgroundColor: "#E8F7EF",
     alignItems: "center",
     justifyContent: "center",
   },
   photoText: {
     color: "#2ABD83",
-    fontSize: 16,
+    fontSize: fontScaled(16, fontScale),
     fontFamily: "PretendardBold",
   },
   sectionTitle: {
-    marginTop: 18,
+    marginTop: scaled(14, scale),
     color: "#009B66",
-    fontSize: 16,
+    fontSize: fontScaled(16, fontScale),
     fontFamily: "PretendardBold",
   },
   summary: {
-    marginTop: 8,
-    borderRadius: 6,
+    marginTop: scaled(8, scale),
+    borderRadius: scaled(6, scale),
     backgroundColor: "#EFEAE0",
-    padding: 10,
+    padding: scaled(10, scale),
     color: "#474747",
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: fontScaled(14, fontScale),
+    lineHeight: fontScaled(21, fontScale),
     fontFamily: "PretendardSemiBold",
   },
   item: {
-    marginTop: 10,
+    marginTop: scaled(8, scale),
     color: "#666666",
-    fontSize: 14,
+    fontSize: fontScaled(14, fontScale),
     fontFamily: "PretendardSemiBold",
   },
   barcode: {
-    marginTop: 24,
+    marginTop: scaled(16, scale),
     color: "#777777",
-    fontSize: 34,
+    fontSize: fontScaled(34, fontScale),
     textAlign: "center",
-    letterSpacing: 2,
+    letterSpacing: 1,
   },
   date: {
-    marginTop: 6,
+    marginTop: scaled(6, scale),
     color: "#009B66",
-    fontSize: 14,
+    fontSize: fontScaled(14, fontScale),
     textAlign: "center",
     fontFamily: "PretendardMedium",
   },
   footer: {
     marginTop: "auto",
-    paddingBottom: 76,
+    paddingBottom: scaled(44, scale),
   },
   saveButton: {
-    height: 56,
-    borderRadius: 8,
+    height: scaled(56, scale),
+    borderRadius: scaled(8, scale),
     backgroundColor: "#363636",
     alignItems: "center",
     justifyContent: "center",
   },
   saveButtonText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: fontScaled(18, fontScale),
     fontFamily: "PretendardBold",
   },
-});
+  });
+};
