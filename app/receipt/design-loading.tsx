@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function DesignLoadingScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.replace("/receipt/onboarding");
+      router.replace("/receipt/voice-waiting");
     }, 1000);
 
     return () => clearTimeout(timer);
