@@ -149,7 +149,7 @@ const createStyles = (
     logo: {
       alignSelf: "center",
       height: logoHeight,
-      marginTop: Math.round(screenHeight * 0.36),
+      marginTop: Math.round(screenHeight * 0.34),
       width: logoWidth,
     },
     buttonWrap: {
