@@ -1,7 +1,20 @@
+import {
+  fontScaled,
+  getFontScale,
+  getScreenScale,
+  scaled,
+} from "@/constants/responsive";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 const LoadingBg1 = require("@/assets/images/memory-receipt-loading/memory-receipt-loading1-bg.png");
 const LoadingBg2 = require("@/assets/images/memory-receipt-loading/memory-receipt-loading2-bg.png");
@@ -10,6 +23,13 @@ const LoadingBg4 = require("@/assets/images/memory-receipt-loading/memory-receip
 
 export default function MemoryReceiptLoading() {
   const [progress, setProgress] = useState(0);
+  const { width, height } = useWindowDimensions();
+  const scale = getScreenScale(width, height);
+  const fontScale = getFontScale(width, height);
+  const styles = useMemo(
+    () => createStyles(scale, fontScale),
+    [fontScale, scale],
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -78,7 +98,7 @@ export default function MemoryReceiptLoading() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#F7F7F7",
@@ -95,60 +115,60 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 62,
+    paddingHorizontal: scaled(24, scale),
+    paddingTop: scaled(44, scale),
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: scaled(40, scale),
+    height: scaled(40, scale),
     justifyContent: "center",
-    marginLeft: -6,
+    marginLeft: scaled(-6, scale),
   },
   textBox: {
-    marginTop: 68,
+    marginTop: scaled(42, scale),
   },
   title: {
     color: "#2ABD83",
-    fontSize: 32,
+    fontSize: fontScaled(32, fontScale),
     fontFamily: "PretendardBold",
-    lineHeight: 40,
+    lineHeight: fontScaled(40, fontScale),
   },
   description: {
-    marginTop: 12,
+    marginTop: scaled(12, scale),
     color: "#9F9F9F",
-    fontSize: 20,
+    fontSize: fontScaled(20, fontScale),
     fontFamily: "PretendardMedium",
-    lineHeight: 26,
+    lineHeight: fontScaled(26, fontScale),
   },
   centerArea: {
     flex: 1,
   },
   progressBox: {
-    marginBottom: 180,
+    marginBottom: scaled(150, scale),
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
   },
   progressLabel: {
     color: "#9F9F9F",
-    fontSize: 24,
+    fontSize: fontScaled(24, fontScale),
     fontFamily: "PretendardSemiBold",
   },
   progressValue: {
     color: "#2ABD83",
-    fontSize: 24,
+    fontSize: fontScaled(24, fontScale),
     fontFamily: "PretendardBold",
   },
   helpButton: {
     position: "absolute",
-    bottom: 100,
+    bottom: scaled(72, scale),
     left: 0,
     right: 0,
     alignItems: "center",
   },
   helpText: {
     color: "#BFBFBF",
-    fontSize: 20,
+    fontSize: fontScaled(20, fontScale),
     fontFamily: "PretendardMedium",
   },
 });
