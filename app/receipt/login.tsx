@@ -93,7 +93,7 @@ export default function LoginScreen() {
 
     loginTimerRef.current = setTimeout(() => {
       loginTimerRef.current = null;
-      router.push("/receipt/design-loading");
+      router.push("/receipt/main");
     }, 700);
   };
 
