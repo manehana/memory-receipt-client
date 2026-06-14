@@ -6,7 +6,7 @@ import {
 } from "@/constants/responsive";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
@@ -58,6 +58,7 @@ function getStageText(progress: number) {
 export default function MemoryReceiptLoading() {
   const [progress, setProgress] = useState(0);
   const progressAnim = useSharedValue(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
@@ -74,23 +75,30 @@ export default function MemoryReceiptLoading() {
     strokeDashoffset: CIRCUMFERENCE * (1 - progressAnim.value / 100),
   }));
 
-  useEffect(() => {
-    const interval = setInterval(() => {
+  const startProgress = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setProgress(0);
+    progressAnim.value = 0;
+
+    intervalRef.current = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
-          clearInterval(interval);
+          if (intervalRef.current) clearInterval(intervalRef.current);
           return 100;
         }
-        const next = prev + 2;
+        const next = prev + 1;
         progressAnim.value = withTiming(next, {
           duration: 200,
           easing: Easing.out(Easing.quad),
         });
         return next;
       });
-    }, 40);
+    }, 120); // 1% / 120ms → 약 12초
+  };
 
-    return () => clearInterval(interval);
+  useEffect(() => {
+    startProgress();
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
   useEffect(() => {
@@ -158,8 +166,8 @@ export default function MemoryReceiptLoading() {
         </View>
 
         {/* 진행률~버튼: 107px (402 기준) → scaled(114) */}
-        <Pressable style={styles.helpButton} onPress={() => router.replace("/receipt/memory-receipt")}>
-          <Text style={styles.helpText}>바로 보기</Text>
+        <Pressable style={styles.helpButton} onPress={startProgress}>
+          <Text style={styles.helpText}>제작이 안돼요</Text>
         </Pressable>
       </View>
     </View>
