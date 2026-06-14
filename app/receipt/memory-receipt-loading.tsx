@@ -15,9 +15,17 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 
 const LoadingBg = require("@/assets/images/memory-receipt-loading/memory-receipt-loading-bg.png");
 const LoadingIcon = require("@/assets/images/memory-receipt-loading/memory-receipt-loading-icon.png");
+
+const ICON_SIZE = 236;
+const STROKE_WIDTH = 10;
+const CIRCLE_VIEWBOX = ICON_SIZE + STROKE_WIDTH * 2;
+const RADIUS = (CIRCLE_VIEWBOX - STROKE_WIDTH) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const CX = CIRCLE_VIEWBOX / 2;
 
 export default function MemoryReceiptLoading() {
   const [progress, setProgress] = useState(0);
@@ -28,6 +36,10 @@ export default function MemoryReceiptLoading() {
     () => createStyles(scale, fontScale),
     [fontScale, scale],
   );
+
+  const svgSize = scaled(CIRCLE_VIEWBOX, scale);
+  const iconSize = scaled(ICON_SIZE, scale);
+  const strokeDashoffset = CIRCUMFERENCE * (1 - progress / 100);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -68,7 +80,40 @@ export default function MemoryReceiptLoading() {
         </View>
 
         <View style={styles.centerArea}>
-          <Image source={LoadingIcon} style={styles.loadingIcon} resizeMode="contain" />
+          <View style={{ width: svgSize, height: svgSize, justifyContent: "center", alignItems: "center" }}>
+            <Image
+              source={LoadingIcon}
+              style={{ width: iconSize, height: iconSize, position: "absolute" }}
+              resizeMode="contain"
+            />
+            <Svg
+              width={svgSize}
+              height={svgSize}
+              viewBox={`0 0 ${CIRCLE_VIEWBOX} ${CIRCLE_VIEWBOX}`}
+              style={{ position: "absolute" }}
+            >
+              <Circle
+                cx={CX}
+                cy={CX}
+                r={RADIUS}
+                stroke="#E0E0E0"
+                strokeWidth={STROKE_WIDTH}
+                fill="none"
+              />
+              <Circle
+                cx={CX}
+                cy={CX}
+                r={RADIUS}
+                stroke="#23CC89"
+                strokeWidth={STROKE_WIDTH}
+                fill="none"
+                strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                transform={`rotate(-90, ${CX}, ${CX})`}
+              />
+            </Svg>
+          </View>
         </View>
 
         <View style={styles.progressBox}>
@@ -130,10 +175,6 @@ const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  loadingIcon: {
-    width: scaled(200, scale),
-    height: scaled(200, scale),
   },
   progressBox: {
     marginBottom: scaled(150, scale),
