@@ -35,6 +35,25 @@ const CX = CIRCLE_VIEWBOX / 2;
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+function getStageText(progress: number) {
+  if (progress >= 100) {
+    return {
+      title: "기억 영수증 제작 완료!",
+      description: "기억 수첩에 자동 저장돼요\n언제든 기억 수첩에서 모아서 볼 수 있어요.",
+    };
+  }
+  if (progress >= 75) {
+    return {
+      title: "거의다 만들었어요!",
+      description: "기억 수첩에 자동 저장돼요.\n언제든 기억 수첩에서 모아서 볼 수 있어요.",
+    };
+  }
+  return {
+    title: "기억 영수증 제작 중..",
+    description: "오늘 나눈 대화를 바탕으로\n기억 영수증을 만들고 있어요.",
+  };
+}
+
 export default function MemoryReceiptLoading() {
   const [progress, setProgress] = useState(0);
   const progressAnim = useSharedValue(0);
@@ -48,6 +67,7 @@ export default function MemoryReceiptLoading() {
 
   const svgSize = scaled(CIRCLE_VIEWBOX, scale);
   const iconSize = scaled(ICON_SIZE, scale);
+  const { title, description } = getStageText(progress);
 
   const animatedProps = useAnimatedProps(() => ({
     strokeDashoffset: CIRCUMFERENCE * (1 - progressAnim.value / 100),
@@ -90,10 +110,8 @@ export default function MemoryReceiptLoading() {
         </Pressable>
 
         <View style={styles.textBox}>
-          <Text style={styles.title}>기억 영수증 제작 중..</Text>
-          <Text style={styles.description}>
-            오늘 나눈 대화를 바탕으로{"\n"}기억 영수증을 만들고 있어요.
-          </Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.description}>{description}</Text>
         </View>
 
         <View style={styles.centerArea}>
