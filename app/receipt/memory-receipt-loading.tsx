@@ -16,10 +16,8 @@ import {
   View,
 } from "react-native";
 
-const LoadingBg1 = require("@/assets/images/memory-receipt-loading/memory-receipt-loading1-bg.png");
-const LoadingBg2 = require("@/assets/images/memory-receipt-loading/memory-receipt-loading2-bg.png");
-const LoadingBg3 = require("@/assets/images/memory-receipt-loading/memory-receipt-loading3-bg.png");
-const LoadingBg4 = require("@/assets/images/memory-receipt-loading/memory-receipt-loading4-bg.png");
+const LoadingBg = require("@/assets/images/memory-receipt-loading/memory-receipt-loading-bg.png");
+const LoadingIcon = require("@/assets/images/memory-receipt-loading/memory-receipt-loading-icon.png");
 
 export default function MemoryReceiptLoading() {
   const [progress, setProgress] = useState(0);
@@ -38,7 +36,6 @@ export default function MemoryReceiptLoading() {
           clearInterval(interval);
           return 100;
         }
-
         return prev + 2;
       });
     }, 40);
@@ -47,29 +44,16 @@ export default function MemoryReceiptLoading() {
   }, []);
 
   useEffect(() => {
-    if (progress < 100) {
-      return;
-    }
-
+    if (progress < 100) return;
     const timer = setTimeout(() => {
       router.replace("/receipt/memory-receipt");
     }, 350);
-
     return () => clearTimeout(timer);
   }, [progress]);
 
-  const backgroundSource =
-    progress >= 100
-      ? LoadingBg4
-      : progress >= 80
-        ? LoadingBg3
-        : progress >= 20
-          ? LoadingBg2
-          : LoadingBg1;
-
   return (
     <View style={styles.root}>
-      <Image source={backgroundSource} style={styles.backgroundImage} resizeMode="stretch" />
+      <Image source={LoadingBg} style={styles.backgroundImage} resizeMode="stretch" />
 
       <View style={styles.container}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
@@ -77,13 +61,15 @@ export default function MemoryReceiptLoading() {
         </Pressable>
 
         <View style={styles.textBox}>
-          <Text style={styles.title}>기억 영수증 제작 중...</Text>
+          <Text style={styles.title}>기억 영수증 제작 중..</Text>
           <Text style={styles.description}>
-            오늘 나눈 대화를 바탕으로 기억{"\n"}영수증을 만들고 있어요.{"\n"}조금만 기다려 주세요.
+            오늘 나눈 대화를 바탕으로{"\n"}기억 영수증을 만들고 있어요.
           </Text>
         </View>
 
-        <View style={styles.centerArea} />
+        <View style={styles.centerArea}>
+          <Image source={LoadingIcon} style={styles.loadingIcon} resizeMode="contain" />
+        </View>
 
         <View style={styles.progressBox}>
           <Text style={styles.progressLabel}>진행률 </Text>
@@ -142,6 +128,12 @@ const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
   },
   centerArea: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingIcon: {
+    width: scaled(200, scale),
+    height: scaled(200, scale),
   },
   progressBox: {
     marginBottom: scaled(150, scale),
