@@ -1,16 +1,15 @@
 import {
   fontScaled,
-  getFontScale,
-  getScreenScale,
   scaled,
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Image,
   ImageSourcePropType,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -18,6 +17,20 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const BASE_WIDTH = 402;
+const BASE_HEIGHT = 874;
+const ANSWER_TYPING_INTERVAL_MS = 58;
+const COMPLETE_PRESSED_MS = 180;
+const COMPLETE_DONE_MS = 650;
+const voiceIdleCircleImage = require("../../assets/images/voice/voice-idle-circle.png");
+const voiceIdleSmallCircleImage = require("../../assets/images/voice/voice-idle-small-circle.png");
+const voiceListeningCircleImage = require("../../assets/images/voice/voice-listening-circle.png");
+const voiceListeningMicroCircleImage = require("../../assets/images/voice/voice-listening-micro-circle.png");
+const voiceListeningSmallCircleBlurImage = require("../../assets/images/voice/voice-listening-small-circle-blur.png");
+const voiceListeningSmallCircleImage = require("../../assets/images/voice/voice-listening-small-circle.png");
+
+type CompleteStatus = "ready" | "pressed" | "done";
 
 type ConversationFriend = {
   id: string;
@@ -65,29 +78,218 @@ const friends: ConversationFriend[] = [
 
 const questions = [
   "오늘 카페에 다녀오셨어요.\n어떤 점이 좋았는데, 기억나세요?",
-  "누구와 함께 시간을 보내셨나요?",
+  "아쉽네요..카페 갔다가\n어디가셨는지 기억나세요?",
   "오늘 가장 기억에 남는 시간은 무엇이었나요?",
+];
+
+const sampleAnswers = [
+  "음, 오랜만에 카페가서 기분이\n좋았어",
+  "어디 갔더라..?\n집으로 바로 갔었나..아 아니다\n편의점에서 두부를 사갔었지\n깜빡하고 두부를 안샀지 뭐야~",
+  "친구들이랑 오래 이야기한 시간이\n제일 좋았어",
 ];
 
 export default function VoiceWaitingScreen() {
   const insets = useSafeAreaInsets();
   const { friendId } = useLocalSearchParams<{ friendId?: string }>();
   const { width, height } = useWindowDimensions();
-  const scale = getScreenScale(width, height);
-  const fontScale = getFontScale(width, height);
+  const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT, 1);
+  const circleScale = Math.min(width / BASE_WIDTH, 1);
+  const pillBaseScale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT);
+  const pillScale =
+    pillBaseScale > 1
+      ? 1 + (pillBaseScale - 1) * 0.45
+      : Math.max(pillBaseScale, 0.76);
+  const fontScale = Math.max(scale, 0.76);
   const styles = useMemo(
-    () => createStyles(scale, fontScale),
-    [fontScale, scale],
+    () => createStyles(scale, fontScale, circleScale, pillScale),
+    [circleScale, fontScale, pillScale, scale],
   );
+  const listeningCircleOpacity = useRef(new Animated.Value(0)).current;
+  const listeningBadgePulse = useRef(new Animated.Value(0)).current;
+  const listeningBlurPulse = useRef(new Animated.Value(0)).current;
+  const listeningMicroOffsets = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+  const completeTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [questionIndex, setQuestionIndex] = useState(-1);
   const [isListening, setIsListening] = useState(false);
+  const [hasResponse, setHasResponse] = useState(false);
+  const [displayedAnswer, setDisplayedAnswer] = useState("");
+  const [completeStatus, setCompleteStatus] =
+    useState<CompleteStatus>("ready");
 
   const selectedFriend =
     friends.find((friend) => friend.id === friendId) ?? friends[0];
+  const isVoiceActive = isListening || hasResponse;
+  const currentAnswer = questionIndex >= 0 ? sampleAnswers[questionIndex] : "";
+  const isAnswerTyping =
+    hasResponse && displayedAnswer.length < currentAnswer.length;
+
+  const clearCompleteTimers = () => {
+    completeTimers.current.forEach((timer) => clearTimeout(timer));
+    completeTimers.current = [];
+  };
+
+  useEffect(() => clearCompleteTimers, []);
+
+  useEffect(() => {
+    Animated.timing(listeningCircleOpacity, {
+      duration: 360,
+      toValue: isVoiceActive ? 1 : 0,
+      useNativeDriver: true,
+    }).start();
+  }, [isVoiceActive, listeningCircleOpacity]);
+
+  useEffect(() => {
+    if (!isVoiceActive) {
+      listeningBadgePulse.stopAnimation();
+      listeningBadgePulse.setValue(0);
+      listeningBlurPulse.stopAnimation();
+      listeningBlurPulse.setValue(0);
+      listeningMicroOffsets.forEach((offset) => {
+        offset.stopAnimation();
+        offset.setValue(0);
+      });
+      return;
+    }
+
+    const badgeAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(listeningBadgePulse, {
+          duration: 720,
+          easing: Easing.inOut(Easing.quad),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(listeningBadgePulse, {
+          duration: 720,
+          easing: Easing.inOut(Easing.quad),
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(listeningBlurPulse, {
+          duration: 760,
+          easing: Easing.out(Easing.quad),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(listeningBlurPulse, {
+          duration: 760,
+          easing: Easing.in(Easing.quad),
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    badgeAnimation.start();
+    pulseAnimation.start();
+    const makeWave = (offset: Animated.Value) =>
+      Animated.sequence([
+        Animated.timing(offset, {
+          duration: 290,
+          toValue: -7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(offset, {
+          duration: 290,
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]);
+
+    const microAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.stagger(150, listeningMicroOffsets.map(makeWave)),
+        Animated.delay(120),
+      ]),
+    );
+
+    microAnimation.start();
+
+    return () => {
+      badgeAnimation.stop();
+      pulseAnimation.stop();
+      microAnimation.stop();
+    };
+  }, [
+    isVoiceActive,
+    listeningBadgePulse,
+    listeningBlurPulse,
+    listeningMicroOffsets,
+  ]);
+
+  useEffect(() => {
+    if (!hasResponse || questionIndex < 0) {
+      setDisplayedAnswer("");
+      return;
+    }
+
+    const fullAnswer = sampleAnswers[questionIndex];
+    setDisplayedAnswer("");
+
+    let nextLength = 0;
+    const timer = setInterval(() => {
+      nextLength += 1;
+      setDisplayedAnswer(fullAnswer.slice(0, nextLength));
+
+      if (nextLength >= fullAnswer.length) {
+        clearInterval(timer);
+      }
+    }, ANSWER_TYPING_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [hasResponse, questionIndex]);
 
   const startQuestion = () => {
+    clearCompleteTimers();
     setQuestionIndex(0);
     setIsListening(false);
+    setHasResponse(false);
+    setCompleteStatus("ready");
+  };
+
+  const moveToNextQuestion = () => {
+    if (questionIndex >= questions.length - 1) {
+      router.replace("/receipt/memory-receipt-loading");
+      return;
+    }
+
+    setQuestionIndex(questionIndex + 1);
+    setIsListening(false);
+    setHasResponse(false);
+    setDisplayedAnswer("");
+    setCompleteStatus("ready");
+  };
+
+  const handleCompletePress = () => {
+    if (
+      completeStatus !== "ready" ||
+      displayedAnswer.length < currentAnswer.length
+    ) {
+      return;
+    }
+
+    clearCompleteTimers();
+    setCompleteStatus("pressed");
+
+    const pressedTimer = setTimeout(() => {
+      setCompleteStatus("done");
+
+      const doneTimer = setTimeout(() => {
+        moveToNextQuestion();
+      }, COMPLETE_DONE_MS);
+
+      completeTimers.current.push(doneTimer);
+    }, COMPLETE_PRESSED_MS);
+
+    completeTimers.current.push(pressedTimer);
   };
 
   const handleMainAction = () => {
@@ -96,18 +298,19 @@ export default function VoiceWaitingScreen() {
       return;
     }
 
+    if (hasResponse) {
+      handleCompletePress();
+      return;
+    }
+
     if (!isListening) {
       setIsListening(true);
       return;
     }
 
-    if (questionIndex >= questions.length - 1) {
-      router.replace("/receipt/memory-receipt-loading");
-      return;
-    }
-
-    setQuestionIndex(questionIndex + 1);
     setIsListening(false);
+    setHasResponse(true);
+    setCompleteStatus("ready");
   };
 
   const questionNumber = questionIndex + 1;
@@ -121,7 +324,9 @@ export default function VoiceWaitingScreen() {
             onPress={() => router.replace("/receipt/main")}
             style={styles.backButton}
           >
-            <Ionicons color="#7A7A7A" name="chevron-back" size={22} />
+            <Text maxFontSizeMultiplier={1.1} style={styles.backButtonText}>
+              ‹
+            </Text>
           </Pressable>
 
           <Pressable style={styles.modeButton}>
@@ -143,7 +348,8 @@ export default function VoiceWaitingScreen() {
         ) : (
           <View style={styles.questionBox}>
             <Text maxFontSizeMultiplier={1.1} style={styles.questionCount}>
-              질문 {questionNumber}/3
+              질문 <Text style={styles.questionCountCurrent}>{questionNumber}</Text>/
+              {questions.length}
             </Text>
             <View style={styles.friendAvatar}>
               <Image
@@ -158,58 +364,296 @@ export default function VoiceWaitingScreen() {
             {isListening ? (
               <>
                 <Text maxFontSizeMultiplier={1.1} style={styles.answerPrompt}>
-                  지금 응답해주세요...
+                  지금 응답해주세요...|
                 </Text>
-                <View style={styles.listeningPill}>
-                  <View style={styles.listeningDot} />
-                  <Text maxFontSizeMultiplier={1.1} style={styles.listeningText}>
+                <View style={styles.listeningBadge}>
+                  <View style={styles.listeningBadgeDotFrame}>
+                    <Animated.View
+                      style={[
+                        styles.listeningBadgeDotOuter,
+                        {
+                          transform: [
+                            {
+                              scale: listeningBadgePulse.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [1, 1.08],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                    <View style={styles.listeningBadgeDotInner} />
+                  </View>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.listeningBadgeText}
+                  >
                     듣고 있어요..
                   </Text>
                 </View>
+              </>
+            ) : null}
+            {hasResponse ? (
+              <>
+                <View style={styles.answerArea}>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.answerText}>
+                    {displayedAnswer}
+                  </Text>
+                </View>
+                {displayedAnswer.length >= currentAnswer.length ? (
+                  <Pressable
+                  disabled={completeStatus !== "ready"}
+                  onPress={handleCompletePress}
+                  style={[
+                    styles.completeButton,
+                    completeStatus === "pressed" && styles.completeButtonPressed,
+                  ]}
+                >
+                  {completeStatus === "ready" ? (
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.completeButtonText}
+                      >
+                        응답 완료
+                      </Text>
+                    ) : null}
+                    {completeStatus === "done" ? (
+                      <Ionicons
+                        color="#FFFFFF"
+                        name="checkmark-outline"
+                        size={scaled(33, pillScale)}
+                      />
+                    ) : null}
+                  </Pressable>
+                ) : null}
               </>
             ) : null}
           </View>
         )}
 
         <Pressable style={styles.micArea} onPress={handleMainAction}>
-          {Array.from({ length: 10 }).map((_, index) => {
-            const size = scaled(426 - index * 24, scale);
-
-            return (
-              <View
-                key={index}
+          <View style={styles.voiceCircleFrame}>
+            <Animated.Image
+              resizeMode="stretch"
+              source={voiceIdleCircleImage}
+              style={[
+                styles.voiceCircleImage,
+                {
+                  opacity: listeningCircleOpacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 0],
+                  }),
+                },
+              ]}
+            />
+            <Animated.Image
+              resizeMode="stretch"
+              source={voiceListeningCircleImage}
+              style={[
+                styles.voiceCircleImage,
+                { opacity: listeningCircleOpacity },
+              ]}
+            />
+            <View pointerEvents="none" style={styles.voiceSmallCircleLayer}>
+              <Animated.Image
+                resizeMode="contain"
+                source={voiceIdleSmallCircleImage}
                 style={[
-                  styles.waveCircle,
+                  styles.voiceSmallCircle,
                   {
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                    borderColor: isListening ? "#DFF8ED" : "#F4F4F4",
+                    opacity: listeningCircleOpacity.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 0],
+                    }),
                   },
                 ]}
               />
-            );
-          })}
-
-          <View style={[styles.micCircle, isListening && styles.micCircleActive]}>
-            {isListening ? (
-              <Text maxFontSizeMultiplier={1.1} style={styles.micDots}>
-                ...
-              </Text>
-            ) : (
-              <Ionicons color="#A1A1A1" name="mic" size={48} />
-            )}
+              <Animated.Image
+                resizeMode="contain"
+                source={voiceListeningSmallCircleBlurImage}
+                style={[
+                  styles.voiceListeningSmallCircleBlur,
+                  {
+                    opacity: listeningCircleOpacity,
+                    transform: [
+                      {
+                        scale: listeningBlurPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.92, 1.08],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+              <Animated.Image
+                resizeMode="contain"
+                source={voiceListeningSmallCircleImage}
+                style={[
+                  styles.voiceSmallCircle,
+                  { opacity: listeningCircleOpacity },
+                ]}
+              />
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.voiceMicroCircleRow,
+                  { opacity: listeningCircleOpacity },
+                ]}
+              >
+                {listeningMicroOffsets.map((offset, index) => (
+                  <Animated.View
+                    key={index}
+                    style={[
+                      styles.voiceMicroCircleWrap,
+                      {
+                        transform: [{ translateY: offset }],
+                      },
+                    ]}
+                  >
+                    <Image
+                      resizeMode="contain"
+                      source={voiceListeningMicroCircleImage}
+                      style={styles.voiceMicroCircle}
+                    />
+                  </Animated.View>
+                ))}
+              </Animated.View>
+            </View>
+            <View pointerEvents="box-none" style={styles.circleActionPillLayer}>
+              {isListening || isAnswerTyping ? (
+                <View style={styles.floatingListeningBadge}>
+                  <View style={styles.listeningBadgeDotFrame}>
+                    <Animated.View
+                      style={[
+                        styles.listeningBadgeDotOuter,
+                        {
+                          transform: [
+                            {
+                              scale: listeningBadgePulse.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [1, 1.08],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                    <View style={styles.listeningBadgeDotInner} />
+                  </View>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.listeningBadgeText}
+                  >
+                    듣고 있어요..
+                  </Text>
+                </View>
+              ) : null}
+              {hasResponse && displayedAnswer.length >= currentAnswer.length ? (
+                <Pressable
+                  disabled={completeStatus !== "ready"}
+                  onPress={handleCompletePress}
+                  style={[
+                    styles.floatingCompleteButton,
+                    completeStatus === "pressed" && styles.completeButtonPressed,
+                  ]}
+                >
+                  {completeStatus === "ready" ? (
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.completeButtonText}
+                    >
+                      응답 완료
+                    </Text>
+                  ) : null}
+                  {completeStatus === "done" ? (
+                    <Ionicons
+                      color="#FFFFFF"
+                      name="checkmark-outline"
+                      size={scaled(33, pillScale)}
+                    />
+                  ) : null}
+                </Pressable>
+              ) : null}
+            </View>
           </View>
+
         </Pressable>
+
+        <View pointerEvents="box-none" style={styles.actionPillLayer}>
+          {isListening || isAnswerTyping ? (
+            <View style={styles.floatingListeningBadge}>
+              <View style={styles.listeningBadgeDotFrame}>
+                <Animated.View
+                  style={[
+                    styles.listeningBadgeDotOuter,
+                    {
+                      transform: [
+                        {
+                          scale: listeningBadgePulse.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 1.08],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <View style={styles.listeningBadgeDotInner} />
+              </View>
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={styles.listeningBadgeText}
+              >
+                듣고 있어요..
+              </Text>
+            </View>
+          ) : null}
+          {hasResponse && displayedAnswer.length >= currentAnswer.length ? (
+            <Pressable
+              disabled={completeStatus !== "ready"}
+              onPress={handleCompletePress}
+              style={[
+                styles.floatingCompleteButton,
+                completeStatus === "pressed" && styles.completeButtonPressed,
+              ]}
+            >
+              {completeStatus === "ready" ? (
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.completeButtonText}
+                >
+                  응답 완료
+                </Text>
+              ) : null}
+              {completeStatus === "done" ? (
+                <Ionicons
+                  color="#FFFFFF"
+                  name="checkmark-outline"
+                  size={scaled(33, pillScale)}
+                />
+              ) : null}
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </View>
   );
 }
 
-const isIOS = Platform.OS === "ios";
+const createStyles = (
+  scale: number,
+  fontScale: number,
+  circleScale: number,
+  pillScale: number,
+) => {
+  const actionPillWidth = scaled(146, pillScale);
+  const actionPillHeight = scaled(49, pillScale);
+  const actionPillBottom = scaled(304, pillScale);
+  const largePhonePillLift = Math.round(Math.max(pillScale - 1, 0) * 220);
 
-const createStyles = (scale: number, fontScale: number) =>
-  StyleSheet.create({
+  return StyleSheet.create({
     container: {
       backgroundColor: "#F7F7F7",
       flex: 1,
@@ -230,6 +674,13 @@ const createStyles = (scale: number, fontScale: number) =>
       height: scaled(37, scale),
       justifyContent: "center",
       width: scaled(37, scale),
+    },
+    backButtonText: {
+      color: "#7A7A7A",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(31, fontScale),
+      lineHeight: fontScaled(31, fontScale),
+      marginTop: scaled(-4, scale),
     },
     modeButton: {
       alignItems: "center",
@@ -261,11 +712,15 @@ const createStyles = (scale: number, fontScale: number) =>
     },
     questionBox: {
       marginTop: scaled(26, scale),
+      position: "relative",
     },
     questionCount: {
       color: "#333333",
-      fontFamily: "PretendardBold",
-      fontSize: fontScaled(14, fontScale),
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(16, fontScale),
+    },
+    questionCountCurrent: {
+      color: "#B9B9B9",
     },
     friendAvatar: {
       height: scaled(58, scale),
@@ -279,16 +734,150 @@ const createStyles = (scale: number, fontScale: number) =>
     questionText: {
       color: "#2ABD83",
       fontFamily: "PretendardBold",
-      fontSize: fontScaled(27, fontScale),
-      lineHeight: fontScaled(36, fontScale),
+      fontSize: fontScaled(28, fontScale),
+      lineHeight: fontScaled(37, fontScale),
       marginTop: scaled(14, scale),
     },
     answerPrompt: {
       color: "#A0A0A0",
       fontFamily: "PretendardSemiBold",
-      fontSize: fontScaled(24, fontScale),
-      marginTop: scaled(42, scale),
+      fontSize: fontScaled(25, fontScale),
+      lineHeight: fontScaled(34, fontScale),
+      marginTop: scaled(88, scale),
       textAlign: "right",
+    },
+    answerArea: {
+      justifyContent: "center",
+      marginTop: scaled(36, scale),
+      minHeight: scaled(126, scale),
+    },
+    answerText: {
+      color: "#3B3B3B",
+      fontFamily: "PretendardBold",
+      fontSize: fontScaled(25, fontScale),
+      lineHeight: fontScaled(34, fontScale),
+      textAlign: "right",
+    },
+    actionPillLayer: {
+      alignItems: "center",
+      bottom: actionPillBottom,
+      display: "none",
+      left: 0,
+      pointerEvents: "box-none",
+      position: "absolute",
+      right: 0,
+      zIndex: 20,
+    },
+    circleActionPillLayer: {
+      alignItems: "center",
+      left: 0,
+      pointerEvents: "box-none",
+      position: "absolute",
+      right: 0,
+      top: scaled(-8, circleScale) - largePhonePillLift,
+      zIndex: 30,
+    },
+    listeningBadge: {
+      display: "none",
+      alignItems: "center",
+      alignSelf: "center",
+      backgroundColor: "#FFFFFF",
+      borderRadius: actionPillHeight / 2,
+      elevation: 6,
+      flexDirection: "row",
+      height: actionPillHeight,
+      justifyContent: "center",
+      gap: scaled(10, pillScale),
+      left: "50%",
+      position: "absolute",
+      shadowColor: "#13BB78",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      transform: [{ translateX: -actionPillWidth / 2 }],
+      width: actionPillWidth,
+    },
+    floatingListeningBadge: {
+      alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      borderRadius: actionPillHeight / 2,
+      elevation: 20,
+      flexDirection: "row",
+      gap: scaled(10, pillScale),
+      height: actionPillHeight,
+      justifyContent: "center",
+      shadowColor: "#13BB78",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      width: actionPillWidth,
+      zIndex: 20,
+    },
+    listeningBadgeDotFrame: {
+      alignItems: "center",
+      height: scaled(26, pillScale),
+      justifyContent: "center",
+      width: scaled(26, pillScale),
+    },
+    listeningBadgeDotOuter: {
+      backgroundColor: "#9FF3D1",
+      borderRadius: scaled(13, pillScale),
+      height: scaled(26, pillScale),
+      position: "absolute",
+      width: scaled(26, pillScale),
+    },
+    listeningBadgeDotInner: {
+      backgroundColor: "#54E5AC",
+      borderRadius: scaled(8, pillScale),
+      height: scaled(16, pillScale),
+      width: scaled(16, pillScale),
+    },
+    listeningBadgeText: {
+      color: "#9A9A9A",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(17, pillScale),
+      lineHeight: fontScaled(24, pillScale),
+    },
+    completeButton: {
+      display: "none",
+      alignItems: "center",
+      alignSelf: "center",
+      backgroundColor: "#3F3F3F",
+      borderRadius: actionPillHeight / 2,
+      elevation: 8,
+      height: actionPillHeight,
+      justifyContent: "center",
+      left: "50%",
+      position: "absolute",
+      shadowColor: "#000000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.28,
+      shadowRadius: 10,
+      transform: [{ translateX: -actionPillWidth / 2 }],
+      width: actionPillWidth,
+    },
+    floatingCompleteButton: {
+      alignItems: "center",
+      backgroundColor: "#3F3F3F",
+      borderRadius: actionPillHeight / 2,
+      elevation: 20,
+      height: actionPillHeight,
+      justifyContent: "center",
+      shadowColor: "#000000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.28,
+      shadowRadius: 10,
+      width: actionPillWidth,
+      zIndex: 20,
+    },
+    completeButtonPressed: {
+      backgroundColor: "#5D5D5D",
+    },
+    completeButtonText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(17, pillScale),
+      lineHeight: fontScaled(24, pillScale),
     },
     listeningPill: {
       alignItems: "center",
@@ -318,45 +907,57 @@ const createStyles = (scale: number, fontScale: number) =>
     },
     micArea: {
       alignItems: "center",
-      bottom: scaled(-16, scale),
-      height: scaled(260, scale),
+      bottom: scaled(-118, scale),
+      height: scaled(375, scale),
       justifyContent: "center",
       left: 0,
       position: "absolute",
       right: 0,
     },
-    waveCircle: {
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      elevation: 4,
-      position: "absolute",
-      shadowColor: "#DADADA",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: isIOS ? 0.45 : 0.9,
-      shadowRadius: isIOS ? 18 : 36,
-    },
-    micCircle: {
+    voiceCircleFrame: {
       alignItems: "center",
-      backgroundColor: "#FFFFFF",
-      borderColor: isIOS ? "#F5F5F5" : "#F1F1F1",
-      borderRadius: scaled(87, scale),
-      borderWidth: 1,
-      elevation: 6,
-      height: scaled(174, scale),
+      height: scaled(525, circleScale),
       justifyContent: "center",
-      shadowColor: "#A1A1A1",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: isIOS ? 0.45 : 0.22,
-      shadowRadius: isIOS ? 34 : 28,
-      width: scaled(174, scale),
+      overflow: "visible",
+      position: "absolute",
+      width: scaled(525, circleScale),
     },
-    micCircleActive: {
-      borderColor: "#DFF8ED",
+    voiceCircleImage: {
+      height: "100%",
+      position: "absolute",
+      width: "100%",
     },
-    micDots: {
-      color: "#2ABD83",
-      fontFamily: "PretendardBold",
-      fontSize: fontScaled(36, fontScale),
-      marginTop: scaled(-28, scale),
+    voiceSmallCircleLayer: {
+      alignItems: "center",
+      height: scaled(380, circleScale),
+      justifyContent: "center",
+      position: "absolute",
+      width: scaled(380, circleScale),
+    },
+    voiceListeningSmallCircleBlur: {
+      height: "100%",
+      position: "absolute",
+      width: "100%",
+    },
+    voiceSmallCircle: {
+      height: scaled(288, circleScale),
+      position: "absolute",
+      width: scaled(288, circleScale),
+    },
+    voiceMicroCircleRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: scaled(10, circleScale),
+      justifyContent: "center",
+      position: "absolute",
+    },
+    voiceMicroCircleWrap: {
+      height: scaled(15, circleScale),
+      width: scaled(15, circleScale),
+    },
+    voiceMicroCircle: {
+      height: "100%",
+      width: "100%",
     },
   });
+};
