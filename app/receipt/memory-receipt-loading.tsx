@@ -26,6 +26,7 @@ import Svg, { Circle } from "react-native-svg";
 const LoadingBg = require("@/assets/images/memory-receipt-loading/memory-receipt-loading-bg.png");
 const LoadingIcon = require("@/assets/images/memory-receipt-loading/memory-receipt-loading-icon.png");
 
+// 402×874 기준: 아이콘 222px → base = 222 / 0.9393 ≈ 236
 const ICON_SIZE = 236;
 const STROKE_WIDTH = 10;
 const CIRCLE_VIEWBOX = ICON_SIZE + STROKE_WIDTH * 2;
@@ -114,48 +115,49 @@ export default function MemoryReceiptLoading() {
           <Text style={styles.description}>{description}</Text>
         </View>
 
-        <View style={styles.centerArea}>
-          <View style={{ width: svgSize, height: svgSize, justifyContent: "center", alignItems: "center" }}>
-            <Image
-              source={LoadingIcon}
-              style={{ width: iconSize, height: iconSize, position: "absolute" }}
-              resizeMode="contain"
+        {/* 텍스트~원: 98px (402 기준) → scaled(104) */}
+        <View style={[styles.circleArea, { width: svgSize, height: svgSize }]}>
+          <Image
+            source={LoadingIcon}
+            style={{ width: iconSize, height: iconSize, position: "absolute" }}
+            resizeMode="contain"
+          />
+          <Svg
+            width={svgSize}
+            height={svgSize}
+            viewBox={`0 0 ${CIRCLE_VIEWBOX} ${CIRCLE_VIEWBOX}`}
+            style={{ position: "absolute" }}
+          >
+            <Circle
+              cx={CX}
+              cy={CX}
+              r={RADIUS}
+              stroke="#E0E0E0"
+              strokeWidth={STROKE_WIDTH}
+              fill="none"
             />
-            <Svg
-              width={svgSize}
-              height={svgSize}
-              viewBox={`0 0 ${CIRCLE_VIEWBOX} ${CIRCLE_VIEWBOX}`}
-              style={{ position: "absolute" }}
-            >
-              <Circle
-                cx={CX}
-                cy={CX}
-                r={RADIUS}
-                stroke="#E0E0E0"
-                strokeWidth={STROKE_WIDTH}
-                fill="none"
-              />
-              <AnimatedCircle
-                cx={CX}
-                cy={CX}
-                r={RADIUS}
-                stroke="#23CC89"
-                strokeWidth={STROKE_WIDTH}
-                fill="none"
-                strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-                strokeLinecap="round"
-                transform={`rotate(-90, ${CX}, ${CX})`}
-                animatedProps={animatedProps}
-              />
-            </Svg>
-          </View>
+            <AnimatedCircle
+              cx={CX}
+              cy={CX}
+              r={RADIUS}
+              stroke="#23CC89"
+              strokeWidth={STROKE_WIDTH}
+              fill="none"
+              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+              strokeLinecap="round"
+              transform={`rotate(-90, ${CX}, ${CX})`}
+              animatedProps={animatedProps}
+            />
+          </Svg>
         </View>
 
+        {/* 원~진행률: 41px (402 기준) → scaled(44) */}
         <View style={styles.progressBox}>
           <Text style={styles.progressLabel}>진행률 </Text>
           <Text style={styles.progressValue}>{progress}%</Text>
         </View>
 
+        {/* 진행률~버튼: 107px (402 기준) → scaled(114) */}
         <Pressable style={styles.helpButton} onPress={() => router.replace("/receipt/memory-receipt")}>
           <Text style={styles.helpText}>바로 보기</Text>
         </Pressable>
@@ -183,6 +185,7 @@ const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
     flex: 1,
     paddingHorizontal: scaled(24, scale),
     paddingTop: scaled(44, scale),
+    paddingBottom: scaled(86, scale),
   },
   backButton: {
     width: scaled(40, scale),
@@ -206,13 +209,14 @@ const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
     fontFamily: "PretendardMedium",
     lineHeight: fontScaled(26, fontScale),
   },
-  centerArea: {
-    flex: 1,
+  circleArea: {
+    marginTop: scaled(104, scale),
+    alignSelf: "center",
     justifyContent: "center",
     alignItems: "center",
   },
   progressBox: {
-    marginBottom: scaled(150, scale),
+    marginTop: scaled(44, scale),
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
@@ -228,10 +232,7 @@ const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
     fontFamily: "PretendardBold",
   },
   helpButton: {
-    position: "absolute",
-    bottom: scaled(72, scale),
-    left: 0,
-    right: 0,
+    marginTop: scaled(114, scale),
     alignItems: "center",
   },
   helpText: {
