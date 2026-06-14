@@ -15,6 +15,12 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
 
 const LoadingBg = require("@/assets/images/memory-receipt-loading/memory-receipt-loading-bg.png");
@@ -27,8 +33,11 @@ const RADIUS = (CIRCLE_VIEWBOX - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const CX = CIRCLE_VIEWBOX / 2;
 
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 export default function MemoryReceiptLoading() {
   const [progress, setProgress] = useState(0);
+  const progressAnim = useSharedValue(0);
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
@@ -39,7 +48,10 @@ export default function MemoryReceiptLoading() {
 
   const svgSize = scaled(CIRCLE_VIEWBOX, scale);
   const iconSize = scaled(ICON_SIZE, scale);
-  const strokeDashoffset = CIRCUMFERENCE * (1 - progress / 100);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: CIRCUMFERENCE * (1 - progressAnim.value / 100),
+  }));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -48,7 +60,12 @@ export default function MemoryReceiptLoading() {
           clearInterval(interval);
           return 100;
         }
-        return prev + 2;
+        const next = prev + 2;
+        progressAnim.value = withTiming(next, {
+          duration: 200,
+          easing: Easing.out(Easing.quad),
+        });
+        return next;
       });
     }, 40);
 
@@ -100,7 +117,7 @@ export default function MemoryReceiptLoading() {
                 strokeWidth={STROKE_WIDTH}
                 fill="none"
               />
-              <Circle
+              <AnimatedCircle
                 cx={CX}
                 cy={CX}
                 r={RADIUS}
@@ -108,9 +125,9 @@ export default function MemoryReceiptLoading() {
                 strokeWidth={STROKE_WIDTH}
                 fill="none"
                 strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-                strokeDashoffset={strokeDashoffset}
                 strokeLinecap="round"
                 transform={`rotate(-90, ${CX}, ${CX})`}
+                animatedProps={animatedProps}
               />
             </Svg>
           </View>
