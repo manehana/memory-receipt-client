@@ -6,7 +6,7 @@ import {
 } from "@/constants/responsive";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
@@ -75,7 +75,7 @@ export default function MemoryReceiptLoading() {
     strokeDashoffset: CIRCUMFERENCE * (1 - progressAnim.value / 100),
   }));
 
-  const startProgress = () => {
+  const startProgress = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     setProgress(0);
     progressAnim.value = 0;
@@ -94,12 +94,12 @@ export default function MemoryReceiptLoading() {
         return next;
       });
     }, 120); // 1% / 120ms → 약 12초
-  };
+  }, [progressAnim]);
 
   useEffect(() => {
     startProgress();
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
+  }, [startProgress]);
 
   useEffect(() => {
     if (progress < 100) return;
