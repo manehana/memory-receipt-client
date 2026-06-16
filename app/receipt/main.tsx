@@ -152,7 +152,10 @@ export default function MainScreen() {
           </Pressable>
         </View>
 
-        <Pressable style={styles.reportCard}>
+        <Pressable
+          onPress={() => router.push("/receipt/my-activity")}
+          style={styles.reportCard}
+        >
           <Image
             resizeMode="stretch"
             source={require("../../assets/images/main/main-cognitive-report.png")}
