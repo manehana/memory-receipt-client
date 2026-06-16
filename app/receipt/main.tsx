@@ -6,9 +6,12 @@ import {
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Image,
+  Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +29,9 @@ const RECEIPT_CARD_WIDTH = 270;
 const RECEIPT_CARD_HEIGHT = 185;
 const RECEIPT_IMAGE_WIDTH = 250;
 const RECEIPT_IMAGE_HEIGHT = 134;
+const SAFETY_SHEET_HEIGHT = 410;
+const SAFETY_ICON_WIDTH = 103.05;
+const SAFETY_ICON_HEIGHT = 105;
 
 const recentReceipts = [
   {
@@ -43,12 +49,47 @@ const recentReceipts = [
 ];
 
 export default function MainScreen() {
+  const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(true);
+  const safetySheetTranslateY = useRef(new Animated.Value(0)).current;
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width],
+  );
+  const dismissSafetyReport = useCallback(() => {
+    Animated.timing(safetySheetTranslateY, {
+      duration: 160,
+      toValue: height,
+      useNativeDriver: true,
+    }).start(() => {
+      safetySheetTranslateY.setValue(0);
+      setIsSafetyReportVisible(false);
+    });
+  }, [height, safetySheetTranslateY]);
+  const safetySheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onPanResponderMove: (_, gestureState) => {
+          safetySheetTranslateY.setValue(Math.max(gestureState.dy, 0));
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 90 || gestureState.vy > 0.7) {
+            dismissSafetyReport();
+            return;
+          }
+          Animated.spring(safetySheetTranslateY, {
+            damping: 18,
+            stiffness: 220,
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        },
+      }),
+    [dismissSafetyReport, safetySheetTranslateY],
   );
 
   return (
@@ -77,7 +118,10 @@ export default function MainScreen() {
                 style={styles.notificationIcon}
               />
             </Pressable>
-            <Pressable style={styles.iconButton}>
+            <Pressable
+              onPress={() => router.push("/receipt/more")}
+              style={styles.iconButton}
+            >
               <Image
                 resizeMode="contain"
                 source={require("../../assets/images/main/main-burger.png")}
@@ -186,6 +230,57 @@ export default function MainScreen() {
           */}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={dismissSafetyReport}
+        transparent
+        visible={isSafetyReportVisible}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            {...safetySheetPanResponder.panHandlers}
+            style={[
+              styles.safetySheet,
+              { transform: [{ translateY: safetySheetTranslateY }] },
+            ]}
+          >
+            <View style={styles.sheetHandle} />
+            <Image
+              resizeMode="contain"
+              source={require("../../assets/images/main/main-report-safety-icon.png")}
+              style={styles.safetyIcon}
+            />
+            <Text maxFontSizeMultiplier={1.1} style={styles.safetyTitle}>
+              안심 리포트 도착
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.safetyDescription}>
+              2주 동안의 오늘의 대화, 소비 데이터
+              {"\n"}
+              기반으로 인지 상세 정보를 담았어요.
+            </Text>
+
+            <View style={styles.safetyButtonRow}>
+              <Pressable
+                onPress={dismissSafetyReport}
+                style={[styles.safetyButton, styles.safetyCloseButton]}
+              >
+                <Text maxFontSizeMultiplier={1.1} style={styles.safetyCloseText}>
+                  닫기
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={dismissSafetyReport}
+                style={[styles.safetyButton, styles.safetyViewButton]}
+              >
+                <Text maxFontSizeMultiplier={1.1} style={styles.safetyViewText}>
+                  보러가기
+                </Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -198,6 +293,7 @@ const createStyles = (
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = Math.min(screenHeight / BASE_HEIGHT, 1);
+  const modalScale = Math.min(screenWidth / BASE_WIDTH, screenHeight / BASE_HEIGHT, 1);
   const horizontalScale = Math.min(widthScale, 1);
   const verticalScaled = (value: number) => Math.round(value * heightScale);
   const tallScreenOffset = Math.round(
@@ -228,6 +324,8 @@ const createStyles = (
   const receiptListTop = verticalScaled(26);
   const recentSectionTop =
     verticalScaled(RECENT_SECTION_TOP) + recentTallOffset - recentTitleLift;
+  const modalScaled = (value: number) => Math.round(value * modalScale);
+
   return StyleSheet.create({
     safeArea: {
       backgroundColor: "#F7F7F7",
@@ -401,6 +499,76 @@ const createStyles = (
       fontSize: receiptScaled(18),
       lineHeight: receiptScaled(25),
       marginTop: receiptScaled(11),
+    },
+    modalOverlay: {
+      backgroundColor: "rgba(85, 85, 85, 0.5)",
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    safetySheet: {
+      alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      borderTopLeftRadius: modalScaled(20),
+      borderTopRightRadius: modalScaled(20),
+      height: modalScaled(SAFETY_SHEET_HEIGHT),
+      paddingTop: modalScaled(18),
+      width: "100%",
+    },
+    sheetHandle: {
+      backgroundColor: "#E5E5E5",
+      borderRadius: modalScaled(2),
+      height: modalScaled(4),
+      marginBottom: modalScaled(28),
+      width: modalScaled(72),
+    },
+    safetyIcon: {
+      height: modalScaled(SAFETY_ICON_HEIGHT),
+      width: modalScaled(SAFETY_ICON_WIDTH),
+    },
+    safetyTitle: {
+      color: "#353535",
+      fontFamily: "PretendardBold",
+      fontSize: modalScaled(28),
+      lineHeight: modalScaled(36),
+      marginTop: modalScaled(20),
+    },
+    safetyDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: modalScaled(20),
+      lineHeight: modalScaled(28),
+      marginTop: modalScaled(12),
+      textAlign: "center",
+    },
+    safetyButtonRow: {
+      flexDirection: "row",
+      gap: modalScaled(12),
+      marginTop: modalScaled(26),
+    },
+    safetyButton: {
+      alignItems: "center",
+      borderRadius: modalScaled(8),
+      height: modalScaled(55),
+      justifyContent: "center",
+      width: modalScaled(180),
+    },
+    safetyCloseButton: {
+      backgroundColor: "#F2F2F2",
+    },
+    safetyViewButton: {
+      backgroundColor: "#FFC44D",
+    },
+    safetyCloseText: {
+      color: "#353535",
+      fontFamily: "PretendardMedium",
+      fontSize: modalScaled(20),
+      lineHeight: modalScaled(26),
+    },
+    safetyViewText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardMedium",
+      fontSize: modalScaled(20),
+      lineHeight: modalScaled(26),
     },
     /*
     emptyBox: {
