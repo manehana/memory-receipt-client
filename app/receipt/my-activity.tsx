@@ -26,6 +26,67 @@ const BASE_HEIGHT = 874;
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 const completedDates = new Set([3, 4, 5, 9, 10, 11, 14, 15]);
 const calendarWeekDays = ["월", "화", "수", "목", "금", "토", "일"];
+const topPlaces = [
+  { count: "12번 갔어요.", name: "이마트 강남점", rank: 1 },
+  { count: "10번 갔어요.", name: "투썸플레이스 역삼점", rank: 2 },
+  { count: "7번 갔어요.", name: "서울내과의원", rank: 3 },
+];
+const activityBars = [
+  { color: "#9BEED0", hour: "3", value: 40 },
+  { color: "#54DFA7", hour: "6", value: 70 },
+  { color: "#54DFA7", hour: "9", value: 80 },
+  { color: "#23CC89", hour: "12", value: 100 },
+  { color: "#54DFA7", hour: "15", value: 62 },
+  { color: "#9BEED0", hour: "21", value: 52 },
+];
+const activityTicks = [
+  { label: "12", period: "오전" },
+  { barKey: "3", label: "3" },
+  { barKey: "6", label: "6" },
+  { barKey: "9", label: "9" },
+  { barKey: "12", label: "12", period: "오후" },
+  { barKey: "15", label: "15" },
+  { label: "18" },
+  { barKey: "21", label: "21" },
+  { label: "24" },
+];
+const spendingCategories: {
+  amount: string;
+  icon: ImageSourcePropType;
+  name: string;
+  percent: string;
+}[] = [
+  {
+    amount: "56,200원",
+    icon: require("../../assets/images/my-activity/consumption_activity_cafe_snack.png"),
+    name: "카페 · 간식",
+    percent: "35.4%",
+  },
+  {
+    amount: "28,200원",
+    icon: require("../../assets/images/my-activity/consumption_activity_health_fitness.png"),
+    name: "의료 · 건강 · 피트니스",
+    percent: "15.8%",
+  },
+  {
+    amount: "34,200원",
+    icon: require("../../assets/images/my-activity/consumption_activity_convenience_mart.png"),
+    name: "편의점 · 마트 · 잡화",
+    percent: "25.4%",
+  },
+  {
+    amount: "12,000원",
+    icon: require("../../assets/images/my-activity/consumption_activity_transport_vehicle.png"),
+    name: "교통 · 자동차",
+    percent: "9.6%",
+  },
+  {
+    amount: "9,800원",
+    icon: require("../../assets/images/my-activity/consumption_activity_uncategorized.png"),
+    name: "카테고리 없음",
+    percent: "5.1%",
+  },
+];
 
 type CalendarDate = {
   date: number;
