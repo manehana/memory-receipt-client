@@ -6,9 +6,10 @@ import {
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Image,
+  type ImageSourcePropType,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +26,67 @@ const BASE_HEIGHT = 874;
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 const completedDates = new Set([3, 4, 5, 9, 10, 11, 14, 15]);
 const calendarWeekDays = ["월", "화", "수", "목", "금", "토", "일"];
+const topPlaces = [
+  { count: "12번 갔어요.", name: "이마트 강남점", rank: 1 },
+  { count: "10번 갔어요.", name: "투썸플레이스 역삼점", rank: 2 },
+  { count: "7번 갔어요.", name: "서울내과의원", rank: 3 },
+];
+const activityBars = [
+  { color: "#9BEED0", hour: "3", value: 40 },
+  { color: "#54DFA7", hour: "6", value: 70 },
+  { color: "#54DFA7", hour: "9", value: 80 },
+  { color: "#23CC89", hour: "12", value: 100 },
+  { color: "#54DFA7", hour: "15", value: 62 },
+  { color: "#9BEED0", hour: "21", value: 52 },
+];
+const activityTicks = [
+  { label: "12", period: "오전" },
+  { barKey: "3", label: "3" },
+  { barKey: "6", label: "6" },
+  { barKey: "9", label: "9" },
+  { barKey: "12", label: "12", period: "오후" },
+  { barKey: "15", label: "15" },
+  { label: "18" },
+  { barKey: "21", label: "21" },
+  { label: "24" },
+];
+const spendingCategories: {
+  amount: string;
+  icon: ImageSourcePropType;
+  name: string;
+  percent: string;
+}[] = [
+  {
+    amount: "56,200원",
+    icon: require("../../assets/images/my-activity/consumption_activity_cafe_snack.png"),
+    name: "카페 · 간식",
+    percent: "35.4%",
+  },
+  {
+    amount: "28,200원",
+    icon: require("../../assets/images/my-activity/consumption_activity_health_fitness.png"),
+    name: "의료 · 건강 · 피트니스",
+    percent: "15.8%",
+  },
+  {
+    amount: "34,200원",
+    icon: require("../../assets/images/my-activity/consumption_activity_convenience_mart.png"),
+    name: "편의점 · 마트 · 잡화",
+    percent: "25.4%",
+  },
+  {
+    amount: "12,000원",
+    icon: require("../../assets/images/my-activity/consumption_activity_transport_vehicle.png"),
+    name: "교통 · 자동차",
+    percent: "9.6%",
+  },
+  {
+    amount: "9,800원",
+    icon: require("../../assets/images/my-activity/consumption_activity_uncategorized.png"),
+    name: "카테고리 없음",
+    percent: "5.1%",
+  },
+];
 
 type CalendarDate = {
   date: number;
@@ -80,6 +142,7 @@ const createCalendarDates = (year: number, month: number) => {
 };
 
 export default function MyActivityScreen() {
+  const [activeTab, setActiveTab] = useState<"conversation" | "consumption">("conversation");
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
@@ -126,19 +189,40 @@ export default function MyActivityScreen() {
         >
           <View style={styles.tabs}>
             <View style={styles.tabDivider} />
-            <View style={styles.activeTab}>
-              <Text maxFontSizeMultiplier={1.1} style={styles.activeTabText}>
+            <Pressable
+              onPress={() => setActiveTab("conversation")}
+              style={styles.tabButton}
+            >
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={[
+                  styles.tabText,
+                  activeTab === "conversation" ? styles.activeTabText : styles.inactiveTabText,
+                ]}
+              >
                 대화 기록
               </Text>
-              <View style={styles.activeTabBar} />
-            </View>
-            <View style={styles.inactiveTab}>
-              <Text maxFontSizeMultiplier={1.1} style={styles.inactiveTabText}>
+              {activeTab === "conversation" ? <View style={styles.activeTabBar} /> : null}
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab("consumption")}
+              style={styles.tabButton}
+            >
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={[
+                  styles.tabText,
+                  activeTab === "consumption" ? styles.activeTabText : styles.inactiveTabText,
+                ]}
+              >
                 소비 기록
               </Text>
-            </View>
+              {activeTab === "consumption" ? <View style={styles.activeTabBar} /> : null}
+            </Pressable>
           </View>
 
+          {activeTab === "conversation" ? (
+            <>
           <Text maxFontSizeMultiplier={1.1} style={styles.todaySectionTitle}>
             오늘의 대화 기록
           </Text>
@@ -313,9 +397,177 @@ export default function MyActivityScreen() {
             </View>
           ))}
           </View>
+            </>
+          ) : (
+            <ConsumptionHistoryContent styles={styles} />
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
+  );
+}
+
+function ConsumptionHistoryContent({
+  styles,
+}: {
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <>
+      <View style={styles.consumptionSectionHeader}>
+        <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
+          자주 간 곳 TOP3
+        </Text>
+        <Text maxFontSizeMultiplier={1.1} style={styles.referenceText}>
+          전날 오후 11:59 기준
+        </Text>
+      </View>
+
+      <View style={styles.topPlaceCard}>
+        {topPlaces.map((place) => (
+          <View key={place.rank} style={styles.topPlaceRow}>
+            <View style={styles.rankBadge}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.rankText}>
+                {place.rank}
+              </Text>
+            </View>
+            <Text
+              maxFontSizeMultiplier={1.1}
+              numberOfLines={1}
+              style={styles.topPlaceName}
+            >
+              {place.name}
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.topPlaceCount}>
+              {place.count}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.band} />
+
+      <View style={styles.consumptionSectionHeader}>
+        <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
+          시간대 별 활동
+        </Text>
+        <Text maxFontSizeMultiplier={1.1} style={styles.referenceText}>
+          전날 오후 11:59 기준
+        </Text>
+      </View>
+
+      <View style={styles.activityChartCard}>
+        <View style={styles.chartPlot}>
+          <View pointerEvents="none" style={styles.chartGridLayer}>
+            {Array.from({ length: activityTicks.length - 1 }).map((_, index) => (
+              <View
+                key={`grid-line-${index}`}
+                style={[styles.chartGridLine, { left: `${((index + 1) / 9) * 100}%` }]}
+              />
+            ))}
+          </View>
+          {activityTicks.map((tick, index) => {
+            const bar = activityBars.find((item) => item.hour === tick.barKey);
+            return (
+              <View key={`bar-${tick.label}-${index}`} style={styles.activitySlot}>
+                {bar ? (
+                  <View
+                    style={[
+                      styles.activityBar,
+                      {
+                        backgroundColor: bar.color,
+                        height: `${bar.value}%`,
+                      },
+                    ]}
+                  />
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+        <View style={styles.chartAxis}>
+          {activityTicks.map((tick, index) => (
+            <Text
+              key={`hour-${tick.label}-${index}`}
+              maxFontSizeMultiplier={1.1}
+              style={styles.chartHour}
+            >
+              {tick.label}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.dayPartRow}>
+          {activityTicks.map((tick, index) => (
+            <Text
+              key={`period-${tick.label}-${index}`}
+              maxFontSizeMultiplier={1.1}
+              style={styles.dayPartText}
+            >
+              {tick.period ?? ""}
+            </Text>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.activityTipBox}>
+        <Image
+          resizeMode="contain"
+          source={require("../../assets/images/my-activity/consumption_activity_search.png")}
+          style={styles.activityTipIcon}
+        />
+        <Text maxFontSizeMultiplier={1.1} style={styles.activityTipText}>
+          낮 12시에 가장 활발하게 활동해요.
+        </Text>
+      </View>
+
+      <View style={styles.band} />
+
+      <View style={styles.monthlySpendingHeader}>
+        <View style={styles.monthTitleRow}>
+          <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
+            월별 소비 내역
+          </Text>
+          <Text maxFontSizeMultiplier={1.1} style={styles.spendingMonthText}>
+            6월
+          </Text>
+          <Ionicons color="#9F9F9F" name="chevron-down" size={16} />
+        </View>
+      </View>
+
+      <View style={styles.spendingBar}>
+        <View style={[styles.spendingSegment, styles.spendingSegmentFirst, { flex: 35.4 }]} />
+        <View style={[styles.spendingSegment, { backgroundColor: "#23CC89", flex: 25.4 }]} />
+        <View style={[styles.spendingSegment, { backgroundColor: "#54DFA7", flex: 15.8 }]} />
+        <View style={[styles.spendingSegment, { backgroundColor: "#9BEED0", flex: 9.6 }]} />
+        <View style={[styles.spendingSegment, styles.spendingSegmentLast, { flex: 13.8 }]} />
+      </View>
+      <Text maxFontSizeMultiplier={1.1} style={styles.totalAmountText}>
+        334,590원
+      </Text>
+
+      <View style={styles.categoryList}>
+        {spendingCategories.map((category) => (
+          <View key={category.name} style={styles.categoryRow}>
+            <Image resizeMode="contain" source={category.icon} style={styles.categoryIcon} />
+            <View style={styles.categoryTextBox}>
+              <Text
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.categoryName}
+              >
+                {category.name}
+              </Text>
+              <Text maxFontSizeMultiplier={1.1} style={styles.categoryPercent}>
+                {category.percent}
+              </Text>
+            </View>
+            <Text maxFontSizeMultiplier={1.1} style={styles.categoryAmount}>
+              {category.amount}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </>
   );
 }
 
@@ -377,6 +629,16 @@ const createStyles = (
       justifyContent: "center",
       position: "relative",
     },
+    tabButton: {
+      alignItems: "center",
+      justifyContent: "flex-end",
+      width: Math.round(contentWidth / 2),
+    },
+    tabText: {
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(20),
+      marginBottom: vertical(16),
+    },
     activeTab: {
       alignItems: "center",
       justifyContent: "flex-end",
@@ -389,18 +651,14 @@ const createStyles = (
     },
     activeTabText: {
       color: "#13BB78",
-      fontFamily: "PretendardSemiBold",
-      fontSize: font(20),
-      marginBottom: vertical(16),
     },
     inactiveTabText: {
       color: "#9F9F9F",
-      fontFamily: "PretendardMedium",
-      fontSize: font(20),
     },
     activeTabBar: {
       backgroundColor: "#13BB78",
-      height: fixed(2),
+      borderRadius: fixed(2),
+      height: fixed(3),
       width: fixed(148),
       zIndex: 1,
     },
@@ -662,6 +920,243 @@ const createStyles = (
     },
     dateTextMuted: {
       color: "#BDBDBD",
+    },
+    consumptionSectionHeader: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: vertical(30),
+      width: contentWidth,
+    },
+    referenceText: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: font(16),
+      lineHeight: font(22),
+    },
+    topPlaceCard: {
+      backgroundColor: "#F8F8F8",
+      borderRadius: fixed(10),
+      height: fixed(132),
+      justifyContent: "center",
+      marginTop: vertical(12),
+      paddingHorizontal: fixed(18),
+      width: contentWidth,
+    },
+    topPlaceRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      height: fixed(36),
+    },
+    rankBadge: {
+      alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      borderRadius: fixed(12),
+      height: fixed(24),
+      justifyContent: "center",
+      marginRight: fixed(16),
+      shadowColor: "#000000",
+      shadowOffset: { height: 1, width: 0 },
+      shadowOpacity: 0.14,
+      shadowRadius: 4,
+      width: fixed(24),
+    },
+    rankText: {
+      color: "#5D5D5D",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(16),
+    },
+    topPlaceName: {
+      color: "#353535",
+      flex: 1,
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(18),
+    },
+    topPlaceCount: {
+      color: "#13BB78",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(17),
+      marginLeft: fixed(12),
+      textAlign: "right",
+    },
+    activityChartCard: {
+      backgroundColor: "#F8F8F8",
+      borderRadius: fixed(10),
+      height: fixed(214),
+      marginTop: vertical(16),
+      paddingHorizontal: fixed(14),
+      paddingTop: vertical(14),
+      width: contentWidth,
+    },
+    chartPlot: {
+      alignItems: "flex-end",
+      borderColor: "#D9D9D9",
+      borderWidth: fixed(1),
+      flexDirection: "row",
+      height: fixed(146),
+      overflow: "hidden",
+      paddingTop: vertical(16),
+      position: "relative",
+    },
+    chartGridLine: {
+      borderColor: "#D9D9D9",
+      borderLeftWidth: fixed(1),
+      borderStyle: "dashed",
+      height: "100%",
+      position: "absolute",
+      width: fixed(1),
+    },
+    chartGridLayer: {
+      bottom: 0,
+      flexDirection: "row",
+      left: 0,
+      position: "absolute",
+      right: 0,
+      top: 0,
+    },
+    activitySlot: {
+      alignItems: "center",
+      alignSelf: "stretch",
+      flex: 1,
+      justifyContent: "flex-end",
+      zIndex: 1,
+    },
+    activityBar: {
+      borderTopLeftRadius: fixed(10),
+      borderTopRightRadius: fixed(10),
+      width: fixed(18),
+    },
+    chartAxis: {
+      flexDirection: "row",
+      marginTop: vertical(4),
+    },
+    chartHour: {
+      color: "#000000",
+      fontFamily: "PretendardMedium",
+      fontSize: font(16),
+      flex: 1,
+      lineHeight: font(19),
+      textAlign: "center",
+    },
+    dayPartRow: {
+      height: fixed(18),
+      marginTop: vertical(3),
+      flexDirection: "row",
+    },
+    dayPartText: {
+      color: "#BDBDBD",
+      fontFamily: "PretendardMedium",
+      fontSize: font(13),
+      flex: 1,
+      lineHeight: font(16),
+      textAlign: "center",
+    },
+    activityTipBox: {
+      alignItems: "center",
+      backgroundColor: "#FFF6DA",
+      borderRadius: fixed(5),
+      flexDirection: "row",
+      height: fixed(44),
+      marginTop: vertical(16),
+      paddingHorizontal: fixed(14),
+      width: contentWidth,
+    },
+    activityTipIcon: {
+      height: fixed(26),
+      marginRight: fixed(10),
+      width: fixed(26),
+    },
+    activityTipText: {
+      color: "#5D5D5D",
+      flex: 1,
+      fontFamily: "PretendardMedium",
+      fontSize: font(16),
+    },
+    monthlySpendingHeader: {
+      marginTop: vertical(30),
+      width: contentWidth,
+    },
+    monthTitleRow: {
+      alignItems: "center",
+      flexDirection: "row",
+    },
+    spendingMonthText: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: font(18),
+      marginLeft: fixed(8),
+      marginRight: fixed(2),
+    },
+    spendingBar: {
+      borderRadius: fixed(10),
+      flexDirection: "row",
+      height: fixed(32),
+      marginTop: vertical(18),
+      overflow: "hidden",
+      width: contentWidth,
+    },
+    spendingSegment: {
+      backgroundColor: "#13BB78",
+      height: "100%",
+    },
+    spendingSegmentFirst: {
+      borderBottomLeftRadius: fixed(10),
+      borderTopLeftRadius: fixed(10),
+    },
+    spendingSegmentLast: {
+      backgroundColor: "#E5E5E5",
+      borderBottomRightRadius: fixed(10),
+      borderTopRightRadius: fixed(10),
+    },
+    totalAmountText: {
+      color: "#353535",
+      fontFamily: "PretendardBold",
+      fontSize: font(26),
+      lineHeight: font(34),
+      marginTop: vertical(10),
+      textAlign: "right",
+      width: contentWidth,
+    },
+    categoryList: {
+      marginTop: vertical(22),
+      width: contentWidth,
+    },
+    categoryRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      marginBottom: vertical(28),
+      width: contentWidth,
+    },
+    categoryIcon: {
+      height: fixed(40),
+      marginRight: fixed(14),
+      width: fixed(40),
+    },
+    categoryTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    categoryName: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(18),
+      lineHeight: font(24),
+    },
+    categoryPercent: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: font(16),
+      lineHeight: font(21),
+      marginTop: vertical(1),
+    },
+    categoryAmount: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(18),
+      lineHeight: font(24),
+      marginLeft: fixed(12),
+      minWidth: fixed(88),
+      textAlign: "right",
     },
   });
 };
