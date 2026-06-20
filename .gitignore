@@ -41,3 +41,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# codegraph
+CLAUDE.md
+.claude
+.mcp.json
+.codegraph
+CLAUDE.md
