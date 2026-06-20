@@ -7,8 +7,9 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Image,
   ImageSourcePropType,
   Modal,
@@ -188,6 +189,7 @@ export default function ConversationOnboardingScreen() {
     "confirm",
   );
   const [selectedFriendId, setSelectedFriendId] = useState("hanaboy");
+  const friendSheetProgress = useRef(new Animated.Value(1)).current;
 
   const current = steps[step];
   const selectedFriend =
@@ -200,14 +202,40 @@ export default function ConversationOnboardingScreen() {
     }
 
     setFriendSheetMode("confirm");
+    openFriendSheet();
+  };
+
+  const openFriendSheet = () => {
+    friendSheetProgress.setValue(1);
     setFriendSheetVisible(true);
+    requestAnimationFrame(() => {
+      Animated.timing(friendSheetProgress, {
+        duration: 220,
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  const closeFriendSheet = (onClosed?: () => void) => {
+    Animated.timing(friendSheetProgress, {
+      duration: 180,
+      toValue: 1,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setFriendSheetVisible(false);
+        onClosed?.();
+      }
+    });
   };
 
   const startConversation = () => {
-    setFriendSheetVisible(false);
-    router.replace({
-      pathname: "/receipt/voice-waiting",
-      params: { friendId: selectedFriendId },
+    closeFriendSheet(() => {
+      router.replace({
+        pathname: "/receipt/voice-waiting",
+        params: { friendId: selectedFriendId },
+      });
     });
   };
 
@@ -330,20 +358,35 @@ export default function ConversationOnboardingScreen() {
       </View>
 
       <Modal
-        animationType="slide"
-        onRequestClose={() => setFriendSheetVisible(false)}
+        animationType="none"
+        onRequestClose={() => closeFriendSheet()}
         transparent
         visible={friendSheetVisible}
       >
         <View style={styles.modalBackdrop}>
           <Pressable
             accessibilityLabel="대화 친구 설정 닫기"
-            onPress={() => setFriendSheetVisible(false)}
+            onPress={() => closeFriendSheet()}
             style={StyleSheet.absoluteFill}
           />
 
           {friendSheetMode === "confirm" ? (
-            <View style={[styles.sheet, styles.confirmSheet]}>
+            <Animated.View
+              style={[
+                styles.sheet,
+                styles.confirmSheet,
+                {
+                  transform: [
+                    {
+                      translateY: friendSheetProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, height],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
               <View style={styles.sheetHandle} />
               <Text maxFontSizeMultiplier={1.1} style={styles.confirmTitle}>
                 오늘의 대화 친구
@@ -384,9 +427,24 @@ export default function ConversationOnboardingScreen() {
                   시작하기
                 </Text>
               </Pressable>
-            </View>
+            </Animated.View>
           ) : (
-            <View style={[styles.sheet, styles.selectSheet]}>
+            <Animated.View
+              style={[
+                styles.sheet,
+                styles.selectSheet,
+                {
+                  transform: [
+                    {
+                      translateY: friendSheetProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, height],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
               <View style={styles.sheetHandle} />
               <Text maxFontSizeMultiplier={1.1} style={styles.sheetTitle}>
                 대화 친구 선택
@@ -455,7 +513,7 @@ export default function ConversationOnboardingScreen() {
                   선택 완료
                 </Text>
               </Pressable>
-            </View>
+            </Animated.View>
           )}
         </View>
       </Modal>
