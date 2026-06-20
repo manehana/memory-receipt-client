@@ -17,15 +17,36 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
   useWindowDimensions,
   View,
 } from "react-native";
+import Reanimated, {
+  Easing as REasing,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
 const COMPLETE_PRESSED_MS = 180;
 const COMPLETE_DONE_MS = 650;
+// STT 단어 등장 애니메이션: 시그모이드(S-커브) 가속, blur→sharp + fade
+const SIGMOID_EASING = REasing.bezier(0.65, 0, 0.35, 1);
+const WORD_FADE_MS = 520;
+const REFLOW_MS = 360;
+// 글자 자체에 거는 흐림 반경(시작값) — BlurView 같은 사각형 패널이 아니라
+// 글리프 모양을 따라가는 그림자라 영역이 네모로 잘리지 않는다.
+const MAX_BLUR_RADIUS = 9;
+const WORD_SHADOW = {
+  textShadowColor: "#3B3B3B",
+  textShadowOffset: { width: 0, height: 0 },
+} as const;
 const voiceIdleCircleImage = require("../../assets/images/voice/voice-idle-circle.png");
 const voiceIdleSmallCircleImage = require("../../assets/images/voice/voice-idle-small-circle.png");
 const voiceListeningCircleImage = require("../../assets/images/voice/voice-listening-circle.png");
@@ -84,6 +105,90 @@ const questions = [
   "아쉽네요..카페 갔다가\n어디가셨는지 기억나세요?",
   "오늘 가장 기억에 남는 시간은 무엇이었나요?",
 ];
+
+type TranscriptWord = { key: string; text: string };
+
+function AnimatedWord({
+  text,
+  textStyle,
+  wrapStyle,
+}: {
+  text: string;
+  textStyle: StyleProp<TextStyle>;
+  wrapStyle: StyleProp<ViewStyle>;
+}) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withTiming(1, {
+      duration: WORD_FADE_MS,
+      easing: SIGMOID_EASING,
+    });
+  }, [progress]);
+
+  // opacity fade + 글리프 모양을 따라가는 흐림(textShadowRadius)을 함께 진행해
+  // 흐릿한 글자가 선명해지는 효과. BlurView 사각형 패널이 아니라 네모로 잘리지 않음.
+  const animatedTextStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    textShadowRadius: (1 - progress.value) * MAX_BLUR_RADIUS,
+  }));
+
+  return (
+    <Reanimated.View
+      layout={LinearTransition.duration(REFLOW_MS).easing(SIGMOID_EASING)}
+      style={wrapStyle}
+    >
+      <Reanimated.Text
+        maxFontSizeMultiplier={1.1}
+        style={[textStyle, WORD_SHADOW, animatedTextStyle]}
+      >
+        {text}
+      </Reanimated.Text>
+    </Reanimated.View>
+  );
+}
+
+function AnimatedTranscript({
+  transcript,
+  textStyle,
+  containerStyle,
+  wrapStyle,
+}: {
+  transcript: string;
+  textStyle: StyleProp<TextStyle>;
+  containerStyle: StyleProp<ViewStyle>;
+  wrapStyle: StyleProp<ViewStyle>;
+}) {
+  // 신규 단어만 등장 애니메이션이 돌도록 직전 단어 배열과 접두 비교
+  const prevRef = useRef<TranscriptWord[]>([]);
+  const seqRef = useRef(0);
+
+  const words = useMemo(() => {
+    const tokens = transcript.trim().length ? transcript.trim().split(/\s+/) : [];
+    const prev = prevRef.current;
+    const next = tokens.map((text, index) => {
+      if (prev[index] && prev[index].text === text) {
+        return prev[index];
+      }
+      return { key: `w${seqRef.current++}`, text };
+    });
+    prevRef.current = next;
+    return next;
+  }, [transcript]);
+
+  return (
+    <View style={containerStyle}>
+      {words.map((word) => (
+        <AnimatedWord
+          key={word.key}
+          text={word.text}
+          textStyle={textStyle}
+          wrapStyle={wrapStyle}
+        />
+      ))}
+    </View>
+  );
+}
 
 export default function VoiceWaitingScreen() {
   const insets = useSafeAreaInsets();
@@ -386,25 +491,26 @@ export default function VoiceWaitingScreen() {
             <Text maxFontSizeMultiplier={1.1} style={styles.questionText}>
               {questions[questionIndex]}
             </Text>
+            {hasTranscript ? (
+              <View style={styles.answerArea}>
+                <AnimatedTranscript
+                  transcript={transcript}
+                  textStyle={styles.answerText}
+                  containerStyle={styles.answerWords}
+                  wrapStyle={styles.answerWordWrap}
+                />
+              </View>
+            ) : null}
             {isListening ? (
               <>
-                {hasTranscript ? (
-                  <View style={styles.answerArea}>
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      style={styles.answerText}
-                    >
-                      {transcript}
-                    </Text>
-                  </View>
-                ) : (
+                {!hasTranscript ? (
                   <Text
                     maxFontSizeMultiplier={1.1}
                     style={styles.answerPrompt}
                   >
                     지금 응답해주세요...|
                   </Text>
-                )}
+                ) : null}
                 <View style={styles.listeningBadge}>
                   <View style={styles.listeningBadgeDotFrame}>
                     <Animated.View
@@ -435,11 +541,6 @@ export default function VoiceWaitingScreen() {
             ) : null}
             {hasResponse ? (
               <>
-                <View style={styles.answerArea}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.answerText}>
-                    {transcript}
-                  </Text>
-                </View>
                 {hasTranscript ? (
                   <Pressable
                   disabled={completeStatus !== "ready"}
@@ -796,6 +897,16 @@ const createStyles = (
       fontSize: fontScaled(25, fontScale),
       lineHeight: fontScaled(34, fontScale),
       textAlign: "right",
+    },
+    answerWords: {
+      alignItems: "flex-end",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "flex-end",
+    },
+    answerWordWrap: {
+      marginLeft: scaled(7, scale),
+      position: "relative",
     },
     actionPillLayer: {
       alignItems: "center",
