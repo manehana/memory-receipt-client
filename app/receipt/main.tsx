@@ -143,7 +143,10 @@ export default function MainScreen() {
             />
           </Pressable>
 
-          <Pressable style={styles.squareCard}>
+          <Pressable
+            onPress={() => router.push("/receipt/memory-notebook")}
+            style={styles.squareCard}
+          >
             <Image
               resizeMode="stretch"
               source={require("../../assets/images/main/main-memory-book.png")}
