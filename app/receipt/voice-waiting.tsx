@@ -3,6 +3,10 @@ import {
   scaled,
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from "expo-speech-recognition";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,7 +24,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
-const ANSWER_TYPING_INTERVAL_MS = 58;
 const COMPLETE_PRESSED_MS = 180;
 const COMPLETE_DONE_MS = 650;
 const voiceIdleCircleImage = require("../../assets/images/voice/voice-idle-circle.png");
@@ -82,12 +85,6 @@ const questions = [
   "오늘 가장 기억에 남는 시간은 무엇이었나요?",
 ];
 
-const sampleAnswers = [
-  "음, 오랜만에 카페가서 기분이\n좋았어",
-  "어디 갔더라..?\n집으로 바로 갔었나..아 아니다\n편의점에서 두부를 사갔었지\n깜빡하고 두부를 안샀지 뭐야~",
-  "친구들이랑 오래 이야기한 시간이\n제일 좋았어",
-];
-
 export default function VoiceWaitingScreen() {
   const insets = useSafeAreaInsets();
   const { friendId } = useLocalSearchParams<{ friendId?: string }>();
@@ -116,16 +113,14 @@ export default function VoiceWaitingScreen() {
   const [questionIndex, setQuestionIndex] = useState(-1);
   const [isListening, setIsListening] = useState(false);
   const [hasResponse, setHasResponse] = useState(false);
-  const [displayedAnswer, setDisplayedAnswer] = useState("");
+  const [transcript, setTranscript] = useState("");
   const [completeStatus, setCompleteStatus] =
     useState<CompleteStatus>("ready");
 
   const selectedFriend =
     friends.find((friend) => friend.id === friendId) ?? friends[0];
   const isVoiceActive = isListening || hasResponse;
-  const currentAnswer = questionIndex >= 0 ? sampleAnswers[questionIndex] : "";
-  const isAnswerTyping =
-    hasResponse && displayedAnswer.length < currentAnswer.length;
+  const hasTranscript = transcript.trim().length > 0;
 
   const clearCompleteTimers = () => {
     completeTimers.current.forEach((timer) => clearTimeout(timer));
@@ -225,30 +220,48 @@ export default function VoiceWaitingScreen() {
     listeningMicroOffsets,
   ]);
 
-  useEffect(() => {
-    if (!hasResponse || questionIndex < 0) {
-      setDisplayedAnswer("");
-      return;
+  // STT가 확정한 문장 누적분과 현재 transcript(중간결과 포함) 최신값
+  const finalizedRef = useRef("");
+  const transcriptRef = useRef("");
+
+  const resetTranscript = () => {
+    finalizedRef.current = "";
+    transcriptRef.current = "";
+    setTranscript("");
+  };
+
+  useSpeechRecognitionEvent("result", (event) => {
+    const segment = event.results[0]?.transcript ?? "";
+    const combined = `${finalizedRef.current} ${segment}`.trim();
+    transcriptRef.current = combined;
+    setTranscript(combined);
+    if (event.isFinal) {
+      finalizedRef.current = combined;
     }
+  });
 
-    const fullAnswer = sampleAnswers[questionIndex];
-    setDisplayedAnswer("");
+  useSpeechRecognitionEvent("end", () => {
+    setIsListening(false);
+    if (transcriptRef.current.trim().length > 0) {
+      setHasResponse(true);
+      setCompleteStatus("ready");
+    }
+  });
 
-    let nextLength = 0;
-    const timer = setInterval(() => {
-      nextLength += 1;
-      setDisplayedAnswer(fullAnswer.slice(0, nextLength));
+  useSpeechRecognitionEvent("error", () => {
+    setIsListening(false);
+  });
 
-      if (nextLength >= fullAnswer.length) {
-        clearInterval(timer);
-      }
-    }, ANSWER_TYPING_INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, [hasResponse, questionIndex]);
+  // 화면 이탈 시 진행 중인 인식 정리
+  useEffect(() => {
+    return () => {
+      ExpoSpeechRecognitionModule.abort();
+    };
+  }, []);
 
   const startQuestion = () => {
     clearCompleteTimers();
+    resetTranscript();
     setQuestionIndex(0);
     setIsListening(false);
     setHasResponse(false);
@@ -261,18 +274,15 @@ export default function VoiceWaitingScreen() {
       return;
     }
 
+    resetTranscript();
     setQuestionIndex(questionIndex + 1);
     setIsListening(false);
     setHasResponse(false);
-    setDisplayedAnswer("");
     setCompleteStatus("ready");
   };
 
   const handleCompletePress = () => {
-    if (
-      completeStatus !== "ready" ||
-      displayedAnswer.length < currentAnswer.length
-    ) {
+    if (completeStatus !== "ready" || !hasTranscript) {
       return;
     }
 
@@ -292,6 +302,22 @@ export default function VoiceWaitingScreen() {
     completeTimers.current.push(pressedTimer);
   };
 
+  const startListening = async () => {
+    const permission =
+      await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!permission.granted) {
+      return;
+    }
+
+    resetTranscript();
+    setIsListening(true);
+    ExpoSpeechRecognitionModule.start({
+      lang: "ko-KR",
+      interimResults: true,
+      continuous: true,
+    });
+  };
+
   const handleMainAction = () => {
     if (questionIndex === -1) {
       startQuestion();
@@ -304,13 +330,12 @@ export default function VoiceWaitingScreen() {
     }
 
     if (!isListening) {
-      setIsListening(true);
+      void startListening();
       return;
     }
 
-    setIsListening(false);
-    setHasResponse(true);
-    setCompleteStatus("ready");
+    // 녹음 종료 → "end" 이벤트에서 hasResponse 처리
+    ExpoSpeechRecognitionModule.stop();
   };
 
   const questionNumber = questionIndex + 1;
@@ -363,9 +388,23 @@ export default function VoiceWaitingScreen() {
             </Text>
             {isListening ? (
               <>
-                <Text maxFontSizeMultiplier={1.1} style={styles.answerPrompt}>
-                  지금 응답해주세요...|
-                </Text>
+                {hasTranscript ? (
+                  <View style={styles.answerArea}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.answerText}
+                    >
+                      {transcript}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.answerPrompt}
+                  >
+                    지금 응답해주세요...|
+                  </Text>
+                )}
                 <View style={styles.listeningBadge}>
                   <View style={styles.listeningBadgeDotFrame}>
                     <Animated.View
@@ -398,10 +437,10 @@ export default function VoiceWaitingScreen() {
               <>
                 <View style={styles.answerArea}>
                   <Text maxFontSizeMultiplier={1.1} style={styles.answerText}>
-                    {displayedAnswer}
+                    {transcript}
                   </Text>
                 </View>
-                {displayedAnswer.length >= currentAnswer.length ? (
+                {hasTranscript ? (
                   <Pressable
                   disabled={completeStatus !== "ready"}
                   onPress={handleCompletePress}
@@ -522,7 +561,7 @@ export default function VoiceWaitingScreen() {
               </Animated.View>
             </View>
             <View pointerEvents="box-none" style={styles.circleActionPillLayer}>
-              {isListening || isAnswerTyping ? (
+              {isListening ? (
                 <View style={styles.floatingListeningBadge}>
                   <View style={styles.listeningBadgeDotFrame}>
                     <Animated.View
@@ -550,7 +589,7 @@ export default function VoiceWaitingScreen() {
                   </Text>
                 </View>
               ) : null}
-              {hasResponse && displayedAnswer.length >= currentAnswer.length ? (
+              {hasResponse && hasTranscript ? (
                 <Pressable
                   disabled={completeStatus !== "ready"}
                   onPress={handleCompletePress}
@@ -582,7 +621,7 @@ export default function VoiceWaitingScreen() {
         </Pressable>
 
         <View pointerEvents="box-none" style={styles.actionPillLayer}>
-          {isListening || isAnswerTyping ? (
+          {isListening ? (
             <View style={styles.floatingListeningBadge}>
               <View style={styles.listeningBadgeDotFrame}>
                 <Animated.View
@@ -610,7 +649,7 @@ export default function VoiceWaitingScreen() {
               </Text>
             </View>
           ) : null}
-          {hasResponse && displayedAnswer.length >= currentAnswer.length ? (
+          {hasResponse && hasTranscript ? (
             <Pressable
               disabled={completeStatus !== "ready"}
               onPress={handleCompletePress}
