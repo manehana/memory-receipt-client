@@ -273,7 +273,10 @@ export default function MainScreen() {
                 </Text>
               </Pressable>
               <Pressable
-                onPress={dismissSafetyReport}
+                onPress={() => {
+                  setIsSafetyReportVisible(false);
+                  router.push("/receipt/safety-report");
+                }}
                 style={[styles.safetyButton, styles.safetyViewButton]}
               >
                 <Text maxFontSizeMultiplier={1.1} style={styles.safetyViewText}>
