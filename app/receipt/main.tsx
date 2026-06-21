@@ -50,29 +50,49 @@ const recentReceipts = [
 
 export default function MainScreen() {
   const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(true);
+  const safetyBackdropProgress = useRef(new Animated.Value(0)).current;
   const safetySheetTranslateY = useRef(new Animated.Value(0)).current;
+  const isDismissingSafetyReport = useRef(false);
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(scale, fontScale, width, height),
-    [fontScale, height, scale, width],
+    [fontScale, height, scale, width]
   );
   const dismissSafetyReport = useCallback(() => {
-    Animated.timing(safetySheetTranslateY, {
-      duration: 160,
-      toValue: height,
-      useNativeDriver: true,
-    }).start(() => {
-      safetySheetTranslateY.setValue(0);
-      setIsSafetyReportVisible(false);
+    if (isDismissingSafetyReport.current) {
+      return;
+    }
+
+    isDismissingSafetyReport.current = true;
+    safetySheetTranslateY.stopAnimation((currentTranslateY) => {
+      safetySheetTranslateY.setValue(currentTranslateY);
+      Animated.parallel([
+        Animated.timing(safetyBackdropProgress, {
+          duration: 180,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(safetySheetTranslateY, {
+          duration: 180,
+          toValue: height,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        safetyBackdropProgress.setValue(0);
+        safetySheetTranslateY.setValue(0);
+        isDismissingSafetyReport.current = false;
+        setIsSafetyReportVisible(false);
+      });
     });
-  }, [height, safetySheetTranslateY]);
+  }, [height, safetyBackdropProgress, safetySheetTranslateY]);
   const safetySheetPanResponder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gestureState) =>
-          gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+          gestureState.dy > 6 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
         onPanResponderMove: (_, gestureState) => {
           safetySheetTranslateY.setValue(Math.max(gestureState.dy, 0));
         },
@@ -89,7 +109,7 @@ export default function MainScreen() {
           }).start();
         },
       }),
-    [dismissSafetyReport, safetySheetTranslateY],
+    [dismissSafetyReport, safetySheetTranslateY]
   );
 
   return (
@@ -221,7 +241,6 @@ export default function MainScreen() {
               </Pressable>
             ))}
           </ScrollView>
-
           {/*
           <View style={styles.emptyBox}>
             <Ionicons
@@ -238,12 +257,24 @@ export default function MainScreen() {
       </ScrollView>
 
       <Modal
-        animationType="fade"
+        animationType="none"
         onRequestClose={dismissSafetyReport}
         transparent
         visible={isSafetyReportVisible}
       >
         <View style={styles.modalOverlay}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.modalBackdrop,
+              {
+                opacity: safetyBackdropProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0],
+                }),
+              },
+            ]}
+          />
           <Animated.View
             {...safetySheetPanResponder.panHandlers}
             style={[
@@ -251,7 +282,12 @@ export default function MainScreen() {
               { transform: [{ translateY: safetySheetTranslateY }] },
             ]}
           >
-            <View style={styles.sheetHandle} />
+            <Pressable
+              onPress={dismissSafetyReport}
+              style={styles.sheetHandleButton}
+            >
+              <View style={styles.sheetHandle} />
+            </Pressable>
             <Image
               resizeMode="contain"
               source={require("../../assets/images/main/main-report-safety-icon.png")}
@@ -271,7 +307,10 @@ export default function MainScreen() {
                 onPress={dismissSafetyReport}
                 style={[styles.safetyButton, styles.safetyCloseButton]}
               >
-                <Text maxFontSizeMultiplier={1.1} style={styles.safetyCloseText}>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.safetyCloseText}
+                >
                   닫기
                 </Text>
               </Pressable>
@@ -298,19 +337,23 @@ const createStyles = (
   scale: number,
   fontScale: number,
   screenWidth: number,
-  screenHeight: number,
+  screenHeight: number
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = Math.min(screenHeight / BASE_HEIGHT, 1);
-  const modalScale = Math.min(screenWidth / BASE_WIDTH, screenHeight / BASE_HEIGHT, 1);
+  const modalScale = Math.min(
+    screenWidth / BASE_WIDTH,
+    screenHeight / BASE_HEIGHT,
+    1
+  );
   const horizontalScale = Math.min(widthScale, 1);
   const verticalScaled = (value: number) => Math.round(value * heightScale);
   const tallScreenOffset = Math.round(
-    Math.min(Math.max(screenHeight - BASE_HEIGHT, 0) * 0.5, 18),
+    Math.min(Math.max(screenHeight - BASE_HEIGHT, 0) * 0.5, 18)
   );
   const recentTallOffset = screenHeight >= 920 ? 4 : tallScreenOffset;
   const recentTitleLift = Math.round(
-    Math.min(Math.max(screenHeight - 900, 0) * 0.3, 8),
+    Math.min(Math.max(screenHeight - 900, 0) * 0.3, 8)
   );
   const longScreenReceiptBoost =
     screenWidth >= 390
@@ -319,11 +362,10 @@ const createStyles = (
   const receiptScale = Math.min(
     Math.min(screenWidth / BASE_WIDTH, screenHeight / BASE_HEIGHT) +
       longScreenReceiptBoost,
-    1.1,
+    1.1
   );
   const receiptScaled = (value: number) => Math.round(value * receiptScale);
   const horizontalPadding = Math.round(23 * horizontalScale);
-  const receiptEdgeInset = Math.max(4, Math.round(4 * horizontalScale));
   const contentWidth = screenWidth - horizontalPadding * 2;
   const cardGap = Math.round(12 * horizontalScale);
   const maxCardWidth = Math.floor((contentWidth - cardGap) / 2);
@@ -455,14 +497,12 @@ const createStyles = (
     },
     receiptList: {
       gap: receiptScaled(12),
-      paddingLeft: receiptEdgeInset,
       paddingBottom: verticalScaled(MIN_BOTTOM_SPACE),
+      paddingLeft: horizontalPadding,
       paddingRight: horizontalPadding,
       paddingTop: receiptListTop,
     },
-    receiptScroller: {
-      marginLeft: horizontalPadding,
-    },
+    receiptScroller: {},
     receiptCard: {
       backgroundColor: "#FFFFFF",
       borderRadius: receiptScaled(15),
@@ -511,9 +551,12 @@ const createStyles = (
       marginTop: receiptScaled(6),
     },
     modalOverlay: {
-      backgroundColor: "rgba(85, 85, 85, 0.5)",
       flex: 1,
       justifyContent: "flex-end",
+    },
+    modalBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(85, 85, 85, 0.5)",
     },
     safetySheet: {
       alignItems: "center",
@@ -521,14 +564,25 @@ const createStyles = (
       borderTopLeftRadius: modalScaled(20),
       borderTopRightRadius: modalScaled(20),
       height: modalScaled(SAFETY_SHEET_HEIGHT),
-      paddingTop: modalScaled(18),
+      paddingTop: modalScaled(8),
       width: "100%",
+    },
+    sheetHandleButton: {
+      alignItems: "center",
+      backgroundColor: "transparent",
+      borderColor: "transparent",
+      borderWidth: 0,
+      justifyContent: "center",
+      marginBottom: modalScaled(16),
+      overflow: "visible",
+      paddingBottom: modalScaled(12),
+      paddingTop: 0,
+      width: modalScaled(120),
     },
     sheetHandle: {
       backgroundColor: "#E5E5E5",
       borderRadius: modalScaled(2),
       height: modalScaled(4),
-      marginBottom: modalScaled(28),
       width: modalScaled(72),
     },
     safetyIcon: {

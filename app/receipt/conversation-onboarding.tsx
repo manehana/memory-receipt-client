@@ -13,6 +13,7 @@ import {
   Image,
   ImageSourcePropType,
   Modal,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -184,20 +185,66 @@ export default function ConversationOnboardingScreen() {
     [fontScale, scale],
   );
   const [step, setStep] = useState(0);
+  const [nextStep, setNextStep] = useState<number | null>(null);
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
+  const [isExitModalVisible, setIsExitModalVisible] = useState(false);
   const [friendSheetVisible, setFriendSheetVisible] = useState(false);
   const [friendSheetMode, setFriendSheetMode] = useState<"confirm" | "select">(
     "confirm",
   );
   const [selectedFriendId, setSelectedFriendId] = useState("hanaboy");
+  const friendBackdropProgress = useRef(new Animated.Value(1)).current;
   const friendSheetProgress = useRef(new Animated.Value(1)).current;
+  const friendSheetTranslateX = useRef(new Animated.Value(0)).current;
+  const pageTurnProgress = useRef(new Animated.Value(0)).current;
+  const isPageTurningRef = useRef(false);
 
-  const current = steps[step];
   const selectedFriend =
     friends.find((friend) => friend.id === selectedFriendId) ?? friends[0];
 
+  const navigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
+
+  const turnToStep = (targetStep: number) => {
+    if (isPageTurningRef.current || targetStep === step) {
+      return;
+    }
+
+    isPageTurningRef.current = true;
+    setSlideDirection(targetStep > step ? 1 : -1);
+    setNextStep(targetStep);
+    pageTurnProgress.setValue(0);
+    Animated.timing(pageTurnProgress, {
+      duration: 360,
+      toValue: 1,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setStep(targetStep);
+      }
+      setNextStep(null);
+      pageTurnProgress.setValue(0);
+      isPageTurningRef.current = false;
+    });
+  };
+
+  const goPrevious = () => {
+    if (step <= 0) {
+      return;
+    }
+
+    turnToStep(step - 1);
+  };
+
   const goNext = () => {
     if (step < steps.length - 1) {
-      setStep((currentStep) => currentStep + 1);
+      turnToStep(step + 1);
       return;
     }
 
@@ -206,8 +253,30 @@ export default function ConversationOnboardingScreen() {
   };
 
   const openFriendSheet = () => {
+    friendBackdropProgress.setValue(1);
     friendSheetProgress.setValue(1);
+    friendSheetTranslateX.setValue(0);
     setFriendSheetVisible(true);
+    requestAnimationFrame(() => {
+      Animated.parallel([
+        Animated.timing(friendBackdropProgress, {
+          duration: 220,
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+        Animated.timing(friendSheetProgress, {
+          duration: 220,
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  };
+
+  const openFriendSelectSheet = () => {
+    friendSheetProgress.setValue(1);
+    friendSheetTranslateX.setValue(0);
+    setFriendSheetMode("select");
     requestAnimationFrame(() => {
       Animated.timing(friendSheetProgress, {
         duration: 220,
@@ -217,14 +286,33 @@ export default function ConversationOnboardingScreen() {
     });
   };
 
-  const closeFriendSheet = (onClosed?: () => void) => {
-    Animated.timing(friendSheetProgress, {
+  const openFriendConfirmSheet = () => {
+    setFriendSheetMode("confirm");
+    friendSheetTranslateX.setValue(-width);
+    Animated.timing(friendSheetTranslateX, {
       duration: 220,
-      toValue: 1,
+      toValue: 0,
       useNativeDriver: true,
-    }).start(({ finished }) => {
+    }).start();
+  };
+
+  const closeFriendSheet = (onClosed?: () => void) => {
+    Animated.parallel([
+      Animated.timing(friendBackdropProgress, {
+        duration: 220,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(friendSheetProgress, {
+        duration: 220,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
       if (finished) {
         setFriendSheetVisible(false);
+        setFriendSheetMode("confirm");
+        friendSheetTranslateX.setValue(0);
         onClosed?.();
       }
     });
@@ -246,60 +334,89 @@ export default function ConversationOnboardingScreen() {
     });
   };
   const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
+    if (step > 0) {
+      goPrevious();
       return;
     }
 
-    router.replace("/receipt/main");
+    setIsExitModalVisible(true);
+  };
+  const confirmExit = () => {
+    setIsExitModalVisible(false);
+    navigateBack();
+  };
+  const swipeResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gestureState) =>
+      Math.abs(gestureState.dx) > 18 &&
+      Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.25,
+    onPanResponderRelease: (_, gestureState) => {
+      if (Math.abs(gestureState.dx) < 48) {
+        return;
+      }
+
+      if (gestureState.dx > 0) {
+        if (step < steps.length - 1) {
+          goNext();
+        }
+        return;
+      }
+
+      if (step > 0) {
+        goPrevious();
+      }
+    },
+  });
+  const progressStep = nextStep ?? step;
+  const outgoingPageStyle = {
+    opacity: pageTurnProgress.interpolate({
+      inputRange: [0, 0.85, 1],
+      outputRange: [1, 0.9, 0.88],
+    }),
+    transform: [
+      {
+        translateX: pageTurnProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -width * slideDirection],
+        }),
+      },
+    ],
+  };
+  const incomingPageStyle = {
+    opacity: pageTurnProgress.interpolate({
+      inputRange: [0, 0.18, 1],
+      outputRange: [0, 1, 1],
+    }),
+    transform: [
+      {
+        translateX: pageTurnProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [width * slideDirection, 0],
+        }),
+      },
+    ],
   };
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.topRow}>
-          <Pressable
-            accessibilityLabel="뒤로가기"
-            hitSlop={10}
-            onPress={goBack}
-            style={styles.backButton}
-          >
-            <Ionicons color="#7E7E7E" name="chevron-back" size={scaled(22, scale)} />
-          </Pressable>
-        </View>
+  const renderPage = (pageStep: number, isInteractive: boolean) => {
+    const item = steps[pageStep];
 
-        <View style={styles.progressRow}>
-          {steps.map((_, index) =>
-            index === step ? (
-              <LinearGradient
-                colors={["#22CB88", "#14BC79"]}
-                end={{ x: 1, y: 0 }}
-                key={index}
-                start={{ x: 0, y: 0 }}
-                style={styles.progressActive}
-              />
-            ) : (
-              <View key={index} style={styles.progressInactive} />
-            ),
-          )}
-        </View>
-
+    return (
+      <View style={styles.page}>
         <View style={styles.content}>
           <View style={styles.mainIconFrame}>
-            {steps.map((item, index) => (
+            {steps.map((stepItem, index) => (
               <Image
                 key={index}
                 resizeMode="contain"
-                source={item.mainImage}
+                source={stepItem.mainImage}
                 style={[
                   styles.mainIcon,
                   {
-                    opacity: index === step ? 1 : 0,
+                    opacity: index === pageStep ? 1 : 0,
                     transform: [
                       {
-                        translateX: scaled(item.mainImageOffsetX ?? 0, scale),
+                        translateX: scaled(stepItem.mainImageOffsetX ?? 0, scale),
                       },
-                      { scale: item.mainImageScale ?? 1 },
+                      { scale: stepItem.mainImageScale ?? 1 },
                     ],
                   },
                 ]}
@@ -308,31 +425,31 @@ export default function ConversationOnboardingScreen() {
           </View>
 
           <Text maxFontSizeMultiplier={1.1} style={styles.title}>
-            {current.title}
+            {item.title}
           </Text>
 
-          {current.description ? (
+          {item.description ? (
             <Text
               maxFontSizeMultiplier={1.1}
               style={[
                 styles.description,
-                current.descriptionSize
+                item.descriptionSize
                   ? {
-                      fontSize: fontScaled(current.descriptionSize, fontScale),
-                      lineHeight: fontScaled(current.descriptionSize + 9, fontScale),
+                      fontSize: fontScaled(item.descriptionSize, fontScale),
+                      lineHeight: fontScaled(item.descriptionSize + 9, fontScale),
                     }
                   : null,
               ]}
             >
-              {current.description}
+              {item.description}
             </Text>
           ) : null}
         </View>
 
         <View style={styles.bottomArea}>
-          {current.cards.length > 0 ? (
+          {item.cards.length > 0 ? (
             <View style={styles.cardList}>
-              {current.cards.map((card, index) => (
+              {item.cards.map((card, index) => (
                 <View key={index} style={styles.infoCard}>
                   <Image resizeMode="contain" source={card.icon} style={styles.cardIcon} />
                   <Text maxFontSizeMultiplier={1.1} style={styles.cardText}>
@@ -351,17 +468,69 @@ export default function ConversationOnboardingScreen() {
             </View>
           ) : null}
 
-          <Pressable onPress={goNext} style={styles.primaryButton}>
+          <Pressable
+            disabled={!isInteractive}
+            onPress={goNext}
+            style={styles.primaryButton}
+          >
             <Text maxFontSizeMultiplier={1.1} style={styles.primaryButtonText}>
-              {step === steps.length - 1 ? "대화 친구 확인하기" : "이해했어요"}
+              {pageStep === steps.length - 1 ? "대화 친구 확인하기" : "이해했어요"}
             </Text>
           </Pressable>
 
-          <Pressable onPress={skipOnboarding}>
+          <Pressable disabled={!isInteractive} onPress={skipOnboarding}>
             <Text maxFontSizeMultiplier={1.1} style={styles.skipText}>
               건너뛰기
             </Text>
           </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.topRow}>
+          <Pressable
+            accessibilityLabel="뒤로가기"
+            hitSlop={10}
+            onPress={goBack}
+            style={styles.backButton}
+          >
+            <Ionicons color="#7E7E7E" name="chevron-back" size={scaled(22, scale)} />
+          </Pressable>
+        </View>
+
+        <View style={styles.progressRow}>
+          {steps.map((_, index) =>
+            index === progressStep ? (
+              <LinearGradient
+                colors={["#22CB88", "#14BC79"]}
+                end={{ x: 1, y: 0 }}
+                key={index}
+                start={{ x: 0, y: 0 }}
+                style={styles.progressActive}
+              />
+            ) : (
+              <View key={index} style={styles.progressInactive} />
+            ),
+          )}
+        </View>
+
+        <View style={styles.pageStage} {...swipeResponder.panHandlers}>
+          {nextStep === null ? (
+            renderPage(step, true)
+          ) : (
+            <>
+              <Animated.View style={[styles.turnPage, outgoingPageStyle]}>
+                {renderPage(step, false)}
+              </Animated.View>
+              <Animated.View style={[styles.turnPage, incomingPageStyle]}>
+                {renderPage(nextStep, false)}
+              </Animated.View>
+            </>
+          )}
         </View>
       </View>
 
@@ -377,7 +546,7 @@ export default function ConversationOnboardingScreen() {
             style={[
               styles.modalBackdropDim,
               {
-                opacity: friendSheetProgress.interpolate({
+                opacity: friendBackdropProgress.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.28, 0],
                 }),
@@ -397,6 +566,9 @@ export default function ConversationOnboardingScreen() {
                 styles.confirmSheet,
                 {
                   transform: [
+                    {
+                      translateX: friendSheetTranslateX,
+                    },
                     {
                       translateY: friendSheetProgress.interpolate({
                         inputRange: [0, 1],
@@ -433,7 +605,7 @@ export default function ConversationOnboardingScreen() {
                   </Text>
                 </View>
                 <Pressable
-                  onPress={() => setFriendSheetMode("select")}
+                  onPress={openFriendSelectSheet}
                   style={styles.changeFriendButton}
                 >
                   <Text maxFontSizeMultiplier={1.1} style={styles.changeFriendText}>
@@ -455,6 +627,9 @@ export default function ConversationOnboardingScreen() {
                 styles.selectSheet,
                 {
                   transform: [
+                    {
+                      translateX: friendSheetTranslateX,
+                    },
                     {
                       translateY: friendSheetProgress.interpolate({
                         inputRange: [0, 1],
@@ -526,7 +701,7 @@ export default function ConversationOnboardingScreen() {
               </View>
 
               <Pressable
-                onPress={() => setFriendSheetMode("confirm")}
+                onPress={openFriendConfirmSheet}
                 style={styles.selectDoneButton}
               >
                 <Text maxFontSizeMultiplier={1.1} style={styles.selectDoneButtonText}>
@@ -535,6 +710,42 @@ export default function ConversationOnboardingScreen() {
               </Pressable>
             </Animated.View>
           )}
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsExitModalVisible(false)}
+        transparent
+        visible={isExitModalVisible}
+      >
+        <View style={styles.exitModalBackdrop}>
+          <View style={styles.exitModalCard}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.exitModalTitle}>
+              오늘의 대화를{"\n"}종료할까요?
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.exitModalDescription}>
+              지금 나가면 온보딩 진행이 중단돼요.
+            </Text>
+            <View style={styles.exitModalButtonRow}>
+              <Pressable
+                onPress={() => setIsExitModalVisible(false)}
+                style={[styles.exitModalButton, styles.exitModalCancelButton]}
+              >
+                <Text maxFontSizeMultiplier={1.1} style={styles.exitModalCancelText}>
+                  계속하기
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmExit}
+                style={[styles.exitModalButton, styles.exitModalConfirmButton]}
+              >
+                <Text maxFontSizeMultiplier={1.1} style={styles.exitModalConfirmText}>
+                  종료하기
+                </Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -550,11 +761,11 @@ const createStyles = (scale: number, fontScale: number) =>
     container: {
       flex: 1,
       paddingBottom: scaled(47, scale),
-      paddingHorizontal: scaled(23, scale),
     },
     topRow: {
       height: scaled(50, scale),
       justifyContent: "center",
+      paddingHorizontal: scaled(20, scale),
     },
     backButton: {
       alignItems: "center",
@@ -585,6 +796,18 @@ const createStyles = (scale: number, fontScale: number) =>
     content: {
       alignItems: "center",
       flex: 1,
+    },
+    page: {
+      flex: 1,
+    },
+    pageStage: {
+      flex: 1,
+      overflow: "hidden",
+      paddingHorizontal: scaled(23, scale),
+    },
+    turnPage: {
+      ...StyleSheet.absoluteFillObject,
+      backfaceVisibility: "hidden",
     },
     mainIconFrame: {
       height: scaled(150, scale),
@@ -648,6 +871,65 @@ const createStyles = (scale: number, fontScale: number) =>
     highlightText: {
       color: "#13BB78",
       fontFamily: "PretendardSemiBold",
+    },
+    exitModalBackdrop: {
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.28)",
+      flex: 1,
+      justifyContent: "center",
+      paddingHorizontal: scaled(26, scale),
+    },
+    exitModalCard: {
+      backgroundColor: "#FFFFFF",
+      borderRadius: scaled(16, scale),
+      maxWidth: scaled(350, scale),
+      paddingBottom: scaled(18, scale),
+      paddingHorizontal: scaled(20, scale),
+      paddingTop: scaled(24, scale),
+      width: "100%",
+    },
+    exitModalTitle: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(22, fontScale),
+      lineHeight: fontScaled(30, fontScale),
+      textAlign: "center",
+    },
+    exitModalDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, fontScale),
+      lineHeight: fontScaled(22, fontScale),
+      marginTop: scaled(8, scale),
+      textAlign: "center",
+    },
+    exitModalButtonRow: {
+      flexDirection: "row",
+      gap: scaled(10, scale),
+      marginTop: scaled(24, scale),
+    },
+    exitModalButton: {
+      alignItems: "center",
+      borderRadius: scaled(8, scale),
+      flex: 1,
+      height: scaled(50, scale),
+      justifyContent: "center",
+    },
+    exitModalCancelButton: {
+      backgroundColor: "#EEEEEE",
+    },
+    exitModalConfirmButton: {
+      backgroundColor: "#444444",
+    },
+    exitModalCancelText: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(17, fontScale),
+    },
+    exitModalConfirmText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(17, fontScale),
     },
     primaryButton: {
       alignItems: "center",
