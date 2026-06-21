@@ -74,6 +74,7 @@ export default function MemoryReceipt() {
   const receiptReveal = useRef(new Animated.Value(0)).current;
   const [isShareSheetVisible, setIsShareSheetVisible] = useState(false);
   const shareSheetProgress = useRef(new Animated.Value(1)).current;
+  const [isSaveModalVisible, setIsSaveModalVisible] = useState(false);
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const insets = useSafeAreaInsets();
@@ -139,7 +140,11 @@ export default function MemoryReceipt() {
             <Ionicons color="#5D5D5D" name="chevron-back" size={scaled(24, scale)} />
           </Pressable>
 
-          <Pressable accessibilityLabel="저장" hitSlop={scaled(12, scale)}>
+          <Pressable
+            accessibilityLabel="저장"
+            hitSlop={scaled(12, scale)}
+            onPress={() => setIsSaveModalVisible(true)}
+          >
             <Text maxFontSizeMultiplier={1.1} style={styles.saveText}>
               저장
             </Text>
@@ -403,6 +408,48 @@ export default function MemoryReceipt() {
           </Animated.View>
         </Pressable>
       </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsSaveModalVisible(false)}
+        transparent
+        visible={isSaveModalVisible}
+      >
+        <View style={styles.saveModalOverlay}>
+          <View style={styles.saveModalCard}>
+            <Image
+              resizeMode="contain"
+              source={require("../../assets/images/memory-receipt/memory-receipt-save-alert.png")}
+              style={styles.saveModalIcon}
+            />
+            <Text maxFontSizeMultiplier={1.1} style={styles.saveModalTitle}>
+              기억 영수증을 저장할까요?
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.saveModalDescription}>
+              저장하면 나중에 기억 수첩에서{"\n"}
+              다시 볼 수 있어요.
+            </Text>
+            <View style={styles.saveModalButtonRow}>
+              <Pressable
+                onPress={() => setIsSaveModalVisible(false)}
+                style={[styles.saveModalButton, styles.saveModalCancelButton]}
+              >
+                <Text maxFontSizeMultiplier={1.1} style={styles.saveModalCancelText}>
+                  취소
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setIsSaveModalVisible(false)}
+                style={[styles.saveModalButton, styles.saveModalConfirmButton]}
+              >
+                <Text maxFontSizeMultiplier={1.1} style={styles.saveModalConfirmText}>
+                  저장하기
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -443,6 +490,11 @@ const createStyles = (
     fontScaled(value, Math.min(fontScale, layoutScale));
   const sheetFont = (value: number) =>
     fontScaled(value, Math.min(fontScale, sheetScale));
+  const modalWidth = Math.min(350, screenWidth - 48);
+  const modalScale = Math.min(modalWidth / 350, 1);
+  const modalFixed = (value: number) => Math.round(value * modalScale);
+  const modalFont = (value: number) =>
+    fontScaled(value, Math.min(fontScale, modalScale));
   const receiptWidth = Math.min(
     fixed(RECEIPT_BASE_WIDTH),
     Math.round(screenWidth * 0.84),
@@ -632,6 +684,75 @@ const createStyles = (
     safeArea: {
       backgroundColor: "#F7F7F7",
       flex: 1,
+    },
+    saveModalButton: {
+      alignItems: "center",
+      borderRadius: modalFixed(8),
+      flex: 1,
+      height: modalFixed(55),
+      justifyContent: "center",
+    },
+    saveModalButtonRow: {
+      flexDirection: "row",
+      gap: modalFixed(10),
+      marginTop: modalFixed(30),
+      width: "100%",
+    },
+    saveModalCancelButton: {
+      backgroundColor: "#F2F2F2",
+    },
+    saveModalCancelText: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: modalFont(20),
+      textAlign: "center",
+    },
+    saveModalCard: {
+      alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      borderRadius: modalFixed(15),
+      paddingBottom: modalFixed(15),
+      paddingHorizontal: modalFixed(15),
+      paddingTop: modalFixed(25),
+      width: modalWidth,
+    },
+    saveModalConfirmButton: {
+      backgroundColor: "#23CC89",
+    },
+    saveModalConfirmText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: modalFont(20),
+      textAlign: "center",
+    },
+    saveModalDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: modalFont(20),
+      lineHeight: Math.round(modalFont(20) * 1.35),
+      marginTop: modalFixed(16),
+      textAlign: "center",
+      width: "100%",
+    },
+    saveModalIcon: {
+      height: modalFixed(55),
+      width: modalFixed(55),
+    },
+    saveModalOverlay: {
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.35)",
+      flex: 1,
+      justifyContent: "center",
+      paddingHorizontal: 24,
+    },
+    saveModalTitle: {
+      color: "#353535",
+      fontFamily: "PretendardBold",
+      fontSize: modalFont(28),
+      lineHeight: modalFont(36),
+      marginTop: modalFixed(20),
+      textAlign: "center",
+      width: "100%",
     },
     saveText: {
       color: "#5D5D5D",
