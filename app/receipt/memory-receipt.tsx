@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -54,10 +55,25 @@ const footprints = [
   },
 ];
 
+const shareGuardians = [
+  {
+    id: "son",
+    avatar: require("../../assets/images/memory-receipt/share_friend_son.png"),
+    name: "아들",
+  },
+  {
+    id: "daughter",
+    avatar: require("../../assets/images/memory-receipt/share_friend_daughter.png"),
+    name: "딸",
+  },
+];
+
 export default function MemoryReceipt() {
   const { width, height } = useWindowDimensions();
   const [isReceiptRevealed, setIsReceiptRevealed] = useState(false);
   const receiptReveal = useRef(new Animated.Value(0)).current;
+  const [isShareSheetVisible, setIsShareSheetVisible] = useState(false);
+  const shareSheetProgress = useRef(new Animated.Value(1)).current;
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const insets = useSafeAreaInsets();
@@ -85,6 +101,30 @@ export default function MemoryReceipt() {
 
     return () => clearTimeout(timer);
   }, [receiptReveal]);
+
+  const openShareSheet = () => {
+    shareSheetProgress.setValue(1);
+    setIsShareSheetVisible(true);
+    requestAnimationFrame(() => {
+      Animated.timing(shareSheetProgress, {
+        duration: 220,
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  const closeShareSheet = () => {
+    Animated.timing(shareSheetProgress, {
+      duration: 180,
+      toValue: 1,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setIsShareSheetVisible(false);
+      }
+    });
+  };
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
@@ -252,7 +292,11 @@ export default function MemoryReceipt() {
               style={styles.shareBarBackgroundImage}
             />
           </View>
-          <Pressable accessibilityLabel="공유하기" style={styles.shareButton}>
+          <Pressable
+            accessibilityLabel="공유하기"
+            onPress={openShareSheet}
+            style={styles.shareButton}
+          >
             <Text maxFontSizeMultiplier={1.1} style={styles.shareButtonText}>
               공유하기
             </Text>
@@ -262,6 +306,103 @@ export default function MemoryReceipt() {
           </Text>
         </View>
       </View>
+
+      <Modal
+        animationType="none"
+        onRequestClose={closeShareSheet}
+        transparent
+        visible={isShareSheetVisible}
+      >
+        <Pressable
+          accessibilityRole="button"
+          onPress={closeShareSheet}
+          style={styles.shareSheetOverlay}
+        >
+          <Animated.View
+            style={[
+              styles.shareSheet,
+              {
+                transform: [
+                  {
+                    translateY: shareSheetProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, height],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={(event) => event.stopPropagation()}
+              style={styles.shareSheetContent}
+            >
+              <View style={styles.shareSheetHandle} />
+
+              <Text maxFontSizeMultiplier={1.1} style={styles.shareSheetTitle}>
+                공유하기
+              </Text>
+
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={styles.shareSheetSectionTitle}
+              >
+                보호자
+              </Text>
+
+              <View style={styles.shareGuardianList}>
+                {shareGuardians.map((guardian) => (
+                  <View key={guardian.id} style={styles.shareGuardianItem}>
+                    <View style={styles.shareGuardianProfile}>
+                      <Image
+                        resizeMode="contain"
+                        source={guardian.avatar}
+                        style={styles.shareGuardianAvatar}
+                      />
+                      <Text
+                        ellipsizeMode="tail"
+                        maxFontSizeMultiplier={1.1}
+                        numberOfLines={1}
+                        style={styles.shareGuardianName}
+                      >
+                        {guardian.name}
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      accessibilityLabel={`${guardian.name}에게 전송`}
+                      style={styles.shareSendButton}
+                    >
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.shareSendButtonText}
+                      >
+                        전송
+                      </Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+
+              <Pressable
+                accessibilityLabel="링크 공유하기"
+                style={styles.shareLinkButton}
+              >
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.shareLinkButtonText}
+                >
+                  링크 공유하기
+                </Text>
+              </Pressable>
+
+              <Text maxFontSizeMultiplier={1.1} style={styles.shareLinkCaption}>
+                다른 사람에게는 링크로 공유해요.
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -293,11 +434,15 @@ const createStyles = (
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = screenHeight / BASE_HEIGHT;
   const layoutScale = Math.min(widthScale, heightScale, 1.04);
+  const sheetScale = Math.max(Math.min(widthScale, heightScale, 1), 0.92);
   const fixed = (value: number) => Math.round(value * layoutScale);
+  const sheetFixed = (value: number) => Math.round(value * sheetScale);
   const vertical = (value: number) =>
     Math.round(value * Math.min(heightScale, 1.04));
   const font = (value: number) =>
     fontScaled(value, Math.min(fontScale, layoutScale));
+  const sheetFont = (value: number) =>
+    fontScaled(value, Math.min(fontScale, sheetScale));
   const receiptWidth = Math.min(
     fixed(RECEIPT_BASE_WIDTH),
     Math.round(screenWidth * 0.84),
@@ -569,6 +714,119 @@ const createStyles = (
       marginTop: vertical(18),
       textAlign: "center",
       zIndex: 1,
+    },
+    shareGuardianAvatar: {
+      height: sheetFixed(50),
+      width: sheetFixed(50),
+    },
+    shareGuardianItem: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      width: "100%",
+    },
+    shareGuardianList: {
+      gap: sheetFixed(18),
+      marginTop: sheetFixed(14),
+      width: "100%",
+    },
+    shareGuardianName: {
+      color: "#353535",
+      flex: 1,
+      fontFamily: "PretendardSemiBold",
+      fontSize: sheetFont(20),
+      lineHeight: sheetFont(28),
+      marginLeft: sheetFixed(12),
+      minWidth: 0,
+    },
+    shareGuardianProfile: {
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      marginRight: sheetFixed(12),
+      minWidth: 0,
+    },
+    shareLinkButton: {
+      alignItems: "center",
+      backgroundColor: "#444444",
+      borderRadius: sheetFixed(8),
+      height: sheetFixed(55),
+      justifyContent: "center",
+      marginTop: sheetFixed(22),
+      width: Math.min(sheetFixed(370), Math.round(screenWidth * 0.92)),
+    },
+    shareLinkButtonText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: sheetFont(20),
+      lineHeight: sheetFont(28),
+      textAlign: "center",
+    },
+    shareLinkCaption: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardRegular",
+      fontSize: sheetFont(20),
+      lineHeight: sheetFont(28),
+      marginTop: sheetFixed(30),
+      textAlign: "center",
+    },
+    shareSendButton: {
+      alignItems: "center",
+      backgroundColor: "#F8F8F8",
+      borderRadius: sheetFixed(45),
+      height: sheetFixed(54),
+      justifyContent: "center",
+      width: sheetFixed(95),
+    },
+    shareSendButtonText: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: sheetFont(20),
+      lineHeight: sheetFont(28),
+      textAlign: "center",
+    },
+    shareSheet: {
+      alignSelf: "center",
+      backgroundColor: "#FFFFFF",
+      borderTopLeftRadius: sheetFixed(20),
+      borderTopRightRadius: sheetFixed(20),
+      overflow: "hidden",
+      width: "100%",
+    },
+    shareSheetContent: {
+      alignItems: "center",
+      paddingBottom: sheetFixed(30) + bottomInset,
+      paddingHorizontal: sheetFixed(16),
+      paddingTop: sheetFixed(14),
+      width: "100%",
+    },
+    shareSheetHandle: {
+      backgroundColor: "#D9D9D9",
+      borderRadius: sheetFixed(999),
+      height: sheetFixed(4),
+      width: sheetFixed(95),
+    },
+    shareSheetOverlay: {
+      backgroundColor: "rgba(0, 0, 0, 0.36)",
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    shareSheetSectionTitle: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardSemiBold",
+      fontSize: sheetFont(20),
+      lineHeight: sheetFont(28),
+      marginTop: sheetFixed(28),
+      width: "100%",
+    },
+    shareSheetTitle: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: sheetFont(20),
+      lineHeight: sheetFont(28),
+      marginTop: sheetFixed(20),
+      textAlign: "center",
+      width: "100%",
     },
     summaryBox: {
       backgroundColor: "#EDE9DE",
