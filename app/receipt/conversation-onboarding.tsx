@@ -219,7 +219,7 @@ export default function ConversationOnboardingScreen() {
 
   const closeFriendSheet = (onClosed?: () => void) => {
     Animated.timing(friendSheetProgress, {
-      duration: 180,
+      duration: 220,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -364,6 +364,18 @@ export default function ConversationOnboardingScreen() {
         visible={friendSheetVisible}
       >
         <View style={styles.modalBackdrop}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.modalBackdropDim,
+              {
+                opacity: friendSheetProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.28, 0],
+                }),
+              },
+            ]}
+          />
           <Pressable
             accessibilityLabel="대화 친구 설정 닫기"
             onPress={() => closeFriendSheet()}
@@ -650,9 +662,12 @@ const createStyles = (scale: number, fontScale: number) =>
       marginTop: scaled(25, scale),
     },
     modalBackdrop: {
-      backgroundColor: "rgba(0, 0, 0, 0.28)",
       flex: 1,
       justifyContent: "flex-end",
+    },
+    modalBackdropDim: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "#000000",
     },
     sheet: {
       backgroundColor: "#FFFFFF",

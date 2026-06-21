@@ -98,7 +98,7 @@ export default function MemoryNotebookScreen() {
 
   const closeSortSheet = () => {
     Animated.timing(sortSheetProgress, {
-      duration: 180,
+      duration: 220,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -210,6 +210,18 @@ export default function MemoryNotebookScreen() {
           onPress={closeSortSheet}
           style={styles.sortSheetOverlay}
         >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.sortSheetBackdrop,
+              {
+                opacity: sortSheetProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.36, 0],
+                }),
+              },
+            ]}
+          />
           <Animated.View
             style={[
               styles.sortSheet,
@@ -433,9 +445,12 @@ const createStyles = (
       width: sheetFixed(95),
     },
     sortSheetOverlay: {
-      backgroundColor: "rgba(0, 0, 0, 0.36)",
       flex: 1,
       justifyContent: "flex-end",
+    },
+    sortSheetBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "#000000",
     },
   });
 };

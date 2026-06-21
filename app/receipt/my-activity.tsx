@@ -6,8 +6,9 @@ import {
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Image,
   type ImageSourcePropType,
   Pressable,
@@ -92,10 +93,16 @@ type CalendarDate = {
   date: number;
   monthOffset: -1 | 0 | 1;
 };
+type ActivityTab = "conversation" | "consumption";
 
 function DashedCircle({ color }: { color: string }) {
   return (
-    <Svg height="100%" style={StyleSheet.absoluteFill} viewBox="0 0 100 100" width="100%">
+    <Svg
+      height="100%"
+      style={StyleSheet.absoluteFill}
+      viewBox="0 0 100 100"
+      width="100%"
+    >
       <Circle
         cx="50"
         cy="50"
@@ -130,7 +137,10 @@ const createCalendarDates = (year: number, month: number) => {
   }
 
   while (cells.length % 7 !== 0 || cells.length < 35) {
-    cells.push({ date: cells.length - firstDayIndex - daysInMonth + 1, monthOffset: 1 });
+    cells.push({
+      date: cells.length - firstDayIndex - daysInMonth + 1,
+      monthOffset: 1,
+    });
   }
 
   const rows: CalendarDate[][] = [];
@@ -142,19 +152,25 @@ const createCalendarDates = (year: number, month: number) => {
 };
 
 export default function MyActivityScreen() {
-  const [activeTab, setActiveTab] = useState<"conversation" | "consumption">("conversation");
+  const [activeTab, setActiveTab] = useState<ActivityTab>("conversation");
+  const [visibleTab, setVisibleTab] = useState<ActivityTab>("conversation");
+  const tabContentOpacity = useRef(new Animated.Value(1)).current;
+  const tabIndicatorProgress = useRef(new Animated.Value(0)).current;
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
+  const tabIndicatorTravel = Math.round(
+    (width - Math.round(16 * Math.min(width / BASE_WIDTH, 1.1)) * 2) / 2
+  );
   const styles = useMemo(
     () => createStyles(scale, fontScale, width, height),
-    [fontScale, height, scale, width],
+    [fontScale, height, scale, width]
   );
   const today = useMemo(() => new Date(), []);
   const todayWeekIndex = today.getDay();
   const completedWeekDays = useMemo(
     () => Array.from({ length: todayWeekIndex }, (_, index) => index),
-    [todayWeekIndex],
+    [todayWeekIndex]
   );
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth();
@@ -162,8 +178,46 @@ export default function MyActivityScreen() {
   const daysInCurrentMonth = getDaysInMonth(currentYear, currentMonth);
   const calendarDates = useMemo(
     () => createCalendarDates(currentYear, currentMonth),
-    [currentMonth, currentYear],
+    [currentMonth, currentYear]
   );
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
+  const selectTab = (nextTab: ActivityTab) => {
+    if (nextTab === activeTab) {
+      return;
+    }
+
+    setActiveTab(nextTab);
+    tabIndicatorProgress.stopAnimation();
+    Animated.timing(tabIndicatorProgress, {
+      duration: 140,
+      toValue: nextTab === "conversation" ? 0 : 1,
+      useNativeDriver: true,
+    }).start();
+    tabContentOpacity.stopAnimation();
+    Animated.timing(tabContentOpacity, {
+      duration: 90,
+      toValue: 0,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) {
+        return;
+      }
+
+      setVisibleTab(nextTab);
+      Animated.timing(tabContentOpacity, {
+        duration: 160,
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -171,10 +225,14 @@ export default function MyActivityScreen() {
         <View style={styles.header}>
           <Pressable
             hitSlop={scaled(12, scale)}
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.headerButton}
           >
-            <Ionicons color="#9F9F9F" name="chevron-back" size={scaled(24, scale)} />
+            <Ionicons
+              color="#9F9F9F"
+              name="chevron-back"
+              size={scaled(24, scale)}
+            />
           </Pressable>
           <Text maxFontSizeMultiplier={1.1} style={styles.headerTitle}>
             MY 상세
@@ -189,218 +247,288 @@ export default function MyActivityScreen() {
         >
           <View style={styles.tabs}>
             <View style={styles.tabDivider} />
+            <Animated.View
+              style={[
+                styles.activeTabIndicator,
+                {
+                  transform: [
+                    {
+                      translateX: tabIndicatorProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, tabIndicatorTravel],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
             <Pressable
-              onPress={() => setActiveTab("conversation")}
+              onPress={() => selectTab("conversation")}
               style={styles.tabButton}
             >
               <Text
                 maxFontSizeMultiplier={1.1}
                 style={[
                   styles.tabText,
-                  activeTab === "conversation" ? styles.activeTabText : styles.inactiveTabText,
+                  activeTab === "conversation"
+                    ? styles.activeTabText
+                    : styles.inactiveTabText,
                 ]}
               >
                 대화 기록
               </Text>
-              {activeTab === "conversation" ? <View style={styles.activeTabBar} /> : null}
+              <View style={styles.tabBarSlot} />
             </Pressable>
             <Pressable
-              onPress={() => setActiveTab("consumption")}
+              onPress={() => selectTab("consumption")}
               style={styles.tabButton}
             >
               <Text
                 maxFontSizeMultiplier={1.1}
                 style={[
                   styles.tabText,
-                  activeTab === "consumption" ? styles.activeTabText : styles.inactiveTabText,
+                  activeTab === "consumption"
+                    ? styles.activeTabText
+                    : styles.inactiveTabText,
                 ]}
               >
                 소비 기록
               </Text>
-              {activeTab === "consumption" ? <View style={styles.activeTabBar} /> : null}
+              <View style={styles.tabBarSlot} />
             </Pressable>
           </View>
 
-          {activeTab === "conversation" ? (
-            <>
-          <Text maxFontSizeMultiplier={1.1} style={styles.todaySectionTitle}>
-            오늘의 대화 기록
-          </Text>
+          <Animated.View
+            style={[styles.tabContent, { opacity: tabContentOpacity }]}
+          >
+            {visibleTab === "conversation" ? (
+              <>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.todaySectionTitle}
+                >
+                  오늘의 대화 기록
+                </Text>
 
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryColumn}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.summaryLabel}>
-              현재 연속 일수
-            </Text>
-            <View style={styles.summaryValueRow}>
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/images/my-activity/conversation_history_streak.png")}
-                style={styles.streakIcon}
-              />
-              <Text maxFontSizeMultiplier={1.1} style={styles.summaryNumber}>
-                7
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.summaryUnit}>
-                일째
-              </Text>
-            </View>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryColumn}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.summaryLabel}>
-              최고 기록
-            </Text>
-            <View style={styles.summaryValueRow}>
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/images/my-activity/conversation_history_best_record.png")}
-                style={styles.bestIcon}
-              />
-              <Text maxFontSizeMultiplier={1.1} style={styles.summaryNumber}>
-                15
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.summaryUnit}>
-                일
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.band} />
-
-        <View style={styles.sectionHeader}>
-          <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
-            이번주 참여 현황
-          </Text>
-          <Text maxFontSizeMultiplier={1.1} style={styles.weekCount}>
-            <Text style={styles.weekCountStrong}>{completedWeekDays.length}</Text>
-            <Text style={styles.weekCountMuted}> / 7회</Text>
-          </Text>
-        </View>
-
-        <View style={styles.weekCard}>
-          <View style={styles.weekIconRow}>
-            {weekDays.map((day, index) => {
-              const isCompleted = completedWeekDays.includes(index);
-              const isToday = index === todayWeekIndex;
-              return (
-                <View key={day} style={styles.weekDayColumn}>
-                  <View
-                    style={[
-                      styles.weekCircle,
-                      isCompleted && styles.weekCircleCompleted,
-                      isToday && styles.weekCircleToday,
-                    ]}
-                  >
-                    {isCompleted ? (
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryColumn}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.summaryLabel}
+                    >
+                      현재 연속 일수
+                    </Text>
+                    <View style={styles.summaryValueRow}>
                       <Image
                         resizeMode="contain"
-                        source={require("../../assets/images/my-activity/conversation_history_daily_attendance.png")}
-                        style={styles.dailyIcon}
+                        source={require("../../assets/images/my-activity/conversation_history_streak.png")}
+                        style={styles.streakIcon}
                       />
-                    ) : isToday ? (
-                      <>
-                        <DashedCircle color="#23CC89" />
-                        <Text maxFontSizeMultiplier={1.1} style={styles.todayText}>
-                          오늘
-                        </Text>
-                      </>
-                    ) : null}
-                  </View>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.weekDayText}>
-                    {day}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.rewardBanner}>
-          <Image
-            resizeMode="contain"
-            source={require("../../assets/images/my-activity/conversation_history_weekly_reward.png")}
-            style={styles.rewardIcon}
-          />
-          <Text maxFontSizeMultiplier={1.1} style={styles.rewardText}>
-            이번주 모두 참여했어요. 오늘도 함께해요!
-          </Text>
-        </View>
-
-        <View style={styles.band} />
-
-        <View style={styles.monthHeader}>
-          <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
-            월별 참여 현황
-          </Text>
-          <View style={styles.monthMeta}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.monthText}>
-              {currentYear}년 {currentMonth + 1}월
-            </Text>
-            <Ionicons
-              color="#9F9F9F"
-              name="chevron-down"
-              size={scaled(18, scale)}
-            />
-          </View>
-        </View>
-        <View style={styles.monthCountRow}>
-          <Text maxFontSizeMultiplier={1.1} style={styles.monthCountStrong}>
-            8
-          </Text>
-          <Text maxFontSizeMultiplier={1.1} style={styles.monthCountMuted}>
-            /{daysInCurrentMonth}일
-          </Text>
-        </View>
-
-          <View style={styles.calendarCard}>
-          <View style={styles.calendarWeekHeader}>
-            {calendarWeekDays.map((day) => (
-              <Text key={day} maxFontSizeMultiplier={1.1} style={styles.calendarWeekText}>
-                {day}
-              </Text>
-            ))}
-          </View>
-          {calendarDates.map((row, rowIndex) => (
-            <View key={`row-${rowIndex}`} style={styles.calendarRow}>
-              {row.map((calendarDate, index) => {
-                const isOutsideMonth = calendarDate.monthOffset !== 0;
-                const isToday =
-                  calendarDate.monthOffset === 0 && calendarDate.date === currentDate;
-                const isCompleted =
-                  completedDates.has(calendarDate.date) && !isOutsideMonth && !isToday;
-                return (
-                  <View key={`${rowIndex}-${index}`} style={styles.calendarCell}>
-                    <View
-                      style={[
-                        styles.dateCircle,
-                        isCompleted && styles.dateCircleCompleted,
-                        isToday && styles.dateCircleToday,
-                      ]}
-                    >
-                      {isToday ? <DashedCircle color="#54E5AC" /> : null}
                       <Text
                         maxFontSizeMultiplier={1.1}
-                        style={[
-                          styles.dateText,
-                          isCompleted && styles.dateTextCompleted,
-                          isOutsideMonth && styles.dateTextMuted,
-                        ]}
+                        style={styles.summaryNumber}
                       >
-                        {calendarDate.date}
+                        7
+                      </Text>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.summaryUnit}
+                      >
+                        일째
                       </Text>
                     </View>
                   </View>
-                );
-              })}
-            </View>
-          ))}
-          </View>
-            </>
-          ) : (
-            <ConsumptionHistoryContent styles={styles} />
-          )}
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryColumn}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.summaryLabel}
+                    >
+                      최고 기록
+                    </Text>
+                    <View style={styles.summaryValueRow}>
+                      <Image
+                        resizeMode="contain"
+                        source={require("../../assets/images/my-activity/conversation_history_best_record.png")}
+                        style={styles.bestIcon}
+                      />
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.summaryNumber}
+                      >
+                        15
+                      </Text>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.summaryUnit}
+                      >
+                        일
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.band} />
+
+                <View style={styles.sectionHeader}>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
+                    이번주 참여 현황
+                  </Text>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.weekCount}>
+                    <Text style={styles.weekCountStrong}>
+                      {completedWeekDays.length}
+                    </Text>
+                    <Text style={styles.weekCountMuted}> / 7회</Text>
+                  </Text>
+                </View>
+
+                <View style={styles.weekCard}>
+                  <View style={styles.weekIconRow}>
+                    {weekDays.map((day, index) => {
+                      const isCompleted = completedWeekDays.includes(index);
+                      const isToday = index === todayWeekIndex;
+                      return (
+                        <View key={day} style={styles.weekDayColumn}>
+                          <View
+                            style={[
+                              styles.weekCircle,
+                              isCompleted && styles.weekCircleCompleted,
+                              isToday && styles.weekCircleToday,
+                            ]}
+                          >
+                            {isCompleted ? (
+                              <Image
+                                resizeMode="contain"
+                                source={require("../../assets/images/my-activity/conversation_history_daily_attendance.png")}
+                                style={styles.dailyIcon}
+                              />
+                            ) : isToday ? (
+                              <>
+                                <DashedCircle color="#23CC89" />
+                                <Text
+                                  maxFontSizeMultiplier={1.1}
+                                  style={styles.todayText}
+                                >
+                                  오늘
+                                </Text>
+                              </>
+                            ) : null}
+                          </View>
+                          <Text
+                            maxFontSizeMultiplier={1.1}
+                            style={styles.weekDayText}
+                          >
+                            {day}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <View style={styles.rewardBanner}>
+                  <Image
+                    resizeMode="contain"
+                    source={require("../../assets/images/my-activity/conversation_history_weekly_reward.png")}
+                    style={styles.rewardIcon}
+                  />
+                  <Text maxFontSizeMultiplier={1.1} style={styles.rewardText}>
+                    이번주 모두 참여했어요. 오늘도 함께해요!
+                  </Text>
+                </View>
+
+                <View style={styles.band} />
+
+                <View style={styles.monthHeader}>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
+                    월별 참여 현황
+                  </Text>
+                  <View style={styles.monthMeta}>
+                    <Text maxFontSizeMultiplier={1.1} style={styles.monthText}>
+                      {currentYear}년 {currentMonth + 1}월
+                    </Text>
+                    <Ionicons
+                      color="#9F9F9F"
+                      name="chevron-down"
+                      size={scaled(18, scale)}
+                    />
+                  </View>
+                </View>
+                <View style={styles.monthCountRow}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.monthCountStrong}
+                  >
+                    8
+                  </Text>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.monthCountMuted}
+                  >
+                    /{daysInCurrentMonth}일
+                  </Text>
+                </View>
+
+                <View style={styles.calendarCard}>
+                  <View style={styles.calendarWeekHeader}>
+                    {calendarWeekDays.map((day) => (
+                      <Text
+                        key={day}
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.calendarWeekText}
+                      >
+                        {day}
+                      </Text>
+                    ))}
+                  </View>
+                  {calendarDates.map((row, rowIndex) => (
+                    <View key={`row-${rowIndex}`} style={styles.calendarRow}>
+                      {row.map((calendarDate, index) => {
+                        const isOutsideMonth = calendarDate.monthOffset !== 0;
+                        const isToday =
+                          calendarDate.monthOffset === 0 &&
+                          calendarDate.date === currentDate;
+                        const isCompleted =
+                          completedDates.has(calendarDate.date) &&
+                          !isOutsideMonth &&
+                          !isToday;
+                        return (
+                          <View
+                            key={`${rowIndex}-${index}`}
+                            style={styles.calendarCell}
+                          >
+                            <View
+                              style={[
+                                styles.dateCircle,
+                                isCompleted && styles.dateCircleCompleted,
+                                isToday && styles.dateCircleToday,
+                              ]}
+                            >
+                              {isToday ? (
+                                <DashedCircle color="#54E5AC" />
+                              ) : null}
+                              <Text
+                                maxFontSizeMultiplier={1.1}
+                                style={[
+                                  styles.dateText,
+                                  isCompleted && styles.dateTextCompleted,
+                                  isOutsideMonth && styles.dateTextMuted,
+                                ]}
+                              >
+                                {calendarDate.date}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <ConsumptionHistoryContent styles={styles} />
+            )}
+          </Animated.View>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -459,17 +587,25 @@ function ConsumptionHistoryContent({
       <View style={styles.activityChartCard}>
         <View style={styles.chartPlot}>
           <View pointerEvents="none" style={styles.chartGridLayer}>
-            {Array.from({ length: activityTicks.length - 1 }).map((_, index) => (
-              <View
-                key={`grid-line-${index}`}
-                style={[styles.chartGridLine, { left: `${((index + 1) / 9) * 100}%` }]}
-              />
-            ))}
+            {Array.from({ length: activityTicks.length - 1 }).map(
+              (_, index) => (
+                <View
+                  key={`grid-line-${index}`}
+                  style={[
+                    styles.chartGridLine,
+                    { left: `${((index + 1) / 9) * 100}%` },
+                  ]}
+                />
+              )
+            )}
           </View>
           {activityTicks.map((tick, index) => {
             const bar = activityBars.find((item) => item.hour === tick.barKey);
             return (
-              <View key={`bar-${tick.label}-${index}`} style={styles.activitySlot}>
+              <View
+                key={`bar-${tick.label}-${index}`}
+                style={styles.activitySlot}
+              >
                 {bar ? (
                   <View
                     style={[
@@ -535,11 +671,38 @@ function ConsumptionHistoryContent({
       </View>
 
       <View style={styles.spendingBar}>
-        <View style={[styles.spendingSegment, styles.spendingSegmentFirst, { flex: 35.4 }]} />
-        <View style={[styles.spendingSegment, { backgroundColor: "#23CC89", flex: 25.4 }]} />
-        <View style={[styles.spendingSegment, { backgroundColor: "#54DFA7", flex: 15.8 }]} />
-        <View style={[styles.spendingSegment, { backgroundColor: "#9BEED0", flex: 9.6 }]} />
-        <View style={[styles.spendingSegment, styles.spendingSegmentLast, { flex: 13.8 }]} />
+        <View
+          style={[
+            styles.spendingSegment,
+            styles.spendingSegmentFirst,
+            { flex: 35.4 },
+          ]}
+        />
+        <View
+          style={[
+            styles.spendingSegment,
+            { backgroundColor: "#23CC89", flex: 25.4 },
+          ]}
+        />
+        <View
+          style={[
+            styles.spendingSegment,
+            { backgroundColor: "#54DFA7", flex: 15.8 },
+          ]}
+        />
+        <View
+          style={[
+            styles.spendingSegment,
+            { backgroundColor: "#9BEED0", flex: 9.6 },
+          ]}
+        />
+        <View
+          style={[
+            styles.spendingSegment,
+            styles.spendingSegmentLast,
+            { flex: 13.8 },
+          ]}
+        />
       </View>
       <Text maxFontSizeMultiplier={1.1} style={styles.totalAmountText}>
         334,590원
@@ -548,7 +711,11 @@ function ConsumptionHistoryContent({
       <View style={styles.categoryList}>
         {spendingCategories.map((category) => (
           <View key={category.name} style={styles.categoryRow}>
-            <Image resizeMode="contain" source={category.icon} style={styles.categoryIcon} />
+            <Image
+              resizeMode="contain"
+              source={category.icon}
+              style={styles.categoryIcon}
+            />
             <View style={styles.categoryTextBox}>
               <Text
                 maxFontSizeMultiplier={1.1}
@@ -575,7 +742,7 @@ const createStyles = (
   scale: number,
   fontScale: number,
   screenWidth: number,
-  screenHeight: number,
+  screenHeight: number
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = screenHeight / BASE_HEIGHT;
@@ -583,8 +750,10 @@ const createStyles = (
   const horizontalPadding = Math.round(16 * Math.min(widthScale, 1.1));
   const contentWidth = screenWidth - horizontalPadding * 2;
   const fixed = (value: number) => Math.round(value * layoutScale);
-  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
-  const font = (value: number) => fontScaled(value, Math.min(fontScale, layoutScale));
+  const vertical = (value: number) =>
+    Math.round(value * Math.min(heightScale, 1.04));
+  const font = (value: number) =>
+    fontScaled(value, Math.min(fontScale, layoutScale));
   const calendarCellWidth = Math.floor((contentWidth - fixed(22)) / 7);
   const weekCircleSize = fixed(36.5);
   const dateCircleSize = fixed(39.77);
@@ -635,7 +804,6 @@ const createStyles = (
       width: Math.round(contentWidth / 2),
     },
     tabText: {
-      fontFamily: "PretendardSemiBold",
       fontSize: font(20),
       marginBottom: vertical(16),
     },
@@ -651,16 +819,26 @@ const createStyles = (
     },
     activeTabText: {
       color: "#13BB78",
+      fontFamily: "PretendardSemiBold",
     },
     inactiveTabText: {
       color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
     },
-    activeTabBar: {
+    activeTabIndicator: {
       backgroundColor: "#13BB78",
       borderRadius: fixed(2),
+      bottom: 0,
       height: fixed(3),
+      left: Math.round(contentWidth / 4 - fixed(148) / 2),
+      position: "absolute",
       width: fixed(148),
       zIndex: 1,
+    },
+    tabBarSlot: {
+      backgroundColor: "transparent",
+      height: fixed(3),
+      width: fixed(148),
     },
     tabDivider: {
       alignSelf: "center",
@@ -669,6 +847,9 @@ const createStyles = (
       height: fixed(1),
       position: "absolute",
       width: screenWidth,
+    },
+    tabContent: {
+      width: "100%",
     },
     sectionTitle: {
       color: "#353535",
@@ -703,22 +884,24 @@ const createStyles = (
       fontSize: font(16),
     },
     summaryValueRow: {
-      alignItems: "center",
+      alignItems: "flex-end",
       flexDirection: "row",
       marginTop: vertical(7),
     },
     streakIcon: {
       height: fixed(29.17),
-      marginRight: fixed(6),
+      marginBottom: fixed(2),
+      marginRight: fixed(8),
       width: fixed(30),
     },
     bestIcon: {
       height: fixed(27.5),
-      marginRight: fixed(6),
+      marginBottom: fixed(3),
+      marginRight: fixed(8),
       width: fixed(29.78),
     },
     summaryNumber: {
-      color: "#5D5D5D",
+      color: "#353535",
       fontFamily: "PretendardBold",
       fontSize: font(28),
       lineHeight: font(34),

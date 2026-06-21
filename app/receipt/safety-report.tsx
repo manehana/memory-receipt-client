@@ -6,8 +6,9 @@ import {
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Image,
   Modal,
   Pressable,
@@ -22,6 +23,7 @@ import Svg, { Line } from "react-native-svg";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
+const BOTTOM_SHEET_ANIMATION_MS = 220;
 
 const detailScores = [
   { label: "언어 내용", max: "50점", score: 42, total: 50 },
@@ -78,6 +80,7 @@ export default function SafetyReportScreen() {
   const [selectedService, setSelectedService] = useState<
     (typeof recommendedServices)[number] | null
   >(null);
+  const productSheetProgress = useRef(new Animated.Value(1)).current;
 
   const handleShareTogglePress = () => {
     if (isShareEnabled) {
@@ -91,6 +94,28 @@ export default function SafetyReportScreen() {
   const handleShareAgree = () => {
     setIsShareEnabled(true);
     setIsShareModalVisible(false);
+  };
+  const openProductSheet = (service: (typeof recommendedServices)[number]) => {
+    productSheetProgress.setValue(1);
+    setSelectedService(service);
+    requestAnimationFrame(() => {
+      Animated.timing(productSheetProgress, {
+        duration: BOTTOM_SHEET_ANIMATION_MS,
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+  const closeProductSheet = () => {
+    Animated.timing(productSheetProgress, {
+      duration: BOTTOM_SHEET_ANIMATION_MS,
+      toValue: 1,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setSelectedService(null);
+      }
+    });
   };
 
   return (
@@ -394,7 +419,7 @@ export default function SafetyReportScreen() {
           {recommendedServices.map((service) => (
             <Pressable
               key={service.name}
-              onPress={() => setSelectedService(service)}
+              onPress={() => openProductSheet(service)}
               style={styles.serviceCard}
             >
               <View style={styles.serviceTextBox}>
@@ -487,13 +512,39 @@ export default function SafetyReportScreen() {
         </Modal>
 
         <Modal
-          animationType="slide"
-          onRequestClose={() => setSelectedService(null)}
+          animationType="none"
+          onRequestClose={closeProductSheet}
           transparent
           visible={selectedService !== null}
         >
           <View style={styles.productSheetOverlay}>
-            <View style={styles.productSheet}>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.productSheetBackdrop,
+                {
+                  opacity: productSheetProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.35, 0],
+                  }),
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.productSheet,
+                {
+                  transform: [
+                    {
+                      translateY: productSheetProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, height],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
               <View style={styles.productSheetHandle} />
               <View style={styles.productSheetContent}>
                 <Text maxFontSizeMultiplier={1.1} style={styles.productSheetCategory}>
@@ -579,13 +630,13 @@ export default function SafetyReportScreen() {
                     하나원큐에서 하나 합 열기
                   </Text>
                 </Pressable>
-                <Pressable onPress={() => setSelectedService(null)}>
+                <Pressable onPress={closeProductSheet}>
                   <Text maxFontSizeMultiplier={1.1} style={styles.productCloseText}>
                     닫기
                   </Text>
                 </Pressable>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </Modal>
       </View>
@@ -1348,14 +1399,18 @@ const createStyles = (
       fontSize: modalFont(16),
     },
     productSheetOverlay: {
-      backgroundColor: "rgba(0, 0, 0, 0.35)",
       flex: 1,
       justifyContent: "flex-end",
+    },
+    productSheetBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "#000000",
     },
     productSheet: {
       backgroundColor: "#FFFFFF",
       borderTopLeftRadius: fixed(20),
       borderTopRightRadius: fixed(20),
+      maxHeight: productSheetHeight,
       paddingBottom: vertical(34),
       width: screenWidth,
     },
