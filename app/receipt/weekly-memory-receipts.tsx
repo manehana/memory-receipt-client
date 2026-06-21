@@ -112,7 +112,13 @@ export default function WeeklyMemoryReceiptsScreen() {
               <WeeklyReceiptCard
                 isSelected={receipt.id === selectedReceiptId}
                 key={receipt.id}
-                onPress={() => setSelectedReceiptId(receipt.id)}
+                onPress={() => {
+                  setSelectedReceiptId(receipt.id);
+                  router.push({
+                    params: { date: receipt.date },
+                    pathname: "/receipt/weekly-memory-receipt-detail",
+                  });
+                }}
                 receipt={receipt}
                 styles={styles}
               />
