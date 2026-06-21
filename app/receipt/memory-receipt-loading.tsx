@@ -70,6 +70,14 @@ export default function MemoryReceiptLoading() {
   const svgSize = scaled(CIRCLE_VIEWBOX, scale);
   const iconSize = scaled(ICON_SIZE, scale);
   const { title, description } = getStageText(progress);
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
 
   const animatedProps = useAnimatedProps(() => ({
     strokeDashoffset: CIRCUMFERENCE * (1 - progressAnim.value / 100),
@@ -114,7 +122,7 @@ export default function MemoryReceiptLoading() {
       <Image source={LoadingBg} style={styles.backgroundImage} resizeMode="stretch" />
 
       <View style={styles.container}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={goBack}>
           <Ionicons name="chevron-back" size={30} color="#9F9F9F" />
         </Pressable>
 

@@ -67,6 +67,14 @@ export default function MemoryReceipt() {
     [fontScale, height, insets.bottom, scale, width],
   );
   const receiptMaxRevealHeight = Math.max(height * 2, scaled(1200, scale));
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
 
   useEffect(() => {
     receiptReveal.setValue(0);
@@ -102,7 +110,7 @@ export default function MemoryReceipt() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={scaled(12, scale)}
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.headerButton}
           >
             <Ionicons

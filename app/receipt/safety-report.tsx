@@ -5,8 +5,9 @@ import {
   scaled,
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -52,17 +53,20 @@ const recommendedServices = [
   },
   {
     category: "하나은행 · 퇴직연금 서비스",
-    description: "개인별 맞춤 진단부터 상품 추천, 정기적인 사후 관리까지 제공하는 연금 자산관리 서비스",
+    description:
+      "개인별 맞춤 진단부터 상품 추천, 정기적인 사후 관리까지 제공하는 연금 자산관리 서비스",
     name: "하나 연금 닥터",
   },
   {
     category: "하나더넥스트 · 교육 프로그램",
-    description: "치매 예방 정보부터 발병 후 자산관리 및 법적 보호까지 포괄적인 단계별 솔루션을 제공하는 시니어 특화 금융 프로그램",
+    description:
+      "치매 예방 정보부터 발병 후 자산관리 및 법적 보호까지 포괄적인 단계별 솔루션을 제공하는 시니어 특화 금융 프로그램",
     name: "치매안심 아카데미",
   },
   {
     category: "하나더넥스트 · 대면 상담",
-    description: "은퇴설계, 상속·증여, 퇴직연금 등에 걸쳐 전문 매니저의 1:1 맞춤형 진단과 솔루션을 제공하는 서비스",
+    description:
+      "은퇴설계, 상속·증여, 퇴직연금 등에 걸쳐 전문 매니저의 1:1 맞춤형 진단과 솔루션을 제공하는 서비스",
     name: "은퇴설계 상담",
   },
 ];
@@ -73,18 +77,46 @@ export default function SafetyReportScreen() {
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(scale, fontScale, width, height),
-    [fontScale, height, scale, width],
+    [fontScale, height, scale, width]
   );
   const [isShareEnabled, setIsShareEnabled] = useState(false);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
   const [selectedService, setSelectedService] = useState<
     (typeof recommendedServices)[number] | null
   >(null);
+  const shareToggleProgress = useRef(new Animated.Value(0)).current;
+  const detailScoreProgress = useRef(new Animated.Value(0)).current;
+  const flowBarProgress = useRef(new Animated.Value(0)).current;
+  const flowChartTopRef = useRef<number | null>(null);
+  const hasStartedFlowBarAnimationRef = useRef(false);
   const productSheetProgress = useRef(new Animated.Value(1)).current;
+  const shareToggleTranslateX = scaled(27, scale);
+  const shareToggleBackgroundColor = shareToggleProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["#E5E5E5", "#54E5AC"],
+  });
+
+  useEffect(() => {
+    detailScoreProgress.setValue(0);
+    const timer = setTimeout(() => {
+      Animated.timing(detailScoreProgress, {
+        duration: 720,
+        toValue: 1,
+        useNativeDriver: false,
+      }).start();
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [detailScoreProgress]);
 
   const handleShareTogglePress = () => {
     if (isShareEnabled) {
       setIsShareEnabled(false);
+      Animated.timing(shareToggleProgress, {
+        duration: 180,
+        toValue: 0,
+        useNativeDriver: false,
+      }).start();
       return;
     }
 
@@ -94,6 +126,43 @@ export default function SafetyReportScreen() {
   const handleShareAgree = () => {
     setIsShareEnabled(true);
     setIsShareModalVisible(false);
+    Animated.timing(shareToggleProgress, {
+      duration: 180,
+      toValue: 1,
+      useNativeDriver: false,
+    }).start();
+  };
+  const startFlowBarAnimation = () => {
+    if (hasStartedFlowBarAnimationRef.current) {
+      return;
+    }
+
+    hasStartedFlowBarAnimationRef.current = true;
+    flowBarProgress.setValue(0);
+    Animated.timing(flowBarProgress, {
+      duration: 760,
+      toValue: 1,
+      useNativeDriver: false,
+    }).start();
+  };
+  const handleContentScroll = (event: {
+    nativeEvent: {
+      contentOffset: { y: number };
+      layoutMeasurement: { height: number };
+    };
+  }) => {
+    const flowChartTop = flowChartTopRef.current;
+
+    if (flowChartTop === null) {
+      return;
+    }
+
+    const { contentOffset, layoutMeasurement } = event.nativeEvent;
+    const triggerY = contentOffset.y + layoutMeasurement.height * 0.82;
+
+    if (triggerY >= flowChartTop) {
+      startFlowBarAnimation();
+    }
   };
   const openProductSheet = (service: (typeof recommendedServices)[number]) => {
     productSheetProgress.setValue(1);
@@ -117,6 +186,14 @@ export default function SafetyReportScreen() {
       }
     });
   };
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -124,10 +201,14 @@ export default function SafetyReportScreen() {
         <View style={styles.header}>
           <Pressable
             hitSlop={scaled(12, scale)}
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.headerButton}
           >
-            <Ionicons color="#9F9F9F" name="chevron-back" size={scaled(24, scale)} />
+            <Ionicons
+              color="#9F9F9F"
+              name="chevron-back"
+              size={scaled(24, scale)}
+            />
           </Pressable>
           <Text maxFontSizeMultiplier={1.1} style={styles.headerTitle}>
             안심 리포트
@@ -137,321 +218,397 @@ export default function SafetyReportScreen() {
 
         <ScrollView
           contentContainerStyle={styles.content}
+          onScroll={handleContentScroll}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
-        <View style={styles.reportCard}>
-          <View style={styles.roundBadge}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.roundBadgeText}>
-              3회차 리포트
-            </Text>
-          </View>
-          <Text maxFontSizeMultiplier={1.1} style={styles.reportTitle}>
-            김하나 고객님의 안심 리포트
-          </Text>
-          <Text maxFontSizeMultiplier={1.1} style={styles.reportDate}>
-            2026년 7월 1일(수) ~ 7월 15일(수)
-          </Text>
-          <View style={styles.shareBox}>
-            <View style={styles.shareLeft}>
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/images/safety-report/safety-report-guardian.png")}
-                style={styles.guardianIcon}
-              />
-              <Text maxFontSizeMultiplier={1.1} style={styles.shareText}>
-                보호자에게 자동 공유
+          <View style={styles.reportCard}>
+            <View style={styles.roundBadge}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.roundBadgeText}>
+                3회차 리포트
               </Text>
             </View>
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityState={{ checked: isShareEnabled }}
-              hitSlop={scaled(8, scale)}
-              onPress={handleShareTogglePress}
-              style={[
-                styles.shareToggle,
-                isShareEnabled ? styles.shareToggleOn : styles.shareToggleOff,
-              ]}
-            >
-              <View style={styles.shareToggleThumb} />
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.band} />
-
-        <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
-          종합 점수
-        </Text>
-        <View style={styles.totalScoreCard}>
-          <View style={styles.statusBadge}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.statusBadgeText}>
-              ㅇ 정상 · 1단계(85~100점)
+            <Text maxFontSizeMultiplier={1.1} style={styles.reportTitle}>
+              김하나 고객님의 안심 리포트
             </Text>
-          </View>
-          <View style={styles.scoreRow}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.totalScore}>
-              78
+            <Text maxFontSizeMultiplier={1.1} style={styles.reportDate}>
+              2026년 7월 1일(수) ~ 7월 15일(수)
             </Text>
-            <Text maxFontSizeMultiplier={1.1} style={styles.totalScoreUnit}>
-              / 100점
-            </Text>
-          </View>
-          <Text maxFontSizeMultiplier={1.1} style={styles.totalDescription}>
-            인지 건강 우수 · 예방 중심의 자산 기반 구축 시기
-          </Text>
-        </View>
-
-        <Text maxFontSizeMultiplier={1.1} style={styles.detailSectionTitle}>
-          상세 점수
-        </Text>
-        <View style={styles.detailScoreCard}>
-          {detailScores.map((item, index) => (
-            <View key={item.label} style={styles.detailScoreItem}>
-              <Text maxFontSizeMultiplier={1.1} style={styles.detailLabel}>
-                {item.label}
-              </Text>
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${(item.score / item.total) * 100}%` },
-                  ]}
+            <View style={styles.shareBox}>
+              <View style={styles.shareLeft}>
+                <Image
+                  resizeMode="contain"
+                  source={require("../../assets/images/safety-report/safety-report-guardian.png")}
+                  style={styles.guardianIcon}
                 />
+                <Text maxFontSizeMultiplier={1.1} style={styles.shareText}>
+                  보호자에게 자동 공유
+                </Text>
               </View>
-              <Text maxFontSizeMultiplier={1.1} style={styles.detailScoreText}>
-                {item.score}
-                <Text style={styles.detailScoreMuted}>/ {item.max}</Text>
-              </Text>
-              {index < detailScores.length - 1 ? <View style={styles.detailDivider} /> : null}
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.band} />
-
-        <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
-          최근 4회차 점수 흐름
-        </Text>
-        <View style={styles.flowChart}>
-          <View style={styles.flowBars}>
-            <Svg height={scaled(2, scale)} style={styles.flowBaseline} width="100%">
-              <Line
-                stroke="#D9D9D9"
-                strokeDasharray="2.19 2.19"
-                strokeLinecap="butt"
-                strokeWidth="1.1"
-                x1="0"
-                x2="100%"
-                y1="1"
-                y2="1"
-              />
-            </Svg>
-            {reportFlows.map((item) => (
-              <View key={item.label} style={styles.flowColumn}>
-                <View style={styles.flowScoreArea}>
-                  {typeof item.score === "number" ? (
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      style={[
-                        styles.flowScoreText,
-                        item.current && styles.currentFlowScoreText,
-                      ]}
-                    >
-                      {item.score}
-                    </Text>
-                  ) : null}
-                  <View
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: isShareEnabled }}
+                hitSlop={scaled(8, scale)}
+              onPress={handleShareTogglePress}
+                style={styles.shareToggleButton}
+              >
+                <Animated.View
+                  style={[
+                    styles.shareToggle,
+                    { backgroundColor: shareToggleBackgroundColor },
+                  ]}
+                >
+                  <Animated.View
                     style={[
-                      styles.flowBar,
-                      item.current && styles.currentFlowBar,
-                      !item.score && styles.futureFlowBar,
-                      { height: `${item.barHeight}%` },
+                      styles.shareToggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: shareToggleProgress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, shareToggleTranslateX],
+                            }),
+                          },
+                        ],
+                      },
                     ]}
-                  >
-                    {item.current ? (
-                      <Text maxFontSizeMultiplier={1.1} style={styles.currentBadgeText}>
-                        현재
-                      </Text>
-                    ) : null}
-                  </View>
+                  />
+                </Animated.View>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.band} />
+
+          <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
+            종합 점수
+          </Text>
+          <View style={styles.totalScoreCard}>
+            <View style={styles.statusBadge}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.statusBadgeText}>
+                ㅇ 정상 · 1단계(85~100점)
+              </Text>
+            </View>
+            <View style={styles.scoreRow}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.totalScore}>
+                78
+              </Text>
+              <Text maxFontSizeMultiplier={1.1} style={styles.totalScoreUnit}>
+                / 100점
+              </Text>
+            </View>
+            <Text maxFontSizeMultiplier={1.1} style={styles.totalDescription}>
+              인지 건강 우수 · 예방 중심의 자산 기반 구축 시기
+            </Text>
+          </View>
+
+          <Text maxFontSizeMultiplier={1.1} style={styles.detailSectionTitle}>
+            상세 점수
+          </Text>
+          <View style={styles.detailScoreCard}>
+            {detailScores.map((item, index) => (
+              <View key={item.label} style={styles.detailScoreItem}>
+                <Text maxFontSizeMultiplier={1.1} style={styles.detailLabel}>
+                  {item.label}
+                </Text>
+                <View style={styles.progressTrack}>
+                  <Animated.View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: detailScoreProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [
+                            "0%",
+                            `${(item.score / item.total) * 100}%`,
+                          ],
+                        }),
+                      },
+                    ]}
+                  />
                 </View>
-              </View>
-            ))}
-          </View>
-          <View style={styles.flowLabelRow}>
-            {reportFlows.map((item) => (
-              <Text
-                key={item.label}
-                maxFontSizeMultiplier={1.1}
-                style={[styles.flowLabel, item.current && styles.currentFlowLabel]}
-              >
-                {item.label}
-              </Text>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.statCard}>
-          <View style={styles.statItem}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.statLabel}>
-              대화 횟수
-            </Text>
-            <View style={styles.statValueRow}>
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/images/safety-report/safety-report-conversation-count.png")}
-                style={styles.statIcon}
-              />
-              <Text maxFontSizeMultiplier={1.1} style={styles.statNumber}>
-                24
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.statUnit}>
-                회
-              </Text>
-            </View>
-            <View style={styles.statDivider} />
-          </View>
-          <View style={styles.statItem}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.statLabel}>
-              컨디션 난조
-            </Text>
-            <View style={styles.statValueRow}>
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/images/safety-report/safety-report-emotion-status.png")}
-                style={styles.statIcon}
-              />
-              <Text maxFontSizeMultiplier={1.1} style={styles.statNumber}>
-                2
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.statUnit}>
-                회
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <InfoBox
-          icon={require("../../assets/images/safety-report/safety-report-check.png")}
-          styles={styles}
-          text="지난 회차보다 3점 올랐어요."
-          type="success"
-        />
-        <View style={styles.noteRow}>
-          <Text maxFontSizeMultiplier={1.1} style={styles.noteBullet}>
-            ●
-          </Text>
-          <Text maxFontSizeMultiplier={1.1} style={styles.noteText}>
-            본 점수는 AI 음성 분석 기반의 참고 지표입니다. 의학적 진단을 대체하지 않습니다.
-          </Text>
-        </View>
-
-        <View style={styles.band} />
-
-        <View style={styles.placeHeader}>
-          <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitleNoMargin}>
-            자주 간 곳 TOP3
-          </Text>
-          <Text maxFontSizeMultiplier={1.1} style={styles.monthReferenceText}>
-            7월 기준
-          </Text>
-        </View>
-        <View style={styles.topPlaceCard}>
-          {topPlaces.map((place) => (
-            <View key={place.rank} style={styles.topPlaceRow}>
-              <View style={styles.rankBadge}>
-                <Text maxFontSizeMultiplier={1.1} style={styles.rankText}>
-                  {place.rank}
-                </Text>
-              </View>
-              <Text
-                maxFontSizeMultiplier={1.1}
-                numberOfLines={1}
-                style={styles.topPlaceName}
-              >
-                {place.name}
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.topPlaceCount}>
-                {place.count}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={[styles.infoBox, styles.warningBox]}>
-          <Image
-            resizeMode="contain"
-            source={require("../../assets/images/safety-report/safety-report-danger.png")}
-            style={[styles.infoIcon, styles.warningIcon]}
-          />
-          <Text maxFontSizeMultiplier={1.1} style={styles.infoText}>
-            <Text style={styles.warningStrongText}>5월 12일 심야 마트 결제</Text>
-            가 있었으나, 대화 결과 손주 선물을 사기 위해 가셨던 것으로 확인했어요.
-          </Text>
-        </View>
-        <InfoBox
-          icon={require("../../assets/images/safety-report/safety-report-check.png")}
-          styles={styles}
-          text="이번 달은 평소와 비슷한 소비 행태를 보이고 있어요."
-          type="success"
-          variant="consumption"
-        />
-
-        <View style={styles.band} />
-
-        <View style={styles.serviceHeader}>
-          <View>
-            <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitleNoMargin}>
-              맞춤 하나 상품 및 서비스
-            </Text>
-            <Text maxFontSizeMultiplier={1.1} style={styles.serviceDescription}>
-              인지 단계에 맞는 하나 금융 서비스를 추천할게요.
-            </Text>
-          </View>
-          <View style={styles.levelBadge}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.levelBadgeText}>
-              ㅇ 1단계
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.serviceList}>
-          {recommendedServices.map((service) => (
-            <Pressable
-              key={service.name}
-              onPress={() => openProductSheet(service)}
-              style={styles.serviceCard}
-            >
-              <View style={styles.serviceTextBox}>
-                <Text maxFontSizeMultiplier={1.1} style={styles.serviceCategory}>
-                  {service.category}
-                </Text>
-                <Text maxFontSizeMultiplier={1.1} style={styles.serviceName}>
-                  {service.name}
-                </Text>
                 <Text
                   maxFontSizeMultiplier={1.1}
-                  numberOfLines={2}
-                  style={styles.serviceCardDescription}
+                  style={styles.detailScoreText}
                 >
-                  {service.description}
+                  {item.score}
+                  <Text style={styles.detailScoreMuted}>/ {item.max}</Text>
+                </Text>
+                {index < detailScores.length - 1 ? (
+                  <View style={styles.detailDivider} />
+                ) : null}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.band} />
+
+          <View
+            onLayout={(event) => {
+              flowChartTopRef.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
+              최근 4회차 점수 흐름
+            </Text>
+            <View style={styles.flowChart}>
+            <View style={styles.flowBars}>
+              <Svg
+                height={scaled(2, scale)}
+                style={styles.flowBaseline}
+                width="100%"
+              >
+                <Line
+                  stroke="#D9D9D9"
+                  strokeDasharray="2.19 2.19"
+                  strokeLinecap="butt"
+                  strokeWidth="1.1"
+                  x1="0"
+                  x2="100%"
+                  y1="1"
+                  y2="1"
+                />
+              </Svg>
+              {reportFlows.map((item) => (
+                <View key={item.label} style={styles.flowColumn}>
+                  <View style={styles.flowScoreArea}>
+                    {typeof item.score === "number" ? (
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={[
+                          styles.flowScoreText,
+                          item.current && styles.currentFlowScoreText,
+                        ]}
+                      >
+                        {item.score}
+                      </Text>
+                    ) : null}
+                    <Animated.View
+                      style={[
+                        styles.flowBar,
+                        item.current && styles.currentFlowBar,
+                        !item.score && styles.futureFlowBar,
+                        {
+                          height: flowBarProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ["0%", `${item.barHeight}%`],
+                          }),
+                        },
+                      ]}
+                    >
+                      {item.current ? (
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.currentBadgeText}
+                        >
+                          현재
+                        </Text>
+                      ) : null}
+                    </Animated.View>
+                  </View>
+                </View>
+              ))}
+            </View>
+            <View style={styles.flowLabelRow}>
+              {reportFlows.map((item) => (
+                <Text
+                  key={item.label}
+                  maxFontSizeMultiplier={1.1}
+                  style={[
+                    styles.flowLabel,
+                    item.current && styles.currentFlowLabel,
+                  ]}
+                >
+                  {item.label}
+              </Text>
+            ))}
+            </View>
+          </View>
+          </View>
+
+          <View style={styles.statCard}>
+            <View style={styles.statItem}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.statLabel}>
+                대화 횟수
+              </Text>
+              <View style={styles.statValueRow}>
+                <Image
+                  resizeMode="contain"
+                  source={require("../../assets/images/safety-report/safety-report-conversation-count.png")}
+                  style={styles.statIcon}
+                />
+                <Text maxFontSizeMultiplier={1.1} style={styles.statNumber}>
+                  24
+                </Text>
+                <Text maxFontSizeMultiplier={1.1} style={styles.statUnit}>
+                  회
                 </Text>
               </View>
-              <Ionicons color="#54E5AC" name="chevron-forward" size={scaled(16, scale)} />
-            </Pressable>
-          ))}
-        </View>
+              <View style={styles.statDivider} />
+            </View>
+            <View style={styles.statItem}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.statLabel}>
+                컨디션 난조
+              </Text>
+              <View style={styles.statValueRow}>
+                <Image
+                  resizeMode="contain"
+                  source={require("../../assets/images/safety-report/safety-report-emotion-status.png")}
+                  style={styles.statIcon}
+                />
+                <Text maxFontSizeMultiplier={1.1} style={styles.statNumber}>
+                  2
+                </Text>
+                <Text maxFontSizeMultiplier={1.1} style={styles.statUnit}>
+                  회
+                </Text>
+              </View>
+            </View>
+          </View>
 
-        <View style={styles.bottomInfoCard}>
-          <Image
-            resizeMode="contain"
-            source={require("../../assets/images/safety-report/safety-report-check.png")}
-            style={[styles.infoIcon, styles.bottomInfoIcon]}
+          <InfoBox
+            icon={require("../../assets/images/safety-report/safety-report-check.png")}
+            styles={styles}
+            text="지난 회차보다 3점 올랐어요."
+            type="success"
           />
-          <Text maxFontSizeMultiplier={1.1} style={styles.bottomInfoText}>
-            정상 단계 에서 하나 합에 자산을 연결해두면 이후 이상 패턴 탐지 기준선이 돼요. 지금이 가장 좋은 준비 시기에요.
-          </Text>
-        </View>
+          <View style={styles.noteRow}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.noteBullet}>
+              ●
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.noteText}>
+              본 점수는 AI 음성 분석 기반의 참고 지표입니다. 의학적 진단을
+              대체하지 않습니다.
+            </Text>
+          </View>
+
+          <View style={styles.band} />
+
+          <View style={styles.placeHeader}>
+            <Text
+              maxFontSizeMultiplier={1.1}
+              style={styles.sectionTitleNoMargin}
+            >
+              자주 간 곳 TOP3
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.monthReferenceText}>
+              7월 기준
+            </Text>
+          </View>
+          <View style={styles.topPlaceCard}>
+            {topPlaces.map((place) => (
+              <View key={place.rank} style={styles.topPlaceRow}>
+                <View style={styles.rankBadge}>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.rankText}>
+                    {place.rank}
+                  </Text>
+                </View>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  numberOfLines={1}
+                  style={styles.topPlaceName}
+                >
+                  {place.name}
+                </Text>
+                <Text maxFontSizeMultiplier={1.1} style={styles.topPlaceCount}>
+                  {place.count}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={[styles.infoBox, styles.warningBox]}>
+            <Image
+              resizeMode="contain"
+              source={require("../../assets/images/safety-report/safety-report-danger.png")}
+              style={[styles.infoIcon, styles.warningIcon]}
+            />
+            <Text maxFontSizeMultiplier={1.1} style={styles.infoText}>
+              <Text style={styles.warningStrongText}>
+                5월 12일 심야 마트 결제
+              </Text>
+              가 있었으나, 대화 결과 손주 선물을 사기 위해 가셨던 것으로
+              확인했어요.
+            </Text>
+          </View>
+          <InfoBox
+            icon={require("../../assets/images/safety-report/safety-report-check.png")}
+            styles={styles}
+            text="이번 달은 평소와 비슷한 소비 행태를 보이고 있어요."
+            type="success"
+            variant="consumption"
+          />
+
+          <View style={styles.band} />
+
+          <View style={styles.serviceHeader}>
+            <View>
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={styles.sectionTitleNoMargin}
+              >
+                맞춤 하나 상품 및 서비스
+              </Text>
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={styles.serviceDescription}
+              >
+                인지 단계에 맞는 하나 금융 서비스를 추천할게요.
+              </Text>
+            </View>
+            <View style={styles.levelBadge}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.levelBadgeText}>
+                ㅇ 1단계
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.serviceList}>
+            {recommendedServices.map((service) => (
+              <Pressable
+                key={service.name}
+                onPress={() => openProductSheet(service)}
+                style={styles.serviceCard}
+              >
+                <View style={styles.serviceTextBox}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.serviceCategory}
+                  >
+                    {service.category}
+                  </Text>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.serviceName}>
+                    {service.name}
+                  </Text>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    numberOfLines={2}
+                    style={styles.serviceCardDescription}
+                  >
+                    {service.description}
+                  </Text>
+                </View>
+                <Ionicons
+                  color="#54E5AC"
+                  name="chevron-forward"
+                  size={scaled(22, scale)}
+                  style={styles.serviceChevronIcon}
+                />
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.bottomInfoCard}>
+            <Image
+              resizeMode="contain"
+              source={require("../../assets/images/safety-report/safety-report-check.png")}
+              style={[styles.infoIcon, styles.bottomInfoIcon]}
+            />
+            <Text maxFontSizeMultiplier={1.1} style={styles.bottomInfoText}>
+              정상 단계 에서 하나 합에 자산을 연결해두면 이후 이상 패턴 탐지
+              기준선이 돼요. 지금이 가장 좋은 준비 시기에요.
+            </Text>
+          </View>
         </ScrollView>
 
         <Modal
@@ -470,8 +627,12 @@ export default function SafetyReportScreen() {
               <Text maxFontSizeMultiplier={1.1} style={styles.shareModalTitle}>
                 보호자 자동 공유에{"\n"}대해 미리 알려드려요.
               </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.shareModalDescription}>
-                안심 리포트는 2주마다 만들어지고,{"\n"}설정한 보호자와 함께 나눌 수 있어요.
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={styles.shareModalDescription}
+              >
+                안심 리포트는 2주마다 만들어지고,{"\n"}설정한 보호자와 함께 나눌
+                수 있어요.
               </Text>
               <View style={styles.shareNoticeBox}>
                 <View style={styles.shareNoticeHeader}>
@@ -480,29 +641,48 @@ export default function SafetyReportScreen() {
                     source={require("../../assets/images/safety-report/safety-report-danger.png")}
                     style={styles.shareNoticeIcon}
                   />
-                  <Text maxFontSizeMultiplier={1.1} style={styles.shareNoticeTitle}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.shareNoticeTitle}
+                  >
                     꼭 확인해주세요.
                   </Text>
                 </View>
-                <Text maxFontSizeMultiplier={1.1} style={styles.shareNoticeText}>
-                  인지 상태가 3단계(주의) 이상으로 판단될 경우, 설정 여부와 관계없이
-                  보호자에게 자동으로 전달돼요. 소중한 분을 더 잘 보살피기 위해서예요.
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.shareNoticeText}
+                >
+                  인지 상태가 3단계(주의) 이상으로 판단될 경우, 설정 여부와
+                  관계없이 보호자에게 자동으로 전달돼요. 소중한 분을 더 잘
+                  보살피기 위해서예요.
                 </Text>
               </View>
               <View style={styles.shareModalButtonRow}>
                 <Pressable
                   onPress={() => setIsShareModalVisible(false)}
-                  style={[styles.shareModalButton, styles.shareModalCloseButton]}
+                  style={[
+                    styles.shareModalButton,
+                    styles.shareModalCloseButton,
+                  ]}
                 >
-                  <Text maxFontSizeMultiplier={1.1} style={styles.shareModalCloseText}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.shareModalCloseText}
+                  >
                     닫기
                   </Text>
                 </Pressable>
                 <Pressable
                   onPress={handleShareAgree}
-                  style={[styles.shareModalButton, styles.shareModalAgreeButton]}
+                  style={[
+                    styles.shareModalButton,
+                    styles.shareModalAgreeButton,
+                  ]}
                 >
-                  <Text maxFontSizeMultiplier={1.1} style={styles.shareModalAgreeText}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.shareModalAgreeText}
+                  >
                     동의하기
                   </Text>
                 </Pressable>
@@ -545,34 +725,59 @@ export default function SafetyReportScreen() {
                 },
               ]}
             >
-              <View style={styles.productSheetHandle} />
-              <View style={styles.productSheetContent}>
-                <Text maxFontSizeMultiplier={1.1} style={styles.productSheetCategory}>
+              <Pressable onPress={closeProductSheet} style={styles.productSheetHandleButton}>
+                <View style={styles.productSheetHandle} />
+              </Pressable>
+              <ScrollView
+                contentContainerStyle={styles.productSheetScrollContent}
+                showsVerticalScrollIndicator={false}
+                style={styles.productSheetScroller}
+              >
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.productSheetCategory}
+                >
                   {selectedService?.category ?? "하나은행 · 마이데이터 서비스"}
                 </Text>
-                <Text maxFontSizeMultiplier={1.1} style={styles.productSheetName}>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.productSheetName}
+                >
                   {selectedService?.name ?? "하나 합(마이데이터)"}
                 </Text>
-                <Text maxFontSizeMultiplier={1.1} style={styles.productSheetDescription}>
-                  전 금융기관 자산을 하나원큐 앱 하나로 통합 조회하고 실시간 소비·자산 변화를
-                  AI가 분석해요. 기억 Hana의 이상 패턴 탐지 기준선이 되는 핵심 데이터 소스예요.
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.productSheetDescription}
+                >
+                  전 금융기관 자산을 하나원큐 앱 하나로 통합 조회하고 실시간
+                  소비·자산 변화를 AI가 분석해요. 기억 Hana의 이상 패턴 탐지
+                  기준선이 되는 핵심 데이터 소스예요.
                 </Text>
 
                 <View style={styles.productTagRow}>
                   <View style={styles.productTag}>
-                    <Text maxFontSizeMultiplier={1.1} style={styles.productTagText}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.productTagText}
+                    >
                       하나원큐 앱
                     </Text>
                   </View>
                   <View style={styles.productTag}>
-                    <Text maxFontSizeMultiplier={1.1} style={styles.productTagText}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.productTagText}
+                    >
                       자산 통합 조회
                     </Text>
                   </View>
                   <View style={[styles.productTag, styles.productGreenTag]}>
                     <Text
                       maxFontSizeMultiplier={1.1}
-                      style={[styles.productTagText, styles.productGreenTagText]}
+                      style={[
+                        styles.productTagText,
+                        styles.productGreenTagText,
+                      ]}
                     >
                       무료
                     </Text>
@@ -593,12 +798,14 @@ export default function SafetyReportScreen() {
                       title: "정상 단계 확인 · 자산 베이스 라인 구축 시작",
                     },
                     {
-                      description: "은행·증권·보험·연금 전 기관 마이데이터 동의를 받아요.",
+                      description:
+                        "은행·증권·보험·연금 전 기관 마이데이터 동의를 받아요.",
                       step: "STEP 2",
                       title: "하나원큐에서 하나 합 자산 연결",
                     },
                     {
-                      description: "이상 소비·중복 결제·충동 구매 이상 탐지에 활용할거예요.",
+                      description:
+                        "이상 소비·중복 결제·충동 구매 이상 탐지에 활용할거예요.",
                       step: "STEP 3",
                       title: "소비 · 자산 패턴 AI 자동 분석",
                     },
@@ -608,10 +815,16 @@ export default function SafetyReportScreen() {
                         <View style={styles.timelineDotInner} />
                       </View>
                       <View style={styles.timelineTextBox}>
-                        <Text maxFontSizeMultiplier={1.1} style={styles.timelineStep}>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.timelineStep}
+                        >
                           {item.step}
                         </Text>
-                        <Text maxFontSizeMultiplier={1.1} style={styles.timelineItemTitle}>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.timelineItemTitle}
+                        >
                           {item.title}
                         </Text>
                         <Text
@@ -624,14 +837,26 @@ export default function SafetyReportScreen() {
                     </View>
                   ))}
                 </View>
-
+              </ScrollView>
+              <View style={styles.productSheetFooter}>
+                <LinearGradient
+                  colors={["rgba(255, 255, 255, 0)", "#FFFFFF"]}
+                  pointerEvents="none"
+                  style={styles.productSheetFooterFade}
+                />
                 <Pressable style={styles.productMainButton}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.productMainButtonText}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.productMainButtonText}
+                  >
                     하나원큐에서 하나 합 열기
                   </Text>
                 </Pressable>
                 <Pressable onPress={closeProductSheet}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.productCloseText}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.productCloseText}
+                  >
                     닫기
                   </Text>
                 </Pressable>
@@ -681,26 +906,29 @@ const createStyles = (
   scale: number,
   fontScale: number,
   screenWidth: number,
-  screenHeight: number,
+  screenHeight: number
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = screenHeight / BASE_HEIGHT;
   const layoutScale = Math.min(widthScale, heightScale, 1.04);
   const horizontalPadding = Math.round(
-    (screenWidth < 380 ? 20 : 24) * Math.min(widthScale, 1.08),
+    (screenWidth < 380 ? 20 : 24) * Math.min(widthScale, 1.08)
   );
   const contentWidth = screenWidth - horizontalPadding * 2;
   const modalWidth = Math.min(350, screenWidth - 48);
   const modalScale = Math.min(modalWidth / 350, 1);
   const productSheetHeight = Math.min(
     Math.round(690 * Math.min(heightScale, 1.04)),
-    Math.round(screenHeight * 0.92),
+    Math.round(screenHeight * 0.92)
   );
   const fixed = (value: number) => Math.round(value * layoutScale);
   const modalFixed = (value: number) => Math.round(value * modalScale);
-  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
-  const font = (value: number) => fontScaled(value, Math.min(fontScale, layoutScale));
-  const modalFont = (value: number) => fontScaled(value, Math.min(fontScale, modalScale));
+  const vertical = (value: number) =>
+    Math.round(value * Math.min(heightScale, 1.04));
+  const font = (value: number) =>
+    fontScaled(value, Math.min(fontScale, layoutScale));
+  const modalFont = (value: number) =>
+    fontScaled(value, Math.min(fontScale, modalScale));
 
   return StyleSheet.create({
     safeArea: {
@@ -801,20 +1029,15 @@ const createStyles = (
       fontFamily: "PretendardMedium",
       fontSize: font(16),
     },
+    shareToggleButton: {
+      borderRadius: fixed(15),
+    },
     shareToggle: {
       borderRadius: fixed(15),
       height: fixed(30),
       justifyContent: "center",
       paddingHorizontal: fixed(2),
       width: fixed(57),
-    },
-    shareToggleOn: {
-      alignItems: "flex-end",
-      backgroundColor: "#54E5AC",
-    },
-    shareToggleOff: {
-      alignItems: "flex-start",
-      backgroundColor: "#E5E5E5",
     },
     shareToggleThumb: {
       backgroundColor: "#FFFFFF",
@@ -1004,7 +1227,10 @@ const createStyles = (
       backgroundColor: "#54DFA7",
     },
     futureFlowBar: {
-      opacity: 0.9,
+      backgroundColor: "#F8F8F8",
+      borderColor: "#D9D9D9",
+      borderStyle: "dashed",
+      borderWidth: 1,
     },
     flowLabelRow: {
       flexDirection: "row",
@@ -1277,6 +1503,9 @@ const createStyles = (
       lineHeight: font(18),
       marginTop: vertical(4),
     },
+    serviceChevronIcon: {
+      marginRight: fixed(-4),
+    },
     bottomInfoCard: {
       alignItems: "flex-start",
       alignSelf: "center",
@@ -1410,39 +1639,62 @@ const createStyles = (
       backgroundColor: "#FFFFFF",
       borderTopLeftRadius: fixed(20),
       borderTopRightRadius: fixed(20),
+      flexShrink: 1,
       maxHeight: productSheetHeight,
-      paddingBottom: vertical(34),
       width: screenWidth,
     },
     productSheetHandle: {
-      alignSelf: "center",
       backgroundColor: "#D9D9D9",
       borderRadius: fixed(45),
       height: fixed(4),
-      marginTop: vertical(20),
       width: fixed(95),
     },
-    productSheetContent: {
-      paddingBottom: vertical(14),
+    productSheetHandleButton: {
+      alignItems: "center",
+      alignSelf: "center",
+      justifyContent: "center",
+      marginBottom: vertical(12),
+      marginTop: vertical(8),
+      paddingVertical: vertical(6),
+      width: fixed(119),
+    },
+    productSheetScroller: {
+      flexShrink: 1,
+    },
+    productSheetScrollContent: {
+      paddingBottom: vertical(12),
       paddingHorizontal: horizontalPadding,
-      paddingTop: vertical(48),
+      paddingTop: 0,
+    },
+    productSheetFooter: {
+      backgroundColor: "#FFFFFF",
+      paddingBottom: vertical(34),
+      paddingHorizontal: horizontalPadding,
+      paddingTop: vertical(12),
+    },
+    productSheetFooterFade: {
+      height: vertical(24),
+      left: 0,
+      position: "absolute",
+      right: 0,
+      top: -vertical(24),
     },
     productSheetCategory: {
       color: "#9F9F9F",
       fontFamily: "PretendardMedium",
-      fontSize: font(16),
-      lineHeight: font(22),
+      fontSize: font(14),
+      lineHeight: font(19),
     },
     productSheetName: {
       color: "#13BB78",
-      fontFamily: "PretendardBold",
-      fontSize: font(24),
-      lineHeight: font(32),
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(18),
+      lineHeight: font(25),
       marginTop: vertical(6),
     },
     productSheetDescription: {
       color: "#5D5D5D",
-      fontFamily: "PretendardMedium",
+      fontFamily: "PretendardRegular",
       fontSize: font(16),
       lineHeight: font(21.6),
       marginTop: vertical(8),
@@ -1474,7 +1726,7 @@ const createStyles = (
       color: "#13BB78",
     },
     productDivider: {
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#F2F2F2",
       height: 1,
       marginTop: vertical(20),
     },
@@ -1490,7 +1742,7 @@ const createStyles = (
       position: "relative",
     },
     timelineLine: {
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#F2F2F2",
       bottom: vertical(18),
       left: fixed(6),
       position: "absolute",
@@ -1530,8 +1782,8 @@ const createStyles = (
     timelineItemTitle: {
       color: "#353535",
       fontFamily: "PretendardSemiBold",
-      fontSize: font(20),
-      lineHeight: font(27),
+      fontSize: font(18),
+      lineHeight: font(24),
       marginTop: vertical(5),
     },
     timelineItemDescription: {
@@ -1548,7 +1800,7 @@ const createStyles = (
       borderRadius: fixed(8),
       height: fixed(55),
       justifyContent: "center",
-      marginTop: vertical(5),
+      marginTop: 0,
       width: contentWidth,
     },
     productMainButtonText: {

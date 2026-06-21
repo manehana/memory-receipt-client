@@ -55,6 +55,14 @@ export default function MoreScreen() {
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width],
   );
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -62,7 +70,7 @@ export default function MoreScreen() {
         <View style={styles.header}>
           <Pressable
             hitSlop={scaled(12, scale)}
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.headerButton}
           >
             <Ionicons color="#9F9F9F" name="chevron-back" size={scaled(24, scale)} />

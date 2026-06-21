@@ -245,6 +245,14 @@ export default function ConversationOnboardingScreen() {
       params: { friendId: selectedFriendId },
     });
   };
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -253,7 +261,7 @@ export default function ConversationOnboardingScreen() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={10}
-            onPress={() => router.replace("/receipt/main")}
+            onPress={goBack}
             style={styles.backButton}
           >
             <Ionicons color="#7E7E7E" name="chevron-back" size={scaled(22, scale)} />

@@ -62,6 +62,14 @@ export default function WeeklyMemoryReceiptsScreen() {
     () => createStyles(width, height, scale, fontScale),
     [fontScale, height, scale, width],
   );
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/receipt/main");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -70,7 +78,7 @@ export default function WeeklyMemoryReceiptsScreen() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={scaled(12, scale)}
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.backButton}
           >
             <Ionicons
