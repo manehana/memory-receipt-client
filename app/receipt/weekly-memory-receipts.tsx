@@ -6,12 +6,11 @@ import {
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -55,13 +54,32 @@ const weeklyReceipts = [
 
 export default function WeeklyMemoryReceiptsScreen() {
   const { width, height } = useWindowDimensions();
-  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [scrollContentHeight, setScrollContentHeight] = useState(1);
+  const [scrollViewportHeight, setScrollViewportHeight] = useState(1);
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(width, height, scale, fontScale),
-    [fontScale, height, scale, width],
+    [fontScale, height, scale, width]
   );
+  const widthScale = width / BASE_WIDTH;
+  const heightScale = height / BASE_HEIGHT;
+  const layoutScale = Math.min(widthScale, heightScale, 1.04);
+  const fixed = (value: number) => Math.round(value * layoutScale);
+  const scrollbarTrackHeight = Math.max(fixed(220), height - fixed(244));
+  const scrollbarThumbHeight =
+    scrollContentHeight > scrollViewportHeight
+      ? Math.max(
+          fixed(42),
+          scrollbarTrackHeight * (scrollViewportHeight / scrollContentHeight)
+        )
+      : scrollbarTrackHeight;
+  const scrollbarTranslateY = scrollY.interpolate({
+    extrapolate: "clamp",
+    inputRange: [0, Math.max(1, scrollContentHeight - scrollViewportHeight)],
+    outputRange: [0, Math.max(0, scrollbarTrackHeight - scrollbarThumbHeight)],
+  });
   const goBack = () => {
     if (router.canGoBack()) {
       router.back();
@@ -111,24 +129,41 @@ export default function WeeklyMemoryReceiptsScreen() {
         </View>
 
         <View style={styles.listWrap}>
-          <ScrollView
+          <Animated.ScrollView
             contentContainerStyle={styles.receiptList}
+            onContentSizeChange={(_, contentHeight) => {
+              setScrollContentHeight(contentHeight);
+            }}
+            onLayout={(event) => {
+              setScrollViewportHeight(event.nativeEvent.layout.height);
+            }}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: false }
+            )}
+            scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
             style={styles.receiptScroller}
           >
             {weeklyReceipts.map((receipt) => (
               <WeeklyReceiptCard
-                isSelected={receipt.id === selectedReceiptId}
                 key={receipt.id}
-                onPress={() => setSelectedReceiptId(receipt.id)}
                 receipt={receipt}
                 styles={styles}
               />
             ))}
-          </ScrollView>
+          </Animated.ScrollView>
 
           <View pointerEvents="none" style={styles.scrollbarTrack}>
-            <View style={styles.scrollbarThumb} />
+            <Animated.View
+              style={[
+                styles.scrollbarThumb,
+                {
+                  height: scrollbarThumbHeight,
+                  transform: [{ translateY: scrollbarTranslateY }],
+                },
+              ]}
+            />
           </View>
         </View>
       </View>
@@ -137,50 +172,107 @@ export default function WeeklyMemoryReceiptsScreen() {
 }
 
 type WeeklyReceiptCardProps = {
-  isSelected: boolean;
-  onPress: () => void;
   receipt: (typeof weeklyReceipts)[number];
   styles: ReturnType<typeof createStyles>;
 };
 
-function WeeklyReceiptCard({
-  isSelected,
-  onPress,
-  receipt,
-  styles,
-}: WeeklyReceiptCardProps) {
-  const selectedProgress = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
+function WeeklyReceiptCard({ receipt, styles }: WeeklyReceiptCardProps) {
+  const motionProgress = useRef(new Animated.Value(0)).current;
+  const hoverProgress = useRef(new Animated.Value(0)).current;
+  const pressProgress = useRef(new Animated.Value(0)).current;
+  const isHoveredRef = useRef(false);
+  const isPressedRef = useRef(false);
 
-  useEffect(() => {
-    Animated.timing(selectedProgress, {
-      duration: 200,
-      toValue: isSelected ? 1 : 0,
+  const animateMotion = (toValue: number, duration: number) => {
+    Animated.timing(motionProgress, {
+      duration,
+      toValue,
       useNativeDriver: false,
     }).start();
-  }, [isSelected, selectedProgress]);
+  };
+
+  const syncMotionProgress = () => {
+    const nextValue = isHoveredRef.current || isPressedRef.current ? 1 : 0;
+    animateMotion(nextValue, nextValue > 0 ? 220 : 360);
+  };
+
+  const handlePress = () => {
+    isPressedRef.current = true;
+    Animated.sequence([
+      Animated.timing(pressProgress, {
+        duration: 160,
+        toValue: 1,
+        useNativeDriver: false,
+      }),
+      Animated.timing(pressProgress, {
+        duration: 160,
+        toValue: 0,
+        useNativeDriver: false,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        isPressedRef.current = false;
+        pressProgress.setValue(0);
+        syncMotionProgress();
+      }
+    });
+    animateMotion(1, 180);
+  };
+
+  const handleHoverIn = () => {
+    isHoveredRef.current = true;
+    hoverProgress.setValue(1);
+    animateMotion(1, 180);
+  };
+
+  const handleHoverOut = () => {
+    isHoveredRef.current = false;
+    hoverProgress.setValue(0);
+    if (!isPressedRef.current) {
+      animateMotion(0, 260);
+    }
+  };
 
   const animatedStyle = {
-    elevation: selectedProgress.interpolate({
+    elevation: motionProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [4, 10],
+      outputRange: [4, 12],
     }),
-    shadowColor: selectedProgress.interpolate({
+    shadowColor: motionProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: ["#000000", "#2ABD83"],
+      outputRange: ["#000000", "#54E5AC"],
     }),
-    shadowOpacity: selectedProgress.interpolate({
+    shadowOpacity: motionProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [0.1, 0.3],
+      outputRange: [0.14, 0.34],
     }),
-    shadowRadius: selectedProgress.interpolate({
+    shadowRadius: motionProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [8, 14],
+      outputRange: [10, 22],
     }),
+    shadowOffset: {
+      height: motionProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [4, 0],
+      }),
+      width: motionProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 0],
+      }),
+    },
+  };
+  const cardMotionStyle = {
     transform: [
       {
-        rotate: selectedProgress.interpolate({
+        rotate: motionProgress.interpolate({
           inputRange: [0, 1],
-          outputRange: ["0deg", "3.02deg"],
+          outputRange: ["0deg", "7deg"],
+        }),
+      },
+      {
+        scale: motionProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 1.01],
         }),
       },
     ],
@@ -189,16 +281,14 @@ function WeeklyReceiptCard({
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
-      style={isSelected ? styles.selectedCardPressable : null}
+      onHoverIn={handleHoverIn}
+      onHoverOut={handleHoverOut}
+      onPointerEnter={handleHoverIn}
+      onPointerLeave={handleHoverOut}
+      onPress={handlePress}
+      style={styles.cardPressable}
     >
-      <Animated.View
-        style={[
-          styles.card,
-          animatedStyle,
-          isSelected ? styles.selectedCardLayer : null,
-        ]}
-      >
+      <Animated.View style={[styles.card, cardMotionStyle, animatedStyle]}>
         <View style={styles.imageWrap}>
           <Image
             resizeMode="cover"
@@ -232,24 +322,26 @@ const createStyles = (
   screenWidth: number,
   screenHeight: number,
   scale: number,
-  fontScale: number,
+  fontScale: number
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = screenHeight / BASE_HEIGHT;
   const layoutScale = Math.min(widthScale, heightScale, 1.04);
   const horizontalPadding = Math.max(
     32,
-    Math.round(36 * Math.min(widthScale, 1)),
+    Math.round(36 * Math.min(widthScale, 1))
   );
   const cardWidth = Math.min(
     Math.round(screenWidth * 0.821),
     screenWidth - horizontalPadding * 2,
-    CARD_BASE_WIDTH,
+    CARD_BASE_WIDTH
   );
   const cardScale = cardWidth / CARD_BASE_WIDTH;
   const cardHeight = Math.round(CARD_BASE_HEIGHT * cardScale);
   const imageWidth = Math.round(cardWidth - 22.63 * cardScale);
-  const imageHeight = Math.round(imageWidth * (IMAGE_BASE_HEIGHT / IMAGE_BASE_WIDTH));
+  const imageHeight = Math.round(
+    imageWidth * (IMAGE_BASE_HEIGHT / IMAGE_BASE_WIDTH)
+  );
   const fixed = (value: number) => Math.round(value * layoutScale);
   const cardFixed = (value: number) => Math.round(value * cardScale);
   const font = (value: number) =>
@@ -274,9 +366,9 @@ const createStyles = (
       paddingHorizontal: cardFixed(11.31),
       paddingTop: cardFixed(10),
       shadowColor: "#000000",
-      shadowOffset: { height: 1, width: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
+      shadowOffset: { height: 4, width: 0 },
+      shadowOpacity: 0.14,
+      shadowRadius: 10,
       width: cardWidth,
     },
     cardImage: {
@@ -289,6 +381,9 @@ const createStyles = (
       fontSize: cardFont(16),
       lineHeight: cardFont(22),
       marginTop: cardFixed(6),
+    },
+    cardPressable: {
+      position: "relative",
     },
     cardTitle: {
       color: "#000000",
@@ -316,10 +411,12 @@ const createStyles = (
     },
     header: {
       alignItems: "center",
+      backgroundColor: "#F8F8F8",
+      elevation: 12,
       flexDirection: "row",
       height: fixed(48),
       width: "100%",
-      zIndex: 1,
+      zIndex: 20,
     },
     headerTitle: {
       color: "#5D5D5D",
@@ -341,7 +438,7 @@ const createStyles = (
       flex: 1,
       marginTop: Math.round(8 * Math.min(heightScale, 1.04)),
       overflow: "visible",
-      zIndex: 2,
+      zIndex: 0,
     },
     moreButton: {
       alignItems: "center",
@@ -355,11 +452,11 @@ const createStyles = (
       gap: fixed(28),
       paddingBottom: fixed(44),
       paddingHorizontal: horizontalPadding,
-      paddingTop: fixed(4),
+      paddingTop: fixed(28),
     },
     receiptScroller: {
       overflow: "visible",
-      zIndex: 2,
+      zIndex: 0,
     },
     safeArea: {
       backgroundColor: "#F8F8F8",
@@ -370,18 +467,9 @@ const createStyles = (
       flex: 1,
       paddingTop: Math.round(18 * Math.min(heightScale, 1.04)),
     },
-    selectedCardLayer: {
-      elevation: 16,
-      zIndex: 10,
-    },
-    selectedCardPressable: {
-      elevation: 16,
-      zIndex: 10,
-    },
     scrollbarThumb: {
       backgroundColor: "#5D5D5D",
       borderRadius: fixed(45),
-      height: fixed(220),
       width: fixed(5),
     },
     scrollbarTrack: {
