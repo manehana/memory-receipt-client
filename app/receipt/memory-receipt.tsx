@@ -75,6 +75,14 @@ export default function MemoryReceipt() {
   const [isShareSheetVisible, setIsShareSheetVisible] = useState(false);
   const shareSheetProgress = useRef(new Animated.Value(1)).current;
   const [isSaveModalVisible, setIsSaveModalVisible] = useState(false);
+  const [toast, setToast] = useState<{
+    type: "save" | "send";
+    message: string;
+  } | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTranslateY = useRef(new Animated.Value(12)).current;
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [shareSheetMeasuredHeight, setShareSheetMeasuredHeight] = useState(0);
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const insets = useSafeAreaInsets();
@@ -82,6 +90,7 @@ export default function MemoryReceipt() {
     () => createStyles(width, height, scale, fontScale, insets.bottom),
     [fontScale, height, insets.bottom, scale, width],
   );
+  const shareBarHeight = getShareBarHeight(height, insets.bottom);
   const receiptMaxRevealHeight = Math.max(height * 2, scaled(1200, scale));
 
   useEffect(() => {
@@ -125,6 +134,85 @@ export default function MemoryReceipt() {
         setIsShareSheetVisible(false);
       }
     });
+  };
+
+  const showToast = (type: "save" | "send", message: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    setToast({ message, type });
+    toastOpacity.setValue(0);
+    toastTranslateY.setValue(12);
+    Animated.parallel([
+      Animated.timing(toastOpacity, {
+        duration: 250,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(toastTranslateY, {
+        duration: 250,
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      toastTimerRef.current = setTimeout(() => {
+        Animated.timing(toastOpacity, {
+          duration: 250,
+          toValue: 0,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished) {
+            setToast(null);
+          }
+        });
+      }, 2000);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const renderToast = () => {
+    if (!toast) {
+      return null;
+    }
+
+    const isSave = toast.type === "save";
+
+    return (
+      <Animated.View
+        style={[
+          styles.toast,
+          {
+            opacity: toastOpacity,
+            transform: [{ translateY: toastTranslateY }],
+          },
+        ]}
+      >
+        <Image
+          resizeMode="contain"
+          source={
+            isSave
+              ? require("../../assets/images/memory-receipt/memory-receipt-save-success.png")
+              : require("../../assets/images/memory-receipt/memory-receipt-share-send.png")
+          }
+          style={isSave ? styles.toastSaveIcon : styles.toastSendIcon}
+        />
+        <Text
+          maxFontSizeMultiplier={1.1}
+          numberOfLines={1}
+          style={isSave ? styles.toastSaveText : styles.toastSendText}
+        >
+          {toast.message}
+        </Text>
+      </Animated.View>
+    );
   };
 
   return (
@@ -324,6 +412,9 @@ export default function MemoryReceipt() {
           style={styles.shareSheetOverlay}
         >
           <Animated.View
+            onLayout={(event) =>
+              setShareSheetMeasuredHeight(event.nativeEvent.layout.height)
+            }
             style={[
               styles.shareSheet,
               {
@@ -376,6 +467,9 @@ export default function MemoryReceipt() {
 
                     <Pressable
                       accessibilityLabel={`${guardian.name}에게 전송`}
+                      onPress={() =>
+                        showToast("send", `${guardian.name}에게 전송했어요`)
+                      }
                       style={styles.shareSendButton}
                     >
                       <Text
@@ -406,6 +500,18 @@ export default function MemoryReceipt() {
               </Text>
             </Pressable>
           </Animated.View>
+
+          {toast?.type === "send" ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.toastWrapper,
+                { bottom: shareSheetMeasuredHeight + scaled(12, scale) },
+              ]}
+            >
+              {renderToast()}
+            </View>
+          ) : null}
         </Pressable>
       </Modal>
 
@@ -439,7 +545,10 @@ export default function MemoryReceipt() {
                 </Text>
               </Pressable>
               <Pressable
-                onPress={() => setIsSaveModalVisible(false)}
+                onPress={() => {
+                  setIsSaveModalVisible(false);
+                  showToast("save", "기억영수증이 저장됐어요");
+                }}
                 style={[styles.saveModalButton, styles.saveModalConfirmButton]}
               >
                 <Text maxFontSizeMultiplier={1.1} style={styles.saveModalConfirmText}>
@@ -450,9 +559,27 @@ export default function MemoryReceipt() {
           </View>
         </View>
       </Modal>
+
+      {toast?.type === "save" ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.toastWrapper,
+            { bottom: shareBarHeight + scaled(12, scale) },
+          ]}
+        >
+          {renderToast()}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
+
+const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
+  const heightScale = screenHeight / BASE_HEIGHT;
+  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
+  return vertical(157) + bottomInset;
+};
 
 type SectionTitleProps = {
   label: string;
@@ -518,8 +645,7 @@ const createStyles = (
     barcodeWidth * (BARCODE_BASE_HEIGHT / BARCODE_BASE_WIDTH),
   );
   const tearHeight = Math.round(receiptWidth * (TEAR_BASE_HEIGHT / RECEIPT_BASE_WIDTH));
-  const shareSheetHeight = vertical(157);
-  const shareBarHeight = shareSheetHeight + bottomInset;
+  const shareBarHeight = getShareBarHeight(screenHeight, bottomInset);
 
   return StyleSheet.create({
     amountText: {
@@ -1012,6 +1138,44 @@ const createStyles = (
       borderStyle: "dashed",
       borderTopWidth: 1,
       flex: 1,
+    },
+    toast: {
+      alignItems: "center",
+      backgroundColor: "#333333",
+      borderRadius: fixed(47.57),
+      flexDirection: "row",
+      height: fixed(60),
+      overflow: "hidden",
+      paddingLeft: fixed(31.13),
+      width: Math.min(fixed(370), Math.round(screenWidth * 0.92)),
+    },
+    toastSaveIcon: {
+      height: fixed(23.74),
+      width: fixed(23.74),
+    },
+    toastSaveText: {
+      color: "#FFFFFF",
+      flexShrink: 1,
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(18),
+      marginLeft: fixed(10.13),
+    },
+    toastSendIcon: {
+      height: fixed(23.79),
+      width: fixed(24.31),
+    },
+    toastSendText: {
+      color: "#FFFFFF",
+      flexShrink: 1,
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(19.03),
+      marginLeft: fixed(10.03),
+    },
+    toastWrapper: {
+      alignItems: "center",
+      left: 0,
+      position: "absolute",
+      right: 0,
     },
   });
 };
