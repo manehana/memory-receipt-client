@@ -3,6 +3,10 @@ import {
   scaled,
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from "expo-speech-recognition";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -13,16 +17,36 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
   useWindowDimensions,
   View,
 } from "react-native";
+import Reanimated, {
+  Easing as REasing,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
-const ANSWER_TYPING_INTERVAL_MS = 58;
 const COMPLETE_PRESSED_MS = 180;
 const COMPLETE_DONE_MS = 650;
+// STT 단어 등장 애니메이션: 시그모이드(S-커브) 가속, blur→sharp + fade
+const SIGMOID_EASING = REasing.bezier(0.65, 0, 0.35, 1);
+const WORD_FADE_MS = 520;
+const REFLOW_MS = 360;
+// 글자 자체에 거는 흐림 반경(시작값) — BlurView 같은 사각형 패널이 아니라
+// 글리프 모양을 따라가는 그림자라 영역이 네모로 잘리지 않는다.
+const MAX_BLUR_RADIUS = 9;
+const WORD_SHADOW = {
+  textShadowColor: "#3B3B3B",
+  textShadowOffset: { width: 0, height: 0 },
+} as const;
 const voiceIdleCircleImage = require("../../assets/images/voice/voice-idle-circle.png");
 const voiceIdleSmallCircleImage = require("../../assets/images/voice/voice-idle-small-circle.png");
 const voiceListeningCircleImage = require("../../assets/images/voice/voice-listening-circle.png");
@@ -82,11 +106,89 @@ const questions = [
   "오늘 가장 기억에 남는 시간은 무엇이었나요?",
 ];
 
-const sampleAnswers = [
-  "음, 오랜만에 카페가서 기분이\n좋았어",
-  "어디 갔더라..?\n집으로 바로 갔었나..아 아니다\n편의점에서 두부를 사갔었지\n깜빡하고 두부를 안샀지 뭐야~",
-  "친구들이랑 오래 이야기한 시간이\n제일 좋았어",
-];
+type TranscriptWord = { key: string; text: string };
+
+function AnimatedWord({
+  text,
+  textStyle,
+  wrapStyle,
+}: {
+  text: string;
+  textStyle: StyleProp<TextStyle>;
+  wrapStyle: StyleProp<ViewStyle>;
+}) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withTiming(1, {
+      duration: WORD_FADE_MS,
+      easing: SIGMOID_EASING,
+    });
+  }, [progress]);
+
+  // opacity fade + 글리프 모양을 따라가는 흐림(textShadowRadius)을 함께 진행해
+  // 흐릿한 글자가 선명해지는 효과. BlurView 사각형 패널이 아니라 네모로 잘리지 않음.
+  const animatedTextStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    textShadowRadius: (1 - progress.value) * MAX_BLUR_RADIUS,
+  }));
+
+  return (
+    <Reanimated.View
+      layout={LinearTransition.duration(REFLOW_MS).easing(SIGMOID_EASING)}
+      style={wrapStyle}
+    >
+      <Reanimated.Text
+        maxFontSizeMultiplier={1.1}
+        style={[textStyle, WORD_SHADOW, animatedTextStyle]}
+      >
+        {text}
+      </Reanimated.Text>
+    </Reanimated.View>
+  );
+}
+
+function AnimatedTranscript({
+  transcript,
+  textStyle,
+  containerStyle,
+  wrapStyle,
+}: {
+  transcript: string;
+  textStyle: StyleProp<TextStyle>;
+  containerStyle: StyleProp<ViewStyle>;
+  wrapStyle: StyleProp<ViewStyle>;
+}) {
+  // 신규 단어만 등장 애니메이션이 돌도록 직전 단어 배열과 접두 비교
+  const prevRef = useRef<TranscriptWord[]>([]);
+  const seqRef = useRef(0);
+
+  const words = useMemo(() => {
+    const tokens = transcript.trim().length ? transcript.trim().split(/\s+/) : [];
+    const prev = prevRef.current;
+    const next = tokens.map((text, index) => {
+      if (prev[index] && prev[index].text === text) {
+        return prev[index];
+      }
+      return { key: `w${seqRef.current++}`, text };
+    });
+    prevRef.current = next;
+    return next;
+  }, [transcript]);
+
+  return (
+    <View style={containerStyle}>
+      {words.map((word) => (
+        <AnimatedWord
+          key={word.key}
+          text={word.text}
+          textStyle={textStyle}
+          wrapStyle={wrapStyle}
+        />
+      ))}
+    </View>
+  );
+}
 
 export default function VoiceWaitingScreen() {
   const insets = useSafeAreaInsets();
@@ -116,16 +218,14 @@ export default function VoiceWaitingScreen() {
   const [questionIndex, setQuestionIndex] = useState(-1);
   const [isListening, setIsListening] = useState(false);
   const [hasResponse, setHasResponse] = useState(false);
-  const [displayedAnswer, setDisplayedAnswer] = useState("");
+  const [transcript, setTranscript] = useState("");
   const [completeStatus, setCompleteStatus] =
     useState<CompleteStatus>("ready");
 
   const selectedFriend =
     friends.find((friend) => friend.id === friendId) ?? friends[0];
   const isVoiceActive = isListening || hasResponse;
-  const currentAnswer = questionIndex >= 0 ? sampleAnswers[questionIndex] : "";
-  const isAnswerTyping =
-    hasResponse && displayedAnswer.length < currentAnswer.length;
+  const hasTranscript = transcript.trim().length > 0;
 
   const clearCompleteTimers = () => {
     completeTimers.current.forEach((timer) => clearTimeout(timer));
@@ -225,30 +325,48 @@ export default function VoiceWaitingScreen() {
     listeningMicroOffsets,
   ]);
 
-  useEffect(() => {
-    if (!hasResponse || questionIndex < 0) {
-      setDisplayedAnswer("");
-      return;
+  // STT가 확정한 문장 누적분과 현재 transcript(중간결과 포함) 최신값
+  const finalizedRef = useRef("");
+  const transcriptRef = useRef("");
+
+  const resetTranscript = () => {
+    finalizedRef.current = "";
+    transcriptRef.current = "";
+    setTranscript("");
+  };
+
+  useSpeechRecognitionEvent("result", (event) => {
+    const segment = event.results[0]?.transcript ?? "";
+    const combined = `${finalizedRef.current} ${segment}`.trim();
+    transcriptRef.current = combined;
+    setTranscript(combined);
+    if (event.isFinal) {
+      finalizedRef.current = combined;
     }
+  });
 
-    const fullAnswer = sampleAnswers[questionIndex];
-    setDisplayedAnswer("");
+  useSpeechRecognitionEvent("end", () => {
+    setIsListening(false);
+    if (transcriptRef.current.trim().length > 0) {
+      setHasResponse(true);
+      setCompleteStatus("ready");
+    }
+  });
 
-    let nextLength = 0;
-    const timer = setInterval(() => {
-      nextLength += 1;
-      setDisplayedAnswer(fullAnswer.slice(0, nextLength));
+  useSpeechRecognitionEvent("error", () => {
+    setIsListening(false);
+  });
 
-      if (nextLength >= fullAnswer.length) {
-        clearInterval(timer);
-      }
-    }, ANSWER_TYPING_INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, [hasResponse, questionIndex]);
+  // 화면 이탈 시 진행 중인 인식 정리
+  useEffect(() => {
+    return () => {
+      ExpoSpeechRecognitionModule.abort();
+    };
+  }, []);
 
   const startQuestion = () => {
     clearCompleteTimers();
+    resetTranscript();
     setQuestionIndex(0);
     setIsListening(false);
     setHasResponse(false);
@@ -261,18 +379,15 @@ export default function VoiceWaitingScreen() {
       return;
     }
 
+    resetTranscript();
     setQuestionIndex(questionIndex + 1);
     setIsListening(false);
     setHasResponse(false);
-    setDisplayedAnswer("");
     setCompleteStatus("ready");
   };
 
   const handleCompletePress = () => {
-    if (
-      completeStatus !== "ready" ||
-      displayedAnswer.length < currentAnswer.length
-    ) {
+    if (completeStatus !== "ready" || !hasTranscript) {
       return;
     }
 
@@ -292,6 +407,22 @@ export default function VoiceWaitingScreen() {
     completeTimers.current.push(pressedTimer);
   };
 
+  const startListening = async () => {
+    const permission =
+      await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!permission.granted) {
+      return;
+    }
+
+    resetTranscript();
+    setIsListening(true);
+    ExpoSpeechRecognitionModule.start({
+      lang: "ko-KR",
+      interimResults: true,
+      continuous: true,
+    });
+  };
+
   const handleMainAction = () => {
     if (questionIndex === -1) {
       startQuestion();
@@ -304,13 +435,12 @@ export default function VoiceWaitingScreen() {
     }
 
     if (!isListening) {
-      setIsListening(true);
+      void startListening();
       return;
     }
 
-    setIsListening(false);
-    setHasResponse(true);
-    setCompleteStatus("ready");
+    // 녹음 종료 → "end" 이벤트에서 hasResponse 처리
+    ExpoSpeechRecognitionModule.stop();
   };
 
   const questionNumber = questionIndex + 1;
@@ -361,11 +491,26 @@ export default function VoiceWaitingScreen() {
             <Text maxFontSizeMultiplier={1.1} style={styles.questionText}>
               {questions[questionIndex]}
             </Text>
+            {hasTranscript ? (
+              <View style={styles.answerArea}>
+                <AnimatedTranscript
+                  transcript={transcript}
+                  textStyle={styles.answerText}
+                  containerStyle={styles.answerWords}
+                  wrapStyle={styles.answerWordWrap}
+                />
+              </View>
+            ) : null}
             {isListening ? (
               <>
-                <Text maxFontSizeMultiplier={1.1} style={styles.answerPrompt}>
-                  지금 응답해주세요...|
-                </Text>
+                {!hasTranscript ? (
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.answerPrompt}
+                  >
+                    지금 응답해주세요...|
+                  </Text>
+                ) : null}
                 <View style={styles.listeningBadge}>
                   <View style={styles.listeningBadgeDotFrame}>
                     <Animated.View
@@ -396,12 +541,7 @@ export default function VoiceWaitingScreen() {
             ) : null}
             {hasResponse ? (
               <>
-                <View style={styles.answerArea}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.answerText}>
-                    {displayedAnswer}
-                  </Text>
-                </View>
-                {displayedAnswer.length >= currentAnswer.length ? (
+                {hasTranscript ? (
                   <Pressable
                   disabled={completeStatus !== "ready"}
                   onPress={handleCompletePress}
@@ -522,7 +662,7 @@ export default function VoiceWaitingScreen() {
               </Animated.View>
             </View>
             <View pointerEvents="box-none" style={styles.circleActionPillLayer}>
-              {isListening || isAnswerTyping ? (
+              {isListening ? (
                 <View style={styles.floatingListeningBadge}>
                   <View style={styles.listeningBadgeDotFrame}>
                     <Animated.View
@@ -550,7 +690,7 @@ export default function VoiceWaitingScreen() {
                   </Text>
                 </View>
               ) : null}
-              {hasResponse && displayedAnswer.length >= currentAnswer.length ? (
+              {hasResponse && hasTranscript ? (
                 <Pressable
                   disabled={completeStatus !== "ready"}
                   onPress={handleCompletePress}
@@ -582,7 +722,7 @@ export default function VoiceWaitingScreen() {
         </Pressable>
 
         <View pointerEvents="box-none" style={styles.actionPillLayer}>
-          {isListening || isAnswerTyping ? (
+          {isListening ? (
             <View style={styles.floatingListeningBadge}>
               <View style={styles.listeningBadgeDotFrame}>
                 <Animated.View
@@ -610,7 +750,7 @@ export default function VoiceWaitingScreen() {
               </Text>
             </View>
           ) : null}
-          {hasResponse && displayedAnswer.length >= currentAnswer.length ? (
+          {hasResponse && hasTranscript ? (
             <Pressable
               disabled={completeStatus !== "ready"}
               onPress={handleCompletePress}
@@ -757,6 +897,16 @@ const createStyles = (
       fontSize: fontScaled(25, fontScale),
       lineHeight: fontScaled(34, fontScale),
       textAlign: "right",
+    },
+    answerWords: {
+      alignItems: "flex-end",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "flex-end",
+    },
+    answerWordWrap: {
+      marginLeft: scaled(7, scale),
+      position: "relative",
     },
     actionPillLayer: {
       alignItems: "center",
