@@ -664,7 +664,7 @@ const createStyles = (
     },
     tabDivider: {
       alignSelf: "center",
-      backgroundColor: "#F2F2F2",
+      backgroundColor: "#F8F8F8",
       bottom: 0,
       height: fixed(1),
       position: "absolute",
@@ -731,7 +731,7 @@ const createStyles = (
       marginLeft: fixed(2),
     },
     summaryDivider: {
-      backgroundColor: "#F2F2F2",
+      backgroundColor: "#F8F8F8",
       height: fixed(69),
       width: fixed(2),
     },

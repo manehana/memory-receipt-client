@@ -337,7 +337,7 @@ const createStyles = (
       fontSize: font(20),
     },
     monthDivider: {
-      backgroundColor: "#EAEAEA",
+      backgroundColor: "#F2F2F2",
       flex: 1,
       height: 1,
       marginLeft: fixed(12),

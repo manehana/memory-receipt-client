@@ -423,7 +423,7 @@ const createStyles = (
       width: "100%",
     },
     divider: {
-      backgroundColor: "#E8E8E8",
+      backgroundColor: "#F2F2F2",
       height: verticalScaled(9),
       marginTop: verticalScaled(16),
       width: "100%",
@@ -468,6 +468,7 @@ const createStyles = (
       borderRadius: receiptScaled(15),
       elevation: 4,
       height: receiptScaled(RECEIPT_CARD_HEIGHT),
+      marginVertical: receiptScaled(16),
       paddingHorizontal: receiptScaled(10),
       paddingTop: receiptScaled(10),
       shadowColor: "#000000",
@@ -507,7 +508,7 @@ const createStyles = (
       fontFamily: "PretendardSemiBold",
       fontSize: receiptScaled(18),
       lineHeight: receiptScaled(25),
-      marginTop: receiptScaled(11),
+      marginTop: receiptScaled(6),
     },
     modalOverlay: {
       backgroundColor: "rgba(85, 85, 85, 0.5)",

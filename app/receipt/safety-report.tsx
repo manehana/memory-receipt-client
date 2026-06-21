@@ -684,7 +684,7 @@ const createStyles = (
     reportCard: {
       alignSelf: "center",
       backgroundColor: "#FFFFFF",
-      borderColor: "#EAEAEA",
+      borderColor: "#F8F8F8",
       borderRadius: fixed(10),
       borderWidth: fixed(1),
       minHeight: fixed(174),
@@ -887,7 +887,7 @@ const createStyles = (
       fontFamily: "PretendardMedium",
     },
     detailDivider: {
-      backgroundColor: "#EAEAEA",
+      backgroundColor: "#F8F8F8",
       bottom: fixed(15),
       position: "absolute",
       right: 0,
@@ -1016,7 +1016,7 @@ const createStyles = (
       marginLeft: fixed(2),
     },
     statDivider: {
-      backgroundColor: "#EAEAEA",
+      backgroundColor: "#F8F8F8",
       bottom: fixed(14),
       position: "absolute",
       right: 0,
@@ -1419,7 +1419,7 @@ const createStyles = (
       color: "#13BB78",
     },
     productDivider: {
-      backgroundColor: "#F2F2F2",
+      backgroundColor: "#F8F8F8",
       height: 1,
       marginTop: vertical(20),
     },
@@ -1435,7 +1435,7 @@ const createStyles = (
       position: "relative",
     },
     timelineLine: {
-      backgroundColor: "#F2F2F2",
+      backgroundColor: "#F8F8F8",
       bottom: vertical(18),
       left: fixed(6),
       position: "absolute",
