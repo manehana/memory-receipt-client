@@ -29,15 +29,15 @@ const SLOT_BASE_HEIGHT = 44.25;
 const RECEIPT_BASE_WIDTH = 331;
 const PHOTO_BASE_WIDTH = 296;
 const PHOTO_BASE_HEIGHT = 154;
-const BARCODE_BASE_WIDTH = 209;
-const BARCODE_BASE_HEIGHT = 32;
+const BARCODE_BASE_WIDTH = 210;
+const BARCODE_BASE_HEIGHT = 44;
 const TEAR_BASE_HEIGHT = 32;
 
 const footprints = [
   {
     id: "01",
     amount: "4,800원",
-    place: "투썸플레이스 종로점",
+    place: "스텔라플레이스 종로점",
     time: "오전 11:43",
   },
   {
@@ -49,7 +49,7 @@ const footprints = [
   {
     id: "03",
     amount: "7,000원",
-    place: "Hana 택시 (귀가)",
+    place: "Hana 택시",
     time: "오후 21:12",
   },
 ];
@@ -58,7 +58,6 @@ export default function MemoryReceipt() {
   const { width, height } = useWindowDimensions();
   const [isReceiptRevealed, setIsReceiptRevealed] = useState(false);
   const receiptReveal = useRef(new Animated.Value(0)).current;
-  const waitingOpacity = useRef(new Animated.Value(1)).current;
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const insets = useSafeAreaInsets();
@@ -70,30 +69,22 @@ export default function MemoryReceipt() {
 
   useEffect(() => {
     receiptReveal.setValue(0);
-    waitingOpacity.setValue(1);
     setIsReceiptRevealed(false);
 
     const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(waitingOpacity, {
-          duration: 220,
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-        Animated.timing(receiptReveal, {
-          duration: 950,
-          toValue: 1,
-          useNativeDriver: false,
-        }),
-      ]).start(({ finished }) => {
+      Animated.timing(receiptReveal, {
+        duration: 950,
+        toValue: 1,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
         if (finished) {
           setIsReceiptRevealed(true);
         }
       });
-    }, 950);
+    }, 350);
 
     return () => clearTimeout(timer);
-  }, [receiptReveal, waitingOpacity]);
+  }, [receiptReveal]);
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
@@ -105,11 +96,7 @@ export default function MemoryReceipt() {
             onPress={() => router.back()}
             style={styles.headerButton}
           >
-            <Ionicons
-              color="#5D5D5D"
-              name="chevron-back"
-              size={scaled(24, scale)}
-            />
+            <Ionicons color="#5D5D5D" name="chevron-back" size={scaled(24, scale)} />
           </Pressable>
 
           <Pressable accessibilityLabel="저장" hitSlop={scaled(12, scale)}>
@@ -124,24 +111,6 @@ export default function MemoryReceipt() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.receiptStage}>
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.waitingState, { opacity: waitingOpacity }]}
-            >
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/images/memory-receipt/receipt-setting.png")}
-                style={styles.waitingIcon}
-              />
-              <Text maxFontSizeMultiplier={1.1} style={styles.waitingTitle}>
-                곧 영수증이 나와요
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.waitingDescription}>
-                기억 영수증을 차곡차곡 쌓으며{"\n"}
-                보람을 느껴보는건 어떨까요?
-              </Text>
-            </Animated.View>
-
             <Image
               resizeMode="contain"
               source={require("../../assets/images/memory-receipt/receipt-slot.png")}
@@ -180,12 +149,16 @@ export default function MemoryReceipt() {
                     <SectionTitle label="오늘의 한줄" styles={styles} />
                     <View style={styles.summaryBox}>
                       <Text maxFontSizeMultiplier={1.1} style={styles.summaryText}>
-                        친구들과 투썸플레이스에서 음료를 마시며{"\n"}
-                        수다를 떠는 시간을 가졌어요☕
+                        친구들과 스텔라플레이스에서 음료를 마시며 하루를 나누는
+                        시간이 가장 따뜻하게 남았어요.
                       </Text>
                     </View>
 
-                    <SectionTitle label="오늘의 발자취" styles={styles} />
+                    <SectionTitle
+                      label="오늘의 발자취"
+                      styles={styles}
+                      style={styles.footprintTitle}
+                    />
                     <View style={styles.footprintList}>
                       {footprints.map((item, index) => (
                         <View key={item.id} style={styles.footprintItem}>
@@ -217,14 +190,22 @@ export default function MemoryReceipt() {
                             </Text>
                           </View>
 
-                          <Text maxFontSizeMultiplier={1.1} style={styles.amountText}>
+                          <Text
+                            maxFontSizeMultiplier={1.1}
+                            numberOfLines={1}
+                            style={styles.amountText}
+                          >
                             {item.amount}
                           </Text>
                         </View>
                       ))}
                     </View>
 
-                    <SectionTitle label="오늘의 대화 친구" styles={styles} />
+                    <SectionTitle
+                      label="오늘의 대화 친구"
+                      styles={styles}
+                      style={styles.friendTitle}
+                    />
                     <View style={styles.friendRow}>
                       <Image
                         resizeMode="contain"
@@ -237,7 +218,7 @@ export default function MemoryReceipt() {
                         numberOfLines={1}
                         style={styles.friendName}
                       >
-                        별봄이
+                        별빛이
                       </Text>
                     </View>
 
@@ -251,11 +232,6 @@ export default function MemoryReceipt() {
                       2026.05.25(월) 18:34
                     </Text>
                   </View>
-                  <Image
-                    resizeMode="stretch"
-                    source={require("../../assets/images/memory-receipt/memory-receipt-shadow.png")}
-                    style={styles.receiptTopShadow}
-                  />
                 </View>
 
                 <Image
@@ -268,8 +244,14 @@ export default function MemoryReceipt() {
           </View>
         </ScrollView>
 
-        <View style={styles.shareBar}>
-          <View style={styles.shareBarGlow} />
+        <View pointerEvents="box-none" style={styles.shareBar}>
+          <View pointerEvents="none" style={styles.shareBarBackground}>
+            <Image
+              resizeMode="stretch"
+              source={require("../../assets/images/memory-receipt/memory-receipt-share-container.png")}
+              style={styles.shareBarBackgroundImage}
+            />
+          </View>
           <Pressable accessibilityLabel="공유하기" style={styles.shareButton}>
             <Text maxFontSizeMultiplier={1.1} style={styles.shareButtonText}>
               공유하기
@@ -287,11 +269,12 @@ export default function MemoryReceipt() {
 type SectionTitleProps = {
   label: string;
   styles: ReturnType<typeof createStyles>;
+  style?: object;
 };
 
-function SectionTitle({ label, styles }: SectionTitleProps) {
+function SectionTitle({ label, styles, style }: SectionTitleProps) {
   return (
-    <View style={styles.sectionTitleRow}>
+    <View style={[styles.sectionTitleRow, style]}>
       <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
         {label}
       </Text>
@@ -337,10 +320,9 @@ const createStyles = (
   const barcodeHeight = Math.round(
     barcodeWidth * (BARCODE_BASE_HEIGHT / BARCODE_BASE_WIDTH),
   );
-  const tearHeight = receiptFixed(TEAR_BASE_HEIGHT);
-  const shareBarHeight = vertical(157) + bottomInset;
-  const shareBarGlowBlur = vertical(10);
-  const shareBarGlowOvershoot = shareBarGlowBlur * 4;
+  const tearHeight = Math.round(receiptWidth * (TEAR_BASE_HEIGHT / RECEIPT_BASE_WIDTH));
+  const shareSheetHeight = vertical(157);
+  const shareBarHeight = shareSheetHeight + bottomInset;
 
   return StyleSheet.create({
     amountText: {
@@ -349,33 +331,33 @@ const createStyles = (
       fontSize: receiptFont(14),
       lineHeight: receiptFont(20),
       marginLeft: receiptFixed(8),
-      minWidth: receiptFixed(74),
+      minWidth: receiptFixed(72),
       textAlign: "right",
     },
     barcode: {
       alignSelf: "center",
       height: barcodeHeight,
-      marginTop: receiptFixed(16),
+      marginTop: receiptFixed(24),
       width: barcodeWidth,
     },
     barcodeTopLine: {
-      borderColor: "#13BB78",
+      borderColor: "#009A5B",
       borderStyle: "dashed",
       borderTopWidth: 1,
-      marginTop: receiptFixed(16),
+      marginTop: receiptFixed(28),
       width: "100%",
     },
     content: {
       alignItems: "center",
-      paddingBottom: vertical(150) + bottomInset,
-      paddingHorizontal: fixed(20),
+      paddingBottom: shareBarHeight + vertical(24),
+      paddingHorizontal: fixed(16),
     },
     dateText: {
-      color: "#00975B",
-      fontFamily: "Hana2CM",
-      fontSize: receiptFont(16),
-      lineHeight: receiptFont(24),
-      marginTop: receiptFixed(10),
+      color: "#009A5B",
+      fontFamily: "PretendardMedium",
+      fontSize: receiptFont(18),
+      lineHeight: receiptFont(25),
+      marginTop: receiptFixed(12),
       textAlign: "center",
     },
     footprintItem: {
@@ -392,6 +374,9 @@ const createStyles = (
       marginLeft: receiptFixed(10),
       minWidth: 0,
     },
+    footprintTitle: {
+      marginTop: receiptFixed(16),
+    },
     friendAvatar: {
       height: receiptFixed(34),
       width: receiptFixed(34),
@@ -400,15 +385,18 @@ const createStyles = (
       color: "#353535",
       flex: 1,
       fontFamily: "PretendardSemiBold",
-      fontSize: receiptFont(16),
-      lineHeight: receiptFont(23),
-      marginLeft: receiptFixed(8),
+      fontSize: receiptFont(18),
+      lineHeight: receiptFont(25),
+      marginLeft: receiptFixed(12),
     },
     friendRow: {
       alignItems: "center",
       flexDirection: "row",
       marginTop: receiptFixed(16),
       width: "100%",
+    },
+    friendTitle: {
+      marginTop: receiptFixed(16),
     },
     header: {
       alignItems: "center",
@@ -420,9 +408,9 @@ const createStyles = (
     },
     headerButton: {
       alignItems: "center",
-      height: fixed(34),
+      height: fixed(24),
       justifyContent: "center",
-      width: fixed(34),
+      width: fixed(24),
     },
     heroImage: {
       alignSelf: "center",
@@ -439,7 +427,7 @@ const createStyles = (
       lineHeight: receiptFont(22),
     },
     receiptInner: {
-      paddingBottom: receiptFixed(18),
+      paddingBottom: receiptFixed(24),
       paddingHorizontal: receiptFixed(18),
       paddingTop: receiptFixed(24),
       zIndex: 2,
@@ -448,14 +436,9 @@ const createStyles = (
       backgroundColor: "#F7F5EF",
       borderTopLeftRadius: receiptFixed(18),
       borderTopRightRadius: receiptFixed(18),
-      minHeight: receiptFixed(715) - tearHeight,
+      boxShadow: "inset 0px 8px 6px rgba(144, 144, 144, 0.20)",
       overflow: "hidden",
       width: receiptWidth,
-    },
-    receiptSlot: {
-      height: slotHeight,
-      width: slotWidth,
-      zIndex: 1,
     },
     receiptReveal: {
       marginTop: -receiptFixed(45),
@@ -464,15 +447,20 @@ const createStyles = (
       paddingHorizontal: receiptFixed(20),
       paddingTop: receiptFixed(20),
       width: receiptWidth + receiptFixed(40),
-      zIndex: 3,
+      zIndex: 4,
     },
     receiptRevealVisible: {
       overflow: "visible",
     },
+    receiptSlot: {
+      height: slotHeight,
+      position: "relative",
+      width: slotWidth,
+      zIndex: 1,
+    },
     receiptStage: {
       alignItems: "center",
       marginTop: vertical(32),
-      minHeight: screenHeight - vertical(150),
       overflow: "visible",
       width: "100%",
     },
@@ -489,23 +477,10 @@ const createStyles = (
       flexDirection: "row",
       width: "100%",
     },
-    receiptTopShadow: {
-      height: receiptFixed(18),
-      left: 0,
-      position: "absolute",
-      right: 0,
-      top: 0,
-      width: receiptWidth,
-      zIndex: 3,
-    },
     receiptWrap: {
       alignItems: "center",
-      elevation: 8,
+      filter: [{ dropShadow: "0px -3px 20px rgba(0, 0, 0, 0.10)" }],
       overflow: "visible",
-      shadowColor: "#000000",
-      shadowOffset: { height: -3, width: 0 },
-      shadowOpacity: 0.14,
-      shadowRadius: 20,
       width: receiptWidth,
       zIndex: 3,
     },
@@ -524,50 +499,6 @@ const createStyles = (
       flex: 1,
       overflow: "visible",
       paddingTop: vertical(30),
-    },
-    shareBar: {
-      alignItems: "center",
-      bottom: 0,
-      height: shareBarHeight,
-      left: 0,
-      overflow: "visible",
-      paddingBottom: bottomInset,
-      paddingTop: vertical(20),
-      position: "absolute",
-      right: 0,
-      width: "100%",
-    },
-    shareBarGlow: {
-      backgroundColor: "#FFFFFF",
-      bottom: -shareBarGlowOvershoot,
-      filter: [{ blur: shareBarGlowBlur }],
-      left: -shareBarGlowOvershoot,
-      position: "absolute",
-      right: -shareBarGlowOvershoot,
-      top: 0,
-    },
-    shareButton: {
-      alignItems: "center",
-      backgroundColor: "#444444",
-      borderRadius: fixed(8),
-      height: fixed(55),
-      justifyContent: "center",
-      width: Math.min(fixed(370), Math.round(screenWidth * 0.92)),
-    },
-    shareButtonText: {
-      color: "#FFFFFF",
-      fontFamily: "PretendardSemiBold",
-      fontSize: font(20),
-      lineHeight: font(28),
-      textAlign: "center",
-    },
-    shareCaption: {
-      color: "#9F9F9F",
-      fontFamily: "PretendardRegular",
-      fontSize: font(20),
-      lineHeight: font(28),
-      marginTop: vertical(18),
-      textAlign: "center",
     },
     sectionDash: {
       borderColor: "#13BB78",
@@ -588,6 +519,57 @@ const createStyles = (
       marginTop: receiptFixed(21),
       width: "100%",
     },
+    shareBar: {
+      alignItems: "center",
+      backgroundColor: "#F7F7F7",
+      bottom: 0,
+      height: shareBarHeight,
+      left: 0,
+      overflow: "hidden",
+      paddingBottom: bottomInset,
+      paddingTop: vertical(24),
+      position: "absolute",
+      right: 0,
+      width: "100%",
+    },
+    shareBarBackground: {
+      bottom: 0,
+      height: shareBarHeight,
+      left: 0,
+      position: "absolute",
+      right: 0,
+      width: screenWidth,
+      zIndex: 0,
+    },
+    shareBarBackgroundImage: {
+      height: "100%",
+      width: "100%",
+    },
+    shareButton: {
+      alignItems: "center",
+      backgroundColor: "#444444",
+      borderRadius: fixed(8),
+      height: fixed(55),
+      justifyContent: "center",
+      width: Math.min(fixed(370), Math.round(screenWidth * 0.92)),
+      zIndex: 1,
+    },
+    shareButtonText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(20),
+      lineHeight: font(28),
+      textAlign: "center",
+    },
+    shareCaption: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardRegular",
+      fontSize: font(20),
+      lineHeight: font(28),
+      marginTop: vertical(18),
+      textAlign: "center",
+      zIndex: 1,
+    },
     summaryBox: {
       backgroundColor: "#EDE9DE",
       borderColor: "#C2B89C",
@@ -603,13 +585,11 @@ const createStyles = (
       color: "#353535",
       fontFamily: "PretendardMedium",
       fontSize: receiptFont(16),
-      lineHeight: receiptFont(22),
+      lineHeight: Math.round(receiptFont(16) * 1.35),
     },
     tearLine: {
       height: tearHeight,
       marginTop: -1,
-      minHeight: tearHeight,
-      opacity: 1,
       width: receiptWidth,
     },
     timeText: {
@@ -653,35 +633,6 @@ const createStyles = (
       borderStyle: "dashed",
       borderTopWidth: 1,
       flex: 1,
-    },
-    waitingDescription: {
-      color: "#9F9F9F",
-      fontFamily: "PretendardMedium",
-      fontSize: font(20),
-      lineHeight: font(30),
-      marginTop: vertical(12),
-      textAlign: "center",
-    },
-    waitingIcon: {
-      height: fixed(80),
-      width: fixed(85),
-    },
-    waitingState: {
-      alignItems: "center",
-      left: 0,
-      paddingHorizontal: fixed(24),
-      position: "absolute",
-      right: 0,
-      top: Math.max(vertical(210), Math.round(screenHeight * 0.34)),
-      zIndex: 0,
-    },
-    waitingTitle: {
-      color: "#5D5D5D",
-      fontFamily: "PretendardSemiBold",
-      fontSize: font(20),
-      lineHeight: font(28),
-      marginTop: vertical(32),
-      textAlign: "center",
     },
   });
 };
