@@ -460,7 +460,7 @@ const createStyles = (
     },
     receiptStage: {
       alignItems: "center",
-      marginTop: vertical(32),
+      marginTop: vertical(8),
       overflow: "visible",
       width: "100%",
     },
