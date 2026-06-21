@@ -5,7 +5,7 @@ import {
   scaled,
 } from "@/constants/responsive";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -25,8 +25,6 @@ import {
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
-const SLOT_BASE_WIDTH = 370;
-const SLOT_BASE_HEIGHT = 44.25;
 const RECEIPT_BASE_WIDTH = 331;
 const PHOTO_BASE_WIDTH = 296;
 const PHOTO_BASE_HEIGHT = 154;
@@ -68,17 +66,19 @@ const shareGuardians = [
   },
 ];
 
-export default function MemoryReceipt() {
+const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
+  const heightScale = screenHeight / BASE_HEIGHT;
+  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
+  return vertical(157) + bottomInset;
+};
+
+export default function WeeklyMemoryReceiptDetail() {
+  const { date } = useLocalSearchParams<{ date?: string }>();
+  const headerTitle = (date ?? "5월 1일").replace(/\s*\([^)]*\)\s*$/, "");
   const { width, height } = useWindowDimensions();
-  const [isReceiptRevealed, setIsReceiptRevealed] = useState(false);
-  const receiptReveal = useRef(new Animated.Value(0)).current;
   const [isShareSheetVisible, setIsShareSheetVisible] = useState(false);
   const shareSheetProgress = useRef(new Animated.Value(1)).current;
-  const [isSaveModalVisible, setIsSaveModalVisible] = useState(false);
-  const [toast, setToast] = useState<{
-    type: "save" | "send";
-    message: string;
-  } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTranslateY = useRef(new Animated.Value(12)).current;
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,35 +90,6 @@ export default function MemoryReceipt() {
     () => createStyles(width, height, scale, fontScale, insets.bottom),
     [fontScale, height, insets.bottom, scale, width],
   );
-  const shareBarHeight = getShareBarHeight(height, insets.bottom);
-  const receiptMaxRevealHeight = Math.max(height * 2, scaled(1200, scale));
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
-  useEffect(() => {
-    receiptReveal.setValue(0);
-    setIsReceiptRevealed(false);
-
-    const timer = setTimeout(() => {
-      Animated.timing(receiptReveal, {
-        duration: 950,
-        toValue: 1,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          setIsReceiptRevealed(true);
-        }
-      });
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [receiptReveal]);
 
   const openShareSheet = () => {
     shareSheetProgress.setValue(1);
@@ -144,12 +115,12 @@ export default function MemoryReceipt() {
     });
   };
 
-  const showToast = (type: "save" | "send", message: string) => {
+  const showToast = (message: string) => {
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current);
     }
 
-    setToast({ message, type });
+    setToast(message);
     toastOpacity.setValue(0);
     toastTranslateY.setValue(12);
     Animated.parallel([
@@ -186,43 +157,6 @@ export default function MemoryReceipt() {
     };
   }, []);
 
-  const renderToast = () => {
-    if (!toast) {
-      return null;
-    }
-
-    const isSave = toast.type === "save";
-
-    return (
-      <Animated.View
-        style={[
-          styles.toast,
-          {
-            opacity: toastOpacity,
-            transform: [{ translateY: toastTranslateY }],
-          },
-        ]}
-      >
-        <Image
-          resizeMode="contain"
-          source={
-            isSave
-              ? require("../../assets/images/memory-receipt/memory-receipt-save-success.png")
-              : require("../../assets/images/memory-receipt/memory-receipt-share-send.png")
-          }
-          style={isSave ? styles.toastSaveIcon : styles.toastSendIcon}
-        />
-        <Text
-          maxFontSizeMultiplier={1.1}
-          numberOfLines={1}
-          style={isSave ? styles.toastSaveText : styles.toastSendText}
-        >
-          {toast.message}
-        </Text>
-      </Animated.View>
-    );
-  };
-
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
       <View style={styles.screen}>
@@ -230,20 +164,27 @@ export default function MemoryReceipt() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={scaled(12, scale)}
-            onPress={goBack}
-            style={styles.headerButton}
+            onPress={() => router.back()}
+            style={styles.backButton}
           >
             <Ionicons color="#5D5D5D" name="chevron-back" size={scaled(24, scale)} />
           </Pressable>
 
-          <Pressable
-            accessibilityLabel="저장"
-            hitSlop={scaled(12, scale)}
-            onPress={() => setIsSaveModalVisible(true)}
+          <Text
+            ellipsizeMode="tail"
+            maxFontSizeMultiplier={1.1}
+            numberOfLines={1}
+            style={styles.headerTitle}
           >
-            <Text maxFontSizeMultiplier={1.1} style={styles.saveText}>
-              저장
-            </Text>
+            {headerTitle}
+          </Text>
+
+          <Pressable
+            accessibilityLabel="더보기"
+            hitSlop={scaled(12, scale)}
+            style={styles.moreButton}
+          >
+            <Ionicons color="#5D5D5D" name="ellipsis-vertical" size={scaled(24, scale)} />
           </Pressable>
         </View>
 
@@ -251,137 +192,116 @@ export default function MemoryReceipt() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.receiptStage}>
-            <Image
-              resizeMode="contain"
-              source={require("../../assets/images/memory-receipt/receipt-slot.png")}
-              style={styles.receiptSlot}
-            />
-
-            <Animated.View
-              style={[
-                styles.receiptReveal,
-                isReceiptRevealed ? styles.receiptRevealVisible : null,
-                {
-                  maxHeight: receiptReveal.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, receiptMaxRevealHeight],
-                  }),
-                },
-              ]}
-            >
-              <View style={styles.receiptWrap}>
-                <View style={styles.receiptPaper}>
-                  <View style={styles.receiptInner}>
-                    <View style={styles.receiptTitleRow}>
-                      <View style={styles.titleDash} />
-                      <Text maxFontSizeMultiplier={1.1} style={styles.receiptTitle}>
-                        기억 영수증
-                      </Text>
-                      <View style={styles.titleDash} />
-                    </View>
-
-                    <Image
-                      resizeMode="cover"
-                      source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
-                      style={styles.heroImage}
-                    />
-
-                    <SectionTitle label="오늘의 한줄" styles={styles} />
-                    <View style={styles.summaryBox}>
-                      <Text maxFontSizeMultiplier={1.1} style={styles.summaryText}>
-                        친구들과 스텔라플레이스에서 음료를 마시며 하루를 나누는
-                        시간이 가장 따뜻하게 남았어요.
-                      </Text>
-                    </View>
-
-                    <SectionTitle
-                      label="오늘의 발자취"
-                      styles={styles}
-                      style={styles.footprintTitle}
-                    />
-                    <View style={styles.footprintList}>
-                      {footprints.map((item, index) => (
-                        <View key={item.id} style={styles.footprintItem}>
-                          <View style={styles.timelineColumn}>
-                            <View style={styles.timelineCircle}>
-                              <Text
-                                maxFontSizeMultiplier={1.1}
-                                style={styles.timelineNumber}
-                              >
-                                {item.id}
-                              </Text>
-                            </View>
-                            {index < footprints.length - 1 ? (
-                              <View style={styles.timelineLine} />
-                            ) : null}
-                          </View>
-
-                          <View style={styles.footprintTextBox}>
-                            <Text
-                              ellipsizeMode="tail"
-                              maxFontSizeMultiplier={1.1}
-                              numberOfLines={1}
-                              style={styles.placeText}
-                            >
-                              {item.place}
-                            </Text>
-                            <Text maxFontSizeMultiplier={1.1} style={styles.timeText}>
-                              {item.time}
-                            </Text>
-                          </View>
-
-                          <Text
-                            maxFontSizeMultiplier={1.1}
-                            numberOfLines={1}
-                            style={styles.amountText}
-                          >
-                            {item.amount}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    <SectionTitle
-                      label="오늘의 대화 친구"
-                      styles={styles}
-                      style={styles.friendTitle}
-                    />
-                    <View style={styles.friendRow}>
-                      <Image
-                        resizeMode="contain"
-                        source={require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png")}
-                        style={styles.friendAvatar}
-                      />
-                      <Text
-                        ellipsizeMode="tail"
-                        maxFontSizeMultiplier={1.1}
-                        numberOfLines={1}
-                        style={styles.friendName}
-                      >
-                        별빛이
-                      </Text>
-                    </View>
-
-                    <View style={styles.barcodeTopLine} />
-                    <Image
-                      resizeMode="contain"
-                      source={require("../../assets/images/memory-receipt/memory-receipt-barcode.png")}
-                      style={styles.barcode}
-                    />
-                    <Text maxFontSizeMultiplier={1.1} style={styles.dateText}>
-                      2026.05.25(월) 18:34
-                    </Text>
-                  </View>
+          <View style={styles.receiptWrap}>
+            <View style={styles.receiptPaper}>
+              <View style={styles.receiptInner}>
+                <View style={styles.receiptTitleRow}>
+                  <View style={styles.titleDash} />
+                  <Text maxFontSizeMultiplier={1.1} style={styles.receiptTitle}>
+                    기억 영수증
+                  </Text>
+                  <View style={styles.titleDash} />
                 </View>
 
                 <Image
-                  resizeMode="stretch"
-                  source={require("../../assets/images/memory-receipt/memory-receipt-tear-line.png")}
-                  style={styles.tearLine}
+                  resizeMode="cover"
+                  source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
+                  style={styles.heroImage}
                 />
+
+                <SectionTitle label="오늘의 한줄" styles={styles} />
+                <View style={styles.summaryBox}>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.summaryText}>
+                    친구들과 스텔라플레이스에서 음료를 마시며 하루를 나누는
+                    시간이 가장 따뜻하게 남았어요.
+                  </Text>
+                </View>
+
+                <SectionTitle
+                  label="오늘의 발자취"
+                  styles={styles}
+                  style={styles.footprintTitle}
+                />
+                <View style={styles.footprintList}>
+                  {footprints.map((item, index) => (
+                    <View key={item.id} style={styles.footprintItem}>
+                      <View style={styles.timelineColumn}>
+                        <View style={styles.timelineCircle}>
+                          <Text
+                            maxFontSizeMultiplier={1.1}
+                            style={styles.timelineNumber}
+                          >
+                            {item.id}
+                          </Text>
+                        </View>
+                        {index < footprints.length - 1 ? (
+                          <View style={styles.timelineLine} />
+                        ) : null}
+                      </View>
+
+                      <View style={styles.footprintTextBox}>
+                        <Text
+                          ellipsizeMode="tail"
+                          maxFontSizeMultiplier={1.1}
+                          numberOfLines={1}
+                          style={styles.placeText}
+                        >
+                          {item.place}
+                        </Text>
+                        <Text maxFontSizeMultiplier={1.1} style={styles.timeText}>
+                          {item.time}
+                        </Text>
+                      </View>
+
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        numberOfLines={1}
+                        style={styles.amountText}
+                      >
+                        {item.amount}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                <SectionTitle
+                  label="오늘의 대화 친구"
+                  styles={styles}
+                  style={styles.friendTitle}
+                />
+                <View style={styles.friendRow}>
+                  <Image
+                    resizeMode="contain"
+                    source={require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png")}
+                    style={styles.friendAvatar}
+                  />
+                  <Text
+                    ellipsizeMode="tail"
+                    maxFontSizeMultiplier={1.1}
+                    numberOfLines={1}
+                    style={styles.friendName}
+                  >
+                    별빛이
+                  </Text>
+                </View>
+
+                <View style={styles.barcodeTopLine} />
+                <Image
+                  resizeMode="contain"
+                  source={require("../../assets/images/memory-receipt/memory-receipt-barcode.png")}
+                  style={styles.barcode}
+                />
+                <Text maxFontSizeMultiplier={1.1} style={styles.dateText}>
+                  2026.05.25(월) 18:34
+                </Text>
               </View>
-            </Animated.View>
+            </View>
+
+            <Image
+              resizeMode="stretch"
+              source={require("../../assets/images/memory-receipt/memory-receipt-tear-line.png")}
+              style={styles.tearLine}
+            />
           </View>
         </ScrollView>
 
@@ -476,7 +396,7 @@ export default function MemoryReceipt() {
                     <Pressable
                       accessibilityLabel={`${guardian.name}에게 전송`}
                       onPress={() =>
-                        showToast("send", `${guardian.name}에게 전송했어요`)
+                        showToast(`${guardian.name}에게 전송했어요`)
                       }
                       style={styles.shareSendButton}
                     >
@@ -509,7 +429,7 @@ export default function MemoryReceipt() {
             </Pressable>
           </Animated.View>
 
-          {toast?.type === "send" ? (
+          {toast ? (
             <View
               pointerEvents="none"
               style={[
@@ -517,68 +437,28 @@ export default function MemoryReceipt() {
                 { bottom: shareSheetMeasuredHeight + scaled(12, scale) },
               ]}
             >
-              {renderToast()}
+              <Animated.View
+                style={[
+                  styles.toast,
+                  {
+                    opacity: toastOpacity,
+                    transform: [{ translateY: toastTranslateY }],
+                  },
+                ]}
+              >
+                <Image
+                  resizeMode="contain"
+                  source={require("../../assets/images/memory-receipt/memory-receipt-share-send.png")}
+                  style={styles.toastIcon}
+                />
+                <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.toastText}>
+                  {toast}
+                </Text>
+              </Animated.View>
             </View>
           ) : null}
         </Pressable>
       </Modal>
-
-      <Modal
-        animationType="fade"
-        onRequestClose={() => setIsSaveModalVisible(false)}
-        transparent
-        visible={isSaveModalVisible}
-      >
-        <View style={styles.saveModalOverlay}>
-          <View style={styles.saveModalCard}>
-            <Image
-              resizeMode="contain"
-              source={require("../../assets/images/memory-receipt/memory-receipt-save-alert.png")}
-              style={styles.saveModalIcon}
-            />
-            <Text maxFontSizeMultiplier={1.1} style={styles.saveModalTitle}>
-              기억 영수증을 저장할까요?
-            </Text>
-            <Text maxFontSizeMultiplier={1.1} style={styles.saveModalDescription}>
-              저장하면 나중에 기억 수첩에서{"\n"}
-              다시 볼 수 있어요.
-            </Text>
-            <View style={styles.saveModalButtonRow}>
-              <Pressable
-                onPress={() => setIsSaveModalVisible(false)}
-                style={[styles.saveModalButton, styles.saveModalCancelButton]}
-              >
-                <Text maxFontSizeMultiplier={1.1} style={styles.saveModalCancelText}>
-                  취소
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setIsSaveModalVisible(false);
-                  showToast("save", "기억영수증이 저장됐어요");
-                }}
-                style={[styles.saveModalButton, styles.saveModalConfirmButton]}
-              >
-                <Text maxFontSizeMultiplier={1.1} style={styles.saveModalConfirmText}>
-                  저장하기
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {toast?.type === "save" ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.toastWrapper,
-            { bottom: shareBarHeight + scaled(12, scale) },
-          ]}
-        >
-          {renderToast()}
-        </View>
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -600,12 +480,6 @@ function SectionTitle({ label, styles, style }: SectionTitleProps) {
   );
 }
 
-const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
-  const heightScale = screenHeight / BASE_HEIGHT;
-  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
-  return vertical(157) + bottomInset;
-};
-
 const createStyles = (
   screenWidth: number,
   screenHeight: number,
@@ -625,11 +499,6 @@ const createStyles = (
     fontScaled(value, Math.min(fontScale, layoutScale));
   const sheetFont = (value: number) =>
     fontScaled(value, Math.min(fontScale, sheetScale));
-  const modalWidth = Math.min(350, screenWidth - 48);
-  const modalScale = Math.min(modalWidth / 350, 1);
-  const modalFixed = (value: number) => Math.round(value * modalScale);
-  const modalFont = (value: number) =>
-    fontScaled(value, Math.min(fontScale, modalScale));
   const receiptWidth = Math.min(
     fixed(RECEIPT_BASE_WIDTH),
     Math.round(screenWidth * 0.84),
@@ -638,11 +507,6 @@ const createStyles = (
   const receiptFixed = (value: number) => Math.round(value * receiptScale);
   const receiptFont = (value: number) =>
     fontScaled(value, Math.min(fontScale, receiptScale));
-  const slotWidth = Math.min(
-    fixed(SLOT_BASE_WIDTH),
-    Math.round(screenWidth * 0.92),
-  );
-  const slotHeight = Math.round(slotWidth * (SLOT_BASE_HEIGHT / SLOT_BASE_WIDTH));
   const heroWidth = Math.min(
     receiptFixed(PHOTO_BASE_WIDTH),
     receiptWidth - receiptFixed(36),
@@ -664,6 +528,12 @@ const createStyles = (
       marginLeft: receiptFixed(8),
       minWidth: receiptFixed(72),
       textAlign: "right",
+    },
+    backButton: {
+      alignItems: "center",
+      height: fixed(24),
+      justifyContent: "center",
+      width: fixed(24),
     },
     barcode: {
       alignSelf: "center",
@@ -733,15 +603,17 @@ const createStyles = (
       alignItems: "center",
       flexDirection: "row",
       height: vertical(48),
-      justifyContent: "space-between",
       paddingLeft: fixed(24),
-      paddingRight: fixed(24),
+      width: "100%",
     },
-    headerButton: {
-      alignItems: "center",
-      height: fixed(24),
-      justifyContent: "center",
-      width: fixed(24),
+    headerTitle: {
+      color: "#5D5D5D",
+      flex: 1,
+      fontFamily: "PretendardMedium",
+      fontSize: font(20),
+      lineHeight: font(28),
+      marginLeft: fixed(12),
+      textAlign: "left",
     },
     heroImage: {
       alignSelf: "center",
@@ -750,6 +622,13 @@ const createStyles = (
       marginTop: receiptFixed(22),
       overflow: "hidden",
       width: heroWidth,
+    },
+    moreButton: {
+      alignItems: "center",
+      height: fixed(24),
+      justifyContent: "center",
+      marginRight: fixed(24),
+      width: fixed(24),
     },
     placeText: {
       color: "#353535",
@@ -761,7 +640,6 @@ const createStyles = (
       paddingBottom: receiptFixed(24),
       paddingHorizontal: receiptFixed(18),
       paddingTop: receiptFixed(24),
-      zIndex: 2,
     },
     receiptPaper: {
       backgroundColor: "#F7F5EF",
@@ -770,30 +648,6 @@ const createStyles = (
       boxShadow: "inset 0px 8px 6px rgba(144, 144, 144, 0.20)",
       overflow: "hidden",
       width: receiptWidth,
-    },
-    receiptReveal: {
-      marginTop: -receiptFixed(45),
-      overflow: "hidden",
-      paddingBottom: receiptFixed(20),
-      paddingHorizontal: receiptFixed(20),
-      paddingTop: receiptFixed(20),
-      width: receiptWidth + receiptFixed(40),
-      zIndex: 4,
-    },
-    receiptRevealVisible: {
-      overflow: "visible",
-    },
-    receiptSlot: {
-      height: slotHeight,
-      position: "relative",
-      width: slotWidth,
-      zIndex: 1,
-    },
-    receiptStage: {
-      alignItems: "center",
-      marginTop: vertical(8),
-      overflow: "visible",
-      width: "100%",
     },
     receiptTitle: {
       color: "#00975B",
@@ -811,94 +665,17 @@ const createStyles = (
     receiptWrap: {
       alignItems: "center",
       filter: [{ dropShadow: "0px -3px 20px rgba(0, 0, 0, 0.10)" }],
-      overflow: "visible",
+      marginTop: vertical(28),
       width: receiptWidth,
-      zIndex: 3,
     },
     safeArea: {
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#F8F8F8",
       flex: 1,
-    },
-    saveModalButton: {
-      alignItems: "center",
-      borderRadius: modalFixed(8),
-      flex: 1,
-      height: modalFixed(55),
-      justifyContent: "center",
-    },
-    saveModalButtonRow: {
-      flexDirection: "row",
-      gap: modalFixed(10),
-      marginTop: modalFixed(30),
-      width: "100%",
-    },
-    saveModalCancelButton: {
-      backgroundColor: "#F2F2F2",
-    },
-    saveModalCancelText: {
-      color: "#353535",
-      fontFamily: "PretendardSemiBold",
-      fontSize: modalFont(20),
-      textAlign: "center",
-    },
-    saveModalCard: {
-      alignItems: "center",
-      backgroundColor: "#FFFFFF",
-      borderRadius: modalFixed(15),
-      paddingBottom: modalFixed(15),
-      paddingHorizontal: modalFixed(15),
-      paddingTop: modalFixed(25),
-      width: modalWidth,
-    },
-    saveModalConfirmButton: {
-      backgroundColor: "#23CC89",
-    },
-    saveModalConfirmText: {
-      color: "#FFFFFF",
-      fontFamily: "PretendardSemiBold",
-      fontSize: modalFont(20),
-      textAlign: "center",
-    },
-    saveModalDescription: {
-      color: "#9F9F9F",
-      fontFamily: "PretendardMedium",
-      fontSize: modalFont(20),
-      lineHeight: Math.round(modalFont(20) * 1.35),
-      marginTop: modalFixed(16),
-      textAlign: "center",
-      width: "100%",
-    },
-    saveModalIcon: {
-      height: modalFixed(55),
-      width: modalFixed(55),
-    },
-    saveModalOverlay: {
-      alignItems: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.35)",
-      flex: 1,
-      justifyContent: "center",
-      paddingHorizontal: 24,
-    },
-    saveModalTitle: {
-      color: "#353535",
-      fontFamily: "PretendardBold",
-      fontSize: modalFont(28),
-      lineHeight: modalFont(36),
-      marginTop: modalFixed(20),
-      textAlign: "center",
-      width: "100%",
-    },
-    saveText: {
-      color: "#5D5D5D",
-      fontFamily: "PretendardSemiBold",
-      fontSize: font(20),
-      lineHeight: font(28),
     },
     screen: {
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#F8F8F8",
       flex: 1,
-      overflow: "visible",
-      paddingTop: vertical(30),
+      paddingTop: vertical(18),
     },
     sectionDash: {
       borderColor: "#13BB78",
@@ -921,7 +698,7 @@ const createStyles = (
     },
     shareBar: {
       alignItems: "center",
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#F8F8F8",
       bottom: 0,
       height: shareBarHeight,
       left: 0,
@@ -1158,22 +935,11 @@ const createStyles = (
       paddingLeft: fixed(31.13),
       width: Math.min(fixed(370), Math.round(screenWidth * 0.92)),
     },
-    toastSaveIcon: {
-      height: fixed(23.74),
-      width: fixed(23.74),
-    },
-    toastSaveText: {
-      color: "#FFFFFF",
-      flexShrink: 1,
-      fontFamily: "PretendardSemiBold",
-      fontSize: font(18),
-      marginLeft: fixed(10.13),
-    },
-    toastSendIcon: {
+    toastIcon: {
       height: fixed(23.79),
       width: fixed(24.31),
     },
-    toastSendText: {
+    toastText: {
       color: "#FFFFFF",
       flexShrink: 1,
       fontFamily: "PretendardSemiBold",

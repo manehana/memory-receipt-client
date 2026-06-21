@@ -148,6 +148,12 @@ export default function WeeklyMemoryReceiptsScreen() {
             {weeklyReceipts.map((receipt) => (
               <WeeklyReceiptCard
                 key={receipt.id}
+                onPress={() => {
+                  router.push({
+                    params: { date: receipt.date },
+                    pathname: "/receipt/weekly-memory-receipt-detail",
+                  });
+                }}
                 receipt={receipt}
                 styles={styles}
               />
@@ -172,11 +178,16 @@ export default function WeeklyMemoryReceiptsScreen() {
 }
 
 type WeeklyReceiptCardProps = {
+  onPress: () => void;
   receipt: (typeof weeklyReceipts)[number];
   styles: ReturnType<typeof createStyles>;
 };
 
-function WeeklyReceiptCard({ receipt, styles }: WeeklyReceiptCardProps) {
+function WeeklyReceiptCard({
+  onPress,
+  receipt,
+  styles,
+}: WeeklyReceiptCardProps) {
   const motionProgress = useRef(new Animated.Value(0)).current;
   const hoverProgress = useRef(new Animated.Value(0)).current;
   const pressProgress = useRef(new Animated.Value(0)).current;
@@ -217,6 +228,7 @@ function WeeklyReceiptCard({ receipt, styles }: WeeklyReceiptCardProps) {
       }
     });
     animateMotion(1, 180);
+    setTimeout(onPress, 240);
   };
 
   const handleHoverIn = () => {

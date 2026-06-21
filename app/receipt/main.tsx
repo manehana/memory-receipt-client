@@ -214,6 +214,12 @@ export default function MainScreen() {
             {recentReceipts.map((receipt, index) => (
               <Pressable
                 key={`${receipt.date}-${index}`}
+                onPress={() => {
+                  router.push({
+                    params: { date: receipt.date },
+                    pathname: "/receipt/weekly-memory-receipt-detail",
+                  });
+                }}
                 style={styles.receiptCard}
               >
                 <View style={styles.receiptImageWrap}>
