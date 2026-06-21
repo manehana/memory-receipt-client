@@ -575,12 +575,6 @@ export default function MemoryReceipt() {
   );
 }
 
-const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
-  const heightScale = screenHeight / BASE_HEIGHT;
-  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
-  return vertical(157) + bottomInset;
-};
-
 type SectionTitleProps = {
   label: string;
   styles: ReturnType<typeof createStyles>;
@@ -597,6 +591,12 @@ function SectionTitle({ label, styles, style }: SectionTitleProps) {
     </View>
   );
 }
+
+const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
+  const heightScale = screenHeight / BASE_HEIGHT;
+  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
+  return vertical(157) + bottomInset;
+};
 
 const createStyles = (
   screenWidth: number,
@@ -1141,8 +1141,9 @@ const createStyles = (
     },
     toast: {
       alignItems: "center",
-      backgroundColor: "#333333",
-      borderRadius: fixed(47.57),
+      backdropFilter: "blur(70px)",
+      backgroundColor: "rgba(51, 51, 51, 0.6)",
+      borderRadius: fixed(48),
       flexDirection: "row",
       height: fixed(60),
       overflow: "hidden",
