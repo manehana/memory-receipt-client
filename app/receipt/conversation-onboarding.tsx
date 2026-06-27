@@ -339,7 +339,7 @@ export default function ConversationOnboardingScreen() {
     }
 
     closeFriendSheet(() => {
-      router.replace({
+      router.push({
         pathname: "/receipt/voice-waiting",
         params: { friendId: selectedFriendId },
       });

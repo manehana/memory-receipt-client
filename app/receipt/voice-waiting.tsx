@@ -400,7 +400,7 @@ export default function VoiceWaitingScreen() {
 
   const moveToNextQuestion = () => {
     if (questionIndex >= questions.length - 1) {
-      router.replace("/receipt/memory-receipt-loading");
+      router.push("/receipt/memory-receipt-loading");
       return;
     }
 

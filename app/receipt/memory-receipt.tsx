@@ -4,8 +4,8 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -92,15 +92,6 @@ export default function MemoryReceipt() {
   );
   const shareBarHeight = getShareBarHeight(height, insets.bottom);
   const receiptMaxRevealHeight = Math.max(height * 2, scaled(1200, scale));
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
   useEffect(() => {
     receiptReveal.setValue(0);
     setIsReceiptRevealed(false);
@@ -230,7 +221,7 @@ export default function MemoryReceipt() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={scaled(12, scale)}
-            onPress={goBack}
+            onPress={goBackToPreviousScreen}
             style={styles.headerButton}
           >
             <Ionicons color="#5D5D5D" name="chevron-back" size={scaled(24, scale)} />
