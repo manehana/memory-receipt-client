@@ -4,6 +4,7 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -202,15 +203,6 @@ export default function ConversationOnboardingScreen() {
   const selectedFriend =
     friends.find((friend) => friend.id === selectedFriendId) ?? friends[0];
 
-  const navigateBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
   const turnToStep = (targetStep: number) => {
     if (isPageTurningRef.current || targetStep === step) {
       return;
@@ -320,7 +312,7 @@ export default function ConversationOnboardingScreen() {
 
   const startConversation = () => {
     closeFriendSheet(() => {
-      router.replace({
+      router.push({
         pathname: "/receipt/voice-waiting",
         params: { friendId: selectedFriendId },
       });
@@ -328,7 +320,7 @@ export default function ConversationOnboardingScreen() {
   };
 
   const skipOnboarding = () => {
-    router.replace({
+    router.push({
       pathname: "/receipt/voice-waiting",
       params: { friendId: selectedFriendId },
     });
@@ -343,7 +335,7 @@ export default function ConversationOnboardingScreen() {
   };
   const confirmExit = () => {
     setIsExitModalVisible(false);
-    navigateBack();
+    goBackToPreviousScreen();
   };
   const swipeResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) =>

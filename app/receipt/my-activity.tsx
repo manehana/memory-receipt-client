@@ -4,8 +4,8 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -180,14 +180,6 @@ export default function MyActivityScreen() {
     () => createCalendarDates(currentYear, currentMonth),
     [currentMonth, currentYear]
   );
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
   const selectTab = (nextTab: ActivityTab) => {
     if (nextTab === activeTab) {
       return;
@@ -225,7 +217,7 @@ export default function MyActivityScreen() {
         <View style={styles.header}>
           <Pressable
             hitSlop={scaled(12, scale)}
-            onPress={goBack}
+            onPress={goBackToPreviousScreen}
             style={styles.headerButton}
           >
             <Ionicons

@@ -2,6 +2,7 @@ import {
   fontScaled,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ExpoSpeechRecognitionModule,
@@ -226,15 +227,6 @@ export default function VoiceWaitingScreen() {
     friends.find((friend) => friend.id === friendId) ?? friends[0];
   const isVoiceActive = isListening || hasResponse;
   const hasTranscript = transcript.trim().length > 0;
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
   const clearCompleteTimers = () => {
     completeTimers.current.forEach((timer) => clearTimeout(timer));
     completeTimers.current = [];
@@ -383,7 +375,7 @@ export default function VoiceWaitingScreen() {
 
   const moveToNextQuestion = () => {
     if (questionIndex >= questions.length - 1) {
-      router.replace("/receipt/memory-receipt-loading");
+      router.push("/receipt/memory-receipt-loading");
       return;
     }
 
@@ -459,7 +451,7 @@ export default function VoiceWaitingScreen() {
         <View style={styles.topRow}>
           <Pressable
             accessibilityLabel="뒤로가기"
-            onPress={goBack}
+            onPress={goBackToPreviousScreen}
             style={styles.backButton}
           >
             <Text maxFontSizeMultiplier={1.1} style={styles.backButtonText}>

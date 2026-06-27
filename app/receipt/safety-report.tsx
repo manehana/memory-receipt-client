@@ -4,9 +4,9 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -186,22 +186,13 @@ export default function SafetyReportScreen() {
       }
     });
   };
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable
             hitSlop={scaled(12, scale)}
-            onPress={goBack}
+            onPress={goBackToPreviousScreen}
             style={styles.headerButton}
           >
             <Ionicons
