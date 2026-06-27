@@ -4,13 +4,13 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
-import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Easing,
   Image,
   ImageSourcePropType,
   Modal,
@@ -183,15 +183,14 @@ export default function ConversationOnboardingScreen() {
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(scale, fontScale),
-    [fontScale, scale],
+    [fontScale, scale]
   );
   const [step, setStep] = useState(0);
   const [nextStep, setNextStep] = useState<number | null>(null);
   const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
-  const [isExitModalVisible, setIsExitModalVisible] = useState(false);
   const [friendSheetVisible, setFriendSheetVisible] = useState(false);
   const [friendSheetMode, setFriendSheetMode] = useState<"confirm" | "select">(
-    "confirm",
+    "confirm"
   );
   const [selectedFriendId, setSelectedFriendId] = useState("hanaboy");
   const friendBackdropProgress = useRef(new Animated.Value(1)).current;
@@ -199,6 +198,7 @@ export default function ConversationOnboardingScreen() {
   const friendSheetTranslateX = useRef(new Animated.Value(0)).current;
   const pageTurnProgress = useRef(new Animated.Value(0)).current;
   const isPageTurningRef = useRef(false);
+  const shouldReturnToInlineConfirmRef = useRef(false);
 
   const selectedFriend =
     friends.find((friend) => friend.id === selectedFriendId) ?? friends[0];
@@ -213,7 +213,8 @@ export default function ConversationOnboardingScreen() {
     setNextStep(targetStep);
     pageTurnProgress.setValue(0);
     Animated.timing(pageTurnProgress, {
-      duration: 360,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -266,6 +267,7 @@ export default function ConversationOnboardingScreen() {
   };
 
   const openFriendSelectSheet = () => {
+    shouldReturnToInlineConfirmRef.current = false;
     friendSheetProgress.setValue(1);
     friendSheetTranslateX.setValue(0);
     setFriendSheetMode("select");
@@ -278,6 +280,12 @@ export default function ConversationOnboardingScreen() {
     });
   };
 
+  const openInlineFriendSelectSheet = () => {
+    shouldReturnToInlineConfirmRef.current = true;
+    setFriendSheetMode("select");
+    openFriendSheet();
+  };
+
   const openFriendConfirmSheet = () => {
     setFriendSheetMode("confirm");
     friendSheetTranslateX.setValue(-width);
@@ -286,6 +294,17 @@ export default function ConversationOnboardingScreen() {
       toValue: 0,
       useNativeDriver: true,
     }).start();
+  };
+
+  const completeFriendSelection = () => {
+    if (shouldReturnToInlineConfirmRef.current) {
+      closeFriendSheet(() => {
+        shouldReturnToInlineConfirmRef.current = false;
+      });
+      return;
+    }
+
+    openFriendConfirmSheet();
   };
 
   const closeFriendSheet = (onClosed?: () => void) => {
@@ -311,6 +330,14 @@ export default function ConversationOnboardingScreen() {
   };
 
   const startConversation = () => {
+    if (!friendSheetVisible) {
+      router.replace({
+        pathname: "/receipt/voice-waiting",
+        params: { friendId: selectedFriendId },
+      });
+      return;
+    }
+
     closeFriendSheet(() => {
       router.push({
         pathname: "/receipt/voice-waiting",
@@ -320,10 +347,8 @@ export default function ConversationOnboardingScreen() {
   };
 
   const skipOnboarding = () => {
-    router.push({
-      pathname: "/receipt/voice-waiting",
-      params: { friendId: selectedFriendId },
-    });
+    setFriendSheetMode("confirm");
+    openFriendSheet();
   };
   const goBack = () => {
     if (step > 0) {
@@ -331,11 +356,7 @@ export default function ConversationOnboardingScreen() {
       return;
     }
 
-    setIsExitModalVisible(true);
-  };
-  const confirmExit = () => {
-    setIsExitModalVisible(false);
-    goBackToPreviousScreen();
+    router.replace("/receipt/main");
   };
   const swipeResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) =>
@@ -346,7 +367,7 @@ export default function ConversationOnboardingScreen() {
         return;
       }
 
-      if (gestureState.dx > 0) {
+      if (gestureState.dx < 0) {
         if (step < steps.length - 1) {
           goNext();
         }
@@ -360,10 +381,6 @@ export default function ConversationOnboardingScreen() {
   });
   const progressStep = nextStep ?? step;
   const outgoingPageStyle = {
-    opacity: pageTurnProgress.interpolate({
-      inputRange: [0, 0.85, 1],
-      outputRange: [1, 0.9, 0.88],
-    }),
     transform: [
       {
         translateX: pageTurnProgress.interpolate({
@@ -374,10 +391,6 @@ export default function ConversationOnboardingScreen() {
     ],
   };
   const incomingPageStyle = {
-    opacity: pageTurnProgress.interpolate({
-      inputRange: [0, 0.18, 1],
-      outputRange: [0, 1, 1],
-    }),
     transform: [
       {
         translateX: pageTurnProgress.interpolate({
@@ -388,32 +401,131 @@ export default function ConversationOnboardingScreen() {
     ],
   };
 
+  const renderFriendConfirmContent = (
+    onChangeFriend: () => void,
+    isInteractive = true
+  ) => (
+    <>
+      <View style={styles.sheetHandle} />
+      <Text maxFontSizeMultiplier={1.1} style={styles.confirmTitle}>
+        오늘의 대화 친구
+      </Text>
+      <Text maxFontSizeMultiplier={1.1} style={styles.confirmDescription}>
+        원하는 목소리로 언제든 변경할 수 있어요.
+      </Text>
+
+      <View style={styles.currentFriendRow}>
+        <Image
+          resizeMode="contain"
+          source={selectedFriend.inactiveIcon}
+          style={styles.currentFriendImage}
+        />
+        <View style={styles.currentFriendTextBox}>
+          <Text maxFontSizeMultiplier={1.1} style={styles.currentFriendName}>
+            {selectedFriend.name}
+          </Text>
+          <Text
+            maxFontSizeMultiplier={1.1}
+            style={styles.currentFriendDescription}
+          >
+            {selectedFriend.description}
+          </Text>
+        </View>
+        <Pressable
+          disabled={!isInteractive}
+          onPress={onChangeFriend}
+          style={styles.changeFriendButton}
+        >
+          <Text maxFontSizeMultiplier={1.1} style={styles.changeFriendText}>
+            변경
+          </Text>
+        </Pressable>
+      </View>
+
+      <Pressable
+        disabled={!isInteractive}
+        onPress={startConversation}
+        style={styles.startButton}
+      >
+        <Text maxFontSizeMultiplier={1.1} style={styles.startButtonText}>
+          시작하기
+        </Text>
+      </Pressable>
+    </>
+  );
+
+  const renderInlineFriendCard = (isInteractive: boolean) => (
+    <View style={styles.inlineFriendSection}>
+      <View style={styles.inlineFriendCard}>
+        <Text maxFontSizeMultiplier={1.1} style={styles.inlineFriendTitle}>
+          오늘의 대화 친구
+        </Text>
+        <View style={styles.inlineFriendDivider} />
+        <View style={styles.inlineFriendRow}>
+          <Image
+            resizeMode="contain"
+            source={selectedFriend.inactiveIcon}
+            style={styles.inlineFriendImage}
+          />
+          <View style={styles.inlineFriendTextBox}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.inlineFriendName}>
+              {selectedFriend.name}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={1.1}
+              numberOfLines={1}
+              style={styles.inlineFriendDescription}
+            >
+              {selectedFriend.description.replace(/\n/g, " ")}
+            </Text>
+          </View>
+          <Pressable
+            disabled={!isInteractive}
+            onPress={openInlineFriendSelectSheet}
+            style={styles.inlineChangeButton}
+          >
+            <Text maxFontSizeMultiplier={1.1} style={styles.inlineChangeText}>
+              변경
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <Pressable
+        disabled={!isInteractive}
+        onPress={startConversation}
+        style={styles.inlineStartButton}
+      >
+        <Text maxFontSizeMultiplier={1.1} style={styles.inlineStartButtonText}>
+          시작할게요
+        </Text>
+      </Pressable>
+    </View>
+  );
+
   const renderPage = (pageStep: number, isInteractive: boolean) => {
     const item = steps[pageStep];
+    const isLastStep = pageStep === steps.length - 1;
 
     return (
       <View style={styles.page}>
         <View style={styles.content}>
           <View style={styles.mainIconFrame}>
-            {steps.map((stepItem, index) => (
-              <Image
-                key={index}
-                resizeMode="contain"
-                source={stepItem.mainImage}
-                style={[
-                  styles.mainIcon,
-                  {
-                    opacity: index === pageStep ? 1 : 0,
-                    transform: [
-                      {
-                        translateX: scaled(stepItem.mainImageOffsetX ?? 0, scale),
-                      },
-                      { scale: stepItem.mainImageScale ?? 1 },
-                    ],
-                  },
-                ]}
-              />
-            ))}
+            <Image
+              resizeMode="contain"
+              source={item.mainImage}
+              style={[
+                styles.mainIcon,
+                {
+                  transform: [
+                    {
+                      translateX: scaled(item.mainImageOffsetX ?? 0, scale),
+                    },
+                    { scale: item.mainImageScale ?? 1 },
+                  ],
+                },
+              ]}
+            />
           </View>
 
           <Text maxFontSizeMultiplier={1.1} style={styles.title}>
@@ -428,7 +540,10 @@ export default function ConversationOnboardingScreen() {
                 item.descriptionSize
                   ? {
                       fontSize: fontScaled(item.descriptionSize, fontScale),
-                      lineHeight: fontScaled(item.descriptionSize + 9, fontScale),
+                      lineHeight: fontScaled(
+                        item.descriptionSize + 9,
+                        fontScale
+                      ),
                     }
                   : null,
               ]}
@@ -443,14 +558,20 @@ export default function ConversationOnboardingScreen() {
             <View style={styles.cardList}>
               {item.cards.map((card, index) => (
                 <View key={index} style={styles.infoCard}>
-                  <Image resizeMode="contain" source={card.icon} style={styles.cardIcon} />
+                  <Image
+                    resizeMode="contain"
+                    source={card.icon}
+                    style={styles.cardIcon}
+                  />
                   <Text maxFontSizeMultiplier={1.1} style={styles.cardText}>
                     {card.text ? (
                       card.text
                     ) : (
                       <>
                         {card.beforeHighlight}
-                        <Text style={styles.highlightText}>{card.highlight}</Text>
+                        <Text style={styles.highlightText}>
+                          {card.highlight}
+                        </Text>
                         {card.afterHighlight}
                       </>
                     )}
@@ -460,21 +581,30 @@ export default function ConversationOnboardingScreen() {
             </View>
           ) : null}
 
-          <Pressable
-            disabled={!isInteractive}
-            onPress={goNext}
-            style={styles.primaryButton}
-          >
-            <Text maxFontSizeMultiplier={1.1} style={styles.primaryButtonText}>
-              {pageStep === steps.length - 1 ? "대화 친구 확인하기" : "이해했어요"}
-            </Text>
-          </Pressable>
+          {isLastStep ? (
+            renderInlineFriendCard(isInteractive)
+          ) : (
+            <>
+              <Pressable
+                disabled={!isInteractive}
+                onPress={goNext}
+                style={styles.primaryButton}
+              >
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.primaryButtonText}
+                >
+                  이해했어요
+                </Text>
+              </Pressable>
 
-          <Pressable disabled={!isInteractive} onPress={skipOnboarding}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.skipText}>
-              건너뛰기
-            </Text>
-          </Pressable>
+              <Pressable disabled={!isInteractive} onPress={skipOnboarding}>
+                <Text maxFontSizeMultiplier={1.1} style={styles.skipText}>
+                  건너뛰기
+                </Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
     );
@@ -490,7 +620,11 @@ export default function ConversationOnboardingScreen() {
             onPress={goBack}
             style={styles.backButton}
           >
-            <Ionicons color="#7E7E7E" name="chevron-back" size={scaled(22, scale)} />
+            <Ionicons
+              color="#7E7E7E"
+              name="chevron-back"
+              size={scaled(22, scale)}
+            />
           </Pressable>
         </View>
 
@@ -506,7 +640,7 @@ export default function ConversationOnboardingScreen() {
               />
             ) : (
               <View key={index} style={styles.progressInactive} />
-            ),
+            )
           )}
         </View>
 
@@ -571,46 +705,7 @@ export default function ConversationOnboardingScreen() {
                 },
               ]}
             >
-              <View style={styles.sheetHandle} />
-              <Text maxFontSizeMultiplier={1.1} style={styles.confirmTitle}>
-                오늘의 대화 친구
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.confirmDescription}>
-                원하는 목소리로 언제든 변경할 수 있어요.
-              </Text>
-
-              <View style={styles.currentFriendRow}>
-                <Image
-                  resizeMode="contain"
-                  source={selectedFriend.inactiveIcon}
-                  style={styles.currentFriendImage}
-                />
-                <View style={styles.currentFriendTextBox}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.currentFriendName}>
-                    {selectedFriend.name}
-                  </Text>
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.currentFriendDescription}
-                  >
-                    {selectedFriend.description}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={openFriendSelectSheet}
-                  style={styles.changeFriendButton}
-                >
-                  <Text maxFontSizeMultiplier={1.1} style={styles.changeFriendText}>
-                    변경
-                  </Text>
-                </Pressable>
-              </View>
-
-              <Pressable onPress={startConversation} style={styles.startButton}>
-                <Text maxFontSizeMultiplier={1.1} style={styles.startButtonText}>
-                  시작하기
-                </Text>
-              </Pressable>
+              {renderFriendConfirmContent(openFriendSelectSheet)}
             </Animated.View>
           ) : (
             <Animated.View
@@ -644,10 +739,15 @@ export default function ConversationOnboardingScreen() {
                 {friendGroups.map((group) => (
                   <View key={group.id} style={styles.friendGroup}>
                     <View style={styles.friendGroupHeader}>
-                      <Text maxFontSizeMultiplier={1.1} style={styles.friendGroupLabel}>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.friendGroupLabel}
+                      >
                         {group.label}
                         {group.suffix ? (
-                          <Text style={styles.friendGroupHighlight}>{group.suffix}</Text>
+                          <Text style={styles.friendGroupHighlight}>
+                            {group.suffix}
+                          </Text>
                         ) : null}
                       </Text>
                       <View style={styles.friendGroupLine} />
@@ -669,7 +769,9 @@ export default function ConversationOnboardingScreen() {
                                 <Image
                                   resizeMode="contain"
                                   source={
-                                    isSelected ? friend.activeIcon : friend.inactiveIcon
+                                    isSelected
+                                      ? friend.activeIcon
+                                      : friend.inactiveIcon
                                   }
                                   style={styles.friendAvatarImage}
                                 />
@@ -681,7 +783,10 @@ export default function ConversationOnboardingScreen() {
                                   />
                                 ) : null}
                               </View>
-                              <Text maxFontSizeMultiplier={1.1} style={styles.friendName}>
+                              <Text
+                                maxFontSizeMultiplier={1.1}
+                                style={styles.friendName}
+                              >
                                 {friend.name}
                               </Text>
                             </Pressable>
@@ -693,51 +798,18 @@ export default function ConversationOnboardingScreen() {
               </View>
 
               <Pressable
-                onPress={openFriendConfirmSheet}
+                onPress={completeFriendSelection}
                 style={styles.selectDoneButton}
               >
-                <Text maxFontSizeMultiplier={1.1} style={styles.selectDoneButtonText}>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.selectDoneButtonText}
+                >
                   선택 완료
                 </Text>
               </Pressable>
             </Animated.View>
           )}
-        </View>
-      </Modal>
-
-      <Modal
-        animationType="fade"
-        onRequestClose={() => setIsExitModalVisible(false)}
-        transparent
-        visible={isExitModalVisible}
-      >
-        <View style={styles.exitModalBackdrop}>
-          <View style={styles.exitModalCard}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.exitModalTitle}>
-              오늘의 대화를{"\n"}종료할까요?
-            </Text>
-            <Text maxFontSizeMultiplier={1.1} style={styles.exitModalDescription}>
-              지금 나가면 온보딩 진행이 중단돼요.
-            </Text>
-            <View style={styles.exitModalButtonRow}>
-              <Pressable
-                onPress={() => setIsExitModalVisible(false)}
-                style={[styles.exitModalButton, styles.exitModalCancelButton]}
-              >
-                <Text maxFontSizeMultiplier={1.1} style={styles.exitModalCancelText}>
-                  계속하기
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={confirmExit}
-                style={[styles.exitModalButton, styles.exitModalConfirmButton]}
-              >
-                <Text maxFontSizeMultiplier={1.1} style={styles.exitModalConfirmText}>
-                  종료하기
-                </Text>
-              </Pressable>
-            </View>
-          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -755,7 +827,7 @@ const createStyles = (scale: number, fontScale: number) =>
       paddingBottom: scaled(47, scale),
     },
     topRow: {
-      height: scaled(50, scale),
+      height: scaled(80, scale),
       justifyContent: "center",
       paddingHorizontal: scaled(20, scale),
     },
@@ -964,6 +1036,86 @@ const createStyles = (scale: number, fontScale: number) =>
     },
     selectSheet: {
       minHeight: scaled(575, scale),
+    },
+    inlineFriendSection: {
+      alignSelf: "center",
+      gap: scaled(32, scale),
+      maxWidth: scaled(370, scale),
+      paddingBottom: scaled(49, scale),
+      width: "100%",
+    },
+    inlineFriendCard: {
+      backgroundColor: "#FFFFFF",
+      borderRadius: scaled(14, scale),
+      paddingBottom: scaled(22, scale),
+      paddingHorizontal: scaled(25, scale),
+      paddingTop: scaled(20, scale),
+      width: "100%",
+    },
+    inlineFriendTitle: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
+      lineHeight: fontScaled(28, fontScale),
+    },
+    inlineFriendDivider: {
+      backgroundColor: "#EEEEEE",
+      height: 1,
+      marginTop: scaled(12, scale),
+    },
+    inlineFriendRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      marginTop: scaled(14, scale),
+    },
+    inlineFriendImage: {
+      height: scaled(52, scale),
+      marginRight: scaled(13, scale),
+      width: scaled(52, scale),
+    },
+    inlineFriendTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    inlineFriendName: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
+      lineHeight: fontScaled(27, fontScale),
+    },
+    inlineFriendDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardRegular",
+      fontSize: fontScaled(16, fontScale),
+      lineHeight: fontScaled(22, fontScale),
+      marginTop: scaled(1, scale),
+    },
+    inlineChangeButton: {
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: scaled(12, scale),
+      minHeight: scaled(44, scale),
+      minWidth: scaled(50, scale),
+    },
+    inlineChangeText: {
+      color: "#13BB78",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
+      lineHeight: fontScaled(27, fontScale),
+    },
+    inlineStartButton: {
+      alignItems: "center",
+      backgroundColor: "#23CC89",
+      borderRadius: scaled(8, scale),
+      height: scaled(55, scale),
+      justifyContent: "center",
+      width: "100%",
+    },
+    inlineStartButtonText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(20, fontScale),
+      lineHeight: fontScaled(28, fontScale),
     },
     sheetHandle: {
       alignSelf: "center",
