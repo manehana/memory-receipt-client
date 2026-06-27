@@ -4,6 +4,7 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
@@ -112,22 +113,13 @@ export default function MemoryNotebookScreen() {
     setSelectedSort(value);
     closeSortSheet();
   };
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable
             hitSlop={scaled(12, scale)}
-            onPress={goBack}
+            onPress={goBackToPreviousScreen}
             style={styles.headerButton}
           >
             <Ionicons

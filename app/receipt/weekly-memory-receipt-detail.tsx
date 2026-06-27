@@ -4,8 +4,9 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -164,7 +165,7 @@ export default function WeeklyMemoryReceiptDetail() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={scaled(12, scale)}
-            onPress={() => router.back()}
+            onPress={goBackToPreviousScreen}
             style={styles.backButton}
           >
             <Ionicons color="#5D5D5D" name="chevron-back" size={scaled(24, scale)} />

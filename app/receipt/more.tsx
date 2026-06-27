@@ -4,8 +4,8 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Image,
@@ -55,22 +55,13 @@ export default function MoreScreen() {
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width],
   );
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable
             hitSlop={scaled(12, scale)}
-            onPress={goBack}
+            onPress={goBackToPreviousScreen}
             style={styles.headerButton}
           >
             <Ionicons color="#9F9F9F" name="chevron-back" size={scaled(24, scale)} />

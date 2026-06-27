@@ -4,6 +4,7 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
@@ -80,15 +81,6 @@ export default function WeeklyMemoryReceiptsScreen() {
     inputRange: [0, Math.max(1, scrollContentHeight - scrollViewportHeight)],
     outputRange: [0, Math.max(0, scrollbarTrackHeight - scrollbarThumbHeight)],
   });
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/receipt/main");
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
@@ -96,7 +88,7 @@ export default function WeeklyMemoryReceiptsScreen() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={scaled(12, scale)}
-            onPress={goBack}
+            onPress={goBackToPreviousScreen}
             style={styles.backButton}
           >
             <Ionicons
