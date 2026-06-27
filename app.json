@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "기억Hana",
+    "name": "기억 Hana",
     "slug": "memory-receipt-client",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,10 +17,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/logo.png",
-        "backgroundImage": "./assets/images/logo.png",
-        "monochromeImage": "./assets/images/logo.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
