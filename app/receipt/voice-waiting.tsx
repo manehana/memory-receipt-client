@@ -8,7 +8,14 @@ import {
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   BackHandler,
@@ -17,6 +24,7 @@ import {
   ImageSourcePropType,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   type StyleProp,
@@ -38,6 +46,8 @@ const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
 const COMPLETE_PRESSED_MS = 180;
 const COMPLETE_DONE_MS = 650;
+// 말을 시작한 뒤 이 시간이 지나면 녹음은 계속하되 응답완료 버튼을 추가로 노출한다
+const SPEECH_AUTO_COMPLETE_MS = 3000;
 // STT 단어 등장 애니메이션: 시그모이드(S-커브) 가속, blur→sharp + fade
 const SIGMOID_EASING = REasing.bezier(0.65, 0, 0.35, 1);
 const WORD_FADE_MS = 520;
@@ -49,6 +59,54 @@ const WORD_SHADOW = {
   textShadowColor: "#3B3B3B",
   textShadowOffset: { width: 0, height: 0 },
 } as const;
+// 한 줄당 UTF-8 바이트 수를 기준으로 줄바꿈 위치를 직접 계산해
+// 폰트/화면 크기와 무관하게 동일한 기준으로 폰트 축소·스크롤을 전환한다
+const ANSWER_LINE_MAX_BYTES = 44;
+const ANSWER_FONT_SIZE = 25;
+const ANSWER_FONT_SIZE_COMPACT = 23;
+const ANSWER_LINE_HEIGHT = 34;
+const ANSWER_LINE_HEIGHT_COMPACT = 31;
+const ANSWER_COMPACT_LINE_THRESHOLD = 5;
+const ANSWER_SCROLL_LINE_THRESHOLD = 6;
+const LINE_BREAK_STYLE = { height: 0, width: "100%" } as const;
+
+function getUtf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0x7f) {
+      bytes += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+    } else if (code <= 0xffff) {
+      bytes += 3;
+    } else {
+      bytes += 4;
+    }
+  }
+  return bytes;
+}
+
+// words[index] 앞에서 줄을 바꿔야 하는지 여부를 반환한다
+function computeLineBreaks(words: string[], maxBytes: number): boolean[] {
+  const breaks = words.map(() => false);
+  let lineBytes = 0;
+  words.forEach((word, index) => {
+    const wordBytes = getUtf8ByteLength(word);
+    if (index === 0) {
+      lineBytes = wordBytes;
+      return;
+    }
+    const withSpace = lineBytes + 1 + wordBytes;
+    if (withSpace > maxBytes) {
+      breaks[index] = true;
+      lineBytes = wordBytes;
+    } else {
+      lineBytes = withSpace;
+    }
+  });
+  return breaks;
+}
 const voiceIdleCircleImage = require("../../assets/images/voice/voice-idle-circle.png");
 const voiceIdleSmallCircleImage = require("../../assets/images/voice/voice-idle-small-circle.png");
 const voiceListeningCircleImage = require("../../assets/images/voice/voice-listening-circle.png");
@@ -155,11 +213,13 @@ function AnimatedTranscript({
   textStyle,
   containerStyle,
   wrapStyle,
+  onLineCountChange,
 }: {
   transcript: string;
   textStyle: StyleProp<TextStyle>;
   containerStyle: StyleProp<ViewStyle>;
   wrapStyle: StyleProp<ViewStyle>;
+  onLineCountChange: (lineCount: number) => void;
 }) {
   // 신규 단어만 등장 애니메이션이 돌도록 직전 단어 배열과 접두 비교
   const prevRef = useRef<TranscriptWord[]>([]);
@@ -178,15 +238,24 @@ function AnimatedTranscript({
     return next;
   }, [transcript]);
 
+  // 줄바꿈 위치는 화면 렌더링이 아니라 단어별 UTF-8 바이트 합산으로 직접 계산한다
+  const lineBreaks = useMemo(
+    () => computeLineBreaks(words.map((word) => word.text), ANSWER_LINE_MAX_BYTES),
+    [words],
+  );
+  const lineCount = words.length === 0 ? 0 : 1 + lineBreaks.filter(Boolean).length;
+
+  useEffect(() => {
+    onLineCountChange(lineCount);
+  }, [lineCount, onLineCountChange]);
+
   return (
     <View style={containerStyle}>
-      {words.map((word) => (
-        <AnimatedWord
-          key={word.key}
-          text={word.text}
-          textStyle={textStyle}
-          wrapStyle={wrapStyle}
-        />
+      {words.map((word, index) => (
+        <Fragment key={word.key}>
+          {lineBreaks[index] ? <View style={LINE_BREAK_STYLE} /> : null}
+          <AnimatedWord text={word.text} textStyle={textStyle} wrapStyle={wrapStyle} />
+        </Fragment>
       ))}
     </View>
   );
@@ -223,12 +292,55 @@ export default function VoiceWaitingScreen() {
   const [transcript, setTranscript] = useState("");
   const [completeStatus, setCompleteStatus] =
     useState<CompleteStatus>("ready");
+  const [isAnswerCompact, setIsAnswerCompact] = useState(false);
+  const [isAnswerScrollable, setIsAnswerScrollable] = useState(false);
+  const [answerAvailableHeight, setAnswerAvailableHeight] = useState<
+    number | null
+  >(null);
+  const answerAreaRef = useRef<View>(null);
+  // 응답 완료 버튼/뱃지가 떠 있는 자리 — 답변 텍스트는 항상 이 위에만 있어야 한다
+  const actionPillRef = useRef<View>(null);
+  const answerScrollRef = useRef<ScrollView>(null);
   const [isExitModalVisible, setIsExitModalVisible] = useState(false);
 
   const selectedFriend =
     friends.find((friend) => friend.id === friendId) ?? friends[0];
   const isVoiceActive = isListening || hasResponse;
   const hasTranscript = transcript.trim().length > 0;
+  const answerTextStyle = useMemo(
+    () => [styles.answerText, isAnswerCompact ? styles.answerTextCompact : null],
+    [isAnswerCompact, styles],
+  );
+  const answerBottomGap = scaled(20, scale);
+  // 스크롤 컨테이너가 6번째 줄까지는 그대로 보여주고 그 다음 줄부터만 스크롤되도록
+  // 화면 여유 공간과 무관하게 6줄 높이로 상한을 둔다
+  const answerScrollMaxHeight =
+    fontScaled(ANSWER_LINE_HEIGHT_COMPACT, fontScale) * ANSWER_SCROLL_LINE_THRESHOLD;
+  const updateAnswerAvailableHeight = useCallback(() => {
+    requestAnimationFrame(() => {
+      const answerNode = answerAreaRef.current;
+      const pillNode = actionPillRef.current;
+      if (!answerNode || !pillNode) {
+        return;
+      }
+      answerNode.measure((_x, _y, _width, _height, _pageX, answerPageY) => {
+        pillNode.measure((_px, _py, _pwidth, _pheight, _ppageX, pillPageY) => {
+          const available = pillPageY - answerPageY - answerBottomGap;
+          if (available > 0) {
+            setAnswerAvailableHeight(available);
+          }
+        });
+      });
+    });
+  }, [answerBottomGap]);
+  const handleAnswerLineCountChange = (lineCount: number) => {
+    if (!isAnswerCompact && lineCount >= ANSWER_COMPACT_LINE_THRESHOLD) {
+      setIsAnswerCompact(true);
+    }
+    if (!isAnswerScrollable && lineCount >= ANSWER_SCROLL_LINE_THRESHOLD) {
+      setIsAnswerScrollable(true);
+    }
+  };
   const goBack = () => {
     setIsExitModalVisible(true);
   };
@@ -353,11 +465,26 @@ export default function VoiceWaitingScreen() {
   // STT가 확정한 문장 누적분과 현재 transcript(중간결과 포함) 최신값
   const finalizedRef = useRef("");
   const transcriptRef = useRef("");
+  // 말 시작 후 일정 시간이 지나면 녹음은 유지한 채 응답완료 버튼만 띄우는 타이머
+  const autoCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const clearAutoCompleteTimer = () => {
+    if (autoCompleteTimerRef.current) {
+      clearTimeout(autoCompleteTimerRef.current);
+      autoCompleteTimerRef.current = null;
+    }
+  };
 
   const resetTranscript = () => {
     finalizedRef.current = "";
     transcriptRef.current = "";
+    clearAutoCompleteTimer();
     setTranscript("");
+    setIsAnswerCompact(false);
+    setIsAnswerScrollable(false);
+    setAnswerAvailableHeight(null);
   };
 
   useSpeechRecognitionEvent("result", (event) => {
@@ -368,26 +495,43 @@ export default function VoiceWaitingScreen() {
     if (event.isFinal) {
       finalizedRef.current = combined;
     }
+    if (!autoCompleteTimerRef.current && combined.length > 0) {
+      autoCompleteTimerRef.current = setTimeout(() => {
+        autoCompleteTimerRef.current = null;
+        setHasResponse(true);
+        setCompleteStatus("ready");
+      }, SPEECH_AUTO_COMPLETE_MS);
+    }
   });
 
   useSpeechRecognitionEvent("end", () => {
+    clearAutoCompleteTimer();
     setIsListening(false);
     if (transcriptRef.current.trim().length > 0) {
       setHasResponse(true);
-      setCompleteStatus("ready");
+      setCompleteStatus((prev) => (prev === "ready" ? "ready" : prev));
     }
   });
 
   useSpeechRecognitionEvent("error", () => {
+    clearAutoCompleteTimer();
     setIsListening(false);
   });
 
   // 화면 이탈 시 진행 중인 인식 정리
   useEffect(() => {
     return () => {
+      clearAutoCompleteTimer();
       ExpoSpeechRecognitionModule.abort();
     };
   }, []);
+
+  // 스크롤 중에도 새로 인식된 텍스트가 항상 보이도록 끝으로 따라간다
+  useEffect(() => {
+    if (isAnswerScrollable) {
+      answerScrollRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [transcript, isAnswerScrollable]);
 
   const startQuestion = () => {
     clearCompleteTimers();
@@ -414,6 +558,12 @@ export default function VoiceWaitingScreen() {
   const handleCompletePress = () => {
     if (completeStatus !== "ready" || !hasTranscript) {
       return;
+    }
+
+    // 말 시작 3초 후 자동 노출된 응답완료를 누른 경우, 아직 녹음 중일 수 있어 여기서 종료한다
+    if (isListening) {
+      clearAutoCompleteTimer();
+      ExpoSpeechRecognitionModule.stop();
     }
 
     clearCompleteTimers();
@@ -517,13 +667,42 @@ export default function VoiceWaitingScreen() {
               {questions[questionIndex]}
             </Text>
             {hasTranscript ? (
-              <View style={styles.answerArea}>
-                <AnimatedTranscript
-                  transcript={transcript}
-                  textStyle={styles.answerText}
-                  containerStyle={styles.answerWords}
-                  wrapStyle={styles.answerWordWrap}
-                />
+              <View
+                onLayout={updateAnswerAvailableHeight}
+                ref={answerAreaRef}
+                style={styles.answerArea}
+              >
+                {isAnswerScrollable ? (
+                  <ScrollView
+                    ref={answerScrollRef}
+                    showsVerticalScrollIndicator={false}
+                    style={[
+                      styles.answerScroll,
+                      {
+                        maxHeight:
+                          answerAvailableHeight != null
+                            ? Math.min(answerAvailableHeight, answerScrollMaxHeight)
+                            : answerScrollMaxHeight,
+                      },
+                    ]}
+                  >
+                    <AnimatedTranscript
+                      transcript={transcript}
+                      textStyle={answerTextStyle}
+                      containerStyle={styles.answerWords}
+                      wrapStyle={styles.answerWordWrap}
+                      onLineCountChange={handleAnswerLineCountChange}
+                    />
+                  </ScrollView>
+                ) : (
+                  <AnimatedTranscript
+                    transcript={transcript}
+                    textStyle={answerTextStyle}
+                    containerStyle={styles.answerWords}
+                    wrapStyle={styles.answerWordWrap}
+                    onLineCountChange={handleAnswerLineCountChange}
+                  />
+                )}
               </View>
             ) : null}
             {isListening ? (
@@ -597,7 +776,7 @@ export default function VoiceWaitingScreen() {
           </View>
         )}
 
-        <Pressable style={styles.micArea} onPress={handleMainAction}>
+        <Pressable onPress={handleMainAction} style={styles.micArea}>
           <View style={styles.voiceCircleFrame}>
             <Animated.Image
               resizeMode="stretch"
@@ -686,8 +865,13 @@ export default function VoiceWaitingScreen() {
                 ))}
               </Animated.View>
             </View>
-            <View pointerEvents="box-none" style={styles.circleActionPillLayer}>
-              {isListening ? (
+            <View
+              onLayout={updateAnswerAvailableHeight}
+              pointerEvents="box-none"
+              ref={actionPillRef}
+              style={styles.circleActionPillLayer}
+            >
+              {isListening && !hasResponse ? (
                 <View style={styles.floatingListeningBadge}>
                   <View style={styles.listeningBadgeDotFrame}>
                     <Animated.View
@@ -1037,9 +1221,16 @@ const createStyles = (
     answerText: {
       color: "#3B3B3B",
       fontFamily: "PretendardBold",
-      fontSize: fontScaled(25, fontScale),
-      lineHeight: fontScaled(34, fontScale),
+      fontSize: fontScaled(ANSWER_FONT_SIZE, fontScale),
+      lineHeight: fontScaled(ANSWER_LINE_HEIGHT, fontScale),
       textAlign: "right",
+    },
+    answerTextCompact: {
+      fontSize: fontScaled(ANSWER_FONT_SIZE_COMPACT, fontScale),
+      lineHeight: fontScaled(ANSWER_LINE_HEIGHT_COMPACT, fontScale),
+    },
+    answerScroll: {
+      width: "100%",
     },
     answerWords: {
       alignItems: "flex-end",
