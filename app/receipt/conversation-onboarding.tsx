@@ -7,7 +7,10 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/api";
+import type { VoiceResponse } from "@/lib/types";
 import {
   Animated,
   Easing,
@@ -92,80 +95,40 @@ const steps: OnboardingStep[] = [
   },
 ];
 
-const friends: ConversationFriend[] = [
-  {
-    id: "son",
-    name: "아들",
-    description: "아들의 목소리로\n편하게 대화해봐요!",
-    group: "protector",
-    activeIcon: require("../../assets/images/onboarding/friend-son-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-son-inactive-icon.png"),
-  },
-  {
-    id: "daughter",
-    name: "딸",
-    description: "딸의 목소리로\n다정하게 대화해봐요!",
-    group: "protector",
-    activeIcon: require("../../assets/images/onboarding/friend-daughter-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-daughter-inactive-icon.png"),
-  },
-  {
-    id: "hodong",
-    name: "강호동",
-    description: "힘 있고 유쾌한 목소리로\n대화해봐요!",
-    group: "celebrity",
-    activeIcon: require("../../assets/images/onboarding/friend-hodong-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-hodong-inactive-icon.png"),
-  },
-  {
-    id: "heungmin",
-    name: "손흥민",
-    description: "차분하고 밝은 목소리로\n편하게 대화해봐요!",
-    group: "celebrity",
-    activeIcon: require("../../assets/images/onboarding/friend-heungmin-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-heungmin-inactive-icon.png"),
-  },
-  {
-    id: "yeongung",
-    name: "임영웅",
-    description: "부드럽고 깊은 목소리로\n마음을 나눠봐요!",
-    group: "celebrity",
-    activeIcon: require("../../assets/images/onboarding/friend-yeongung-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-yeongung-inactive-icon.png"),
-  },
-  {
-    id: "gdragon",
-    name: "지드래곤",
-    description: "감각적이고 개성 있는 목소리로\n대화해봐요!",
-    group: "celebrity",
-    activeIcon: require("../../assets/images/onboarding/friend-gdragon-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-gdragon-inactive-icon.png"),
-  },
-  {
-    id: "yujin",
-    name: "안유진",
-    description: "밝고 또렷한 목소리로\n대화를 이끌어줘요!",
-    group: "celebrity",
-    activeIcon: require("../../assets/images/onboarding/friend-yujin-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-yujin-inactive-icon.png"),
-  },
-  {
-    id: "hanaboy",
-    name: "별봄이",
-    description: "따뜻한 목소리로\n마음을 들어줘요!",
-    group: "default",
-    activeIcon: require("../../assets/images/onboarding/friend-hanaboy-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png"),
-  },
-  {
-    id: "hanagirl",
-    name: "별송이",
-    description: "상냥한 목소리로\n편안하게 대화해요!",
-    group: "default",
-    activeIcon: require("../../assets/images/onboarding/friend-hanagirl-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-hanagirl-inactive-icon.png"),
-  },
-];
+// 음성마다 전용 아이콘이 없으므로 기본 캐릭터 아이콘을 공통으로 사용한다.
+const DEFAULT_ACTIVE_ICON = require("../../assets/images/onboarding/friend-hanaboy-active-icon.png");
+const DEFAULT_INACTIVE_ICON = require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png");
+
+// is_default/owned 기준으로 음성을 화면 그룹에 매핑한다.
+function groupForVoice(voice: VoiceResponse): FriendGroupId {
+  if (voice.is_default) {
+    return "default";
+  }
+  if (voice.owned) {
+    return "protector";
+  }
+  return "celebrity";
+}
+
+function voiceToFriend(voice: VoiceResponse): ConversationFriend {
+  return {
+    id: String(voice.id),
+    name: voice.name,
+    description: "원하는 목소리로\n편하게 대화해봐요!",
+    group: groupForVoice(voice),
+    activeIcon: DEFAULT_ACTIVE_ICON,
+    inactiveIcon: DEFAULT_INACTIVE_ICON,
+  };
+}
+
+const FALLBACK_FRIEND: ConversationFriend = {
+  id: "",
+  name: "",
+  description: "",
+  group: "default",
+  activeIcon: DEFAULT_INACTIVE_ICON,
+  inactiveIcon: DEFAULT_INACTIVE_ICON,
+};
 
 const friendGroups: {
   id: FriendGroupId;
@@ -192,7 +155,18 @@ export default function ConversationOnboardingScreen() {
   const [friendSheetMode, setFriendSheetMode] = useState<"confirm" | "select">(
     "confirm"
   );
-  const [selectedFriendId, setSelectedFriendId] = useState("hanaboy");
+  const [selectedFriendId, setSelectedFriendId] = useState("");
+  const { data: voices = [] } = useQuery({
+    queryKey: ["voices"],
+    queryFn: () => apiGet<VoiceResponse[]>("/voices"),
+  });
+  const friends = useMemo(() => voices.map(voiceToFriend), [voices]);
+
+  useEffect(() => {
+    if (!selectedFriendId && friends.length > 0) {
+      setSelectedFriendId(friends[0].id);
+    }
+  }, [friends, selectedFriendId]);
   const friendBackdropProgress = useRef(new Animated.Value(1)).current;
   const friendSheetProgress = useRef(new Animated.Value(1)).current;
   const friendSheetTranslateX = useRef(new Animated.Value(0)).current;
@@ -201,7 +175,9 @@ export default function ConversationOnboardingScreen() {
   const shouldReturnToInlineConfirmRef = useRef(false);
 
   const selectedFriend =
-    friends.find((friend) => friend.id === selectedFriendId) ?? friends[0];
+    friends.find((friend) => friend.id === selectedFriendId) ??
+    friends[0] ??
+    FALLBACK_FRIEND;
 
   const turnToStep = (targetStep: number) => {
     if (isPageTurningRef.current || targetStep === step) {
@@ -330,10 +306,14 @@ export default function ConversationOnboardingScreen() {
   };
 
   const startConversation = () => {
+    if (!selectedFriendId) {
+      return;
+    }
+
     if (!friendSheetVisible) {
       router.replace({
         pathname: "/receipt/voice-waiting",
-        params: { friendId: selectedFriendId },
+        params: { voiceId: selectedFriendId },
       });
       return;
     }
@@ -341,7 +321,7 @@ export default function ConversationOnboardingScreen() {
     closeFriendSheet(() => {
       router.push({
         pathname: "/receipt/voice-waiting",
-        params: { friendId: selectedFriendId },
+        params: { voiceId: selectedFriendId },
       });
     });
   };
@@ -736,7 +716,11 @@ export default function ConversationOnboardingScreen() {
               </Text>
 
               <View style={styles.friendGrid}>
-                {friendGroups.map((group) => (
+                {friendGroups
+                  .filter((group) =>
+                    friends.some((friend) => friend.group === group.id),
+                  )
+                  .map((group) => (
                   <View key={group.id} style={styles.friendGroup}>
                     <View style={styles.friendGroupHeader}>
                       <Text
