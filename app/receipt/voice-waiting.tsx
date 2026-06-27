@@ -2,7 +2,6 @@ import {
   fontScaled,
   scaled,
 } from "@/constants/responsive";
-import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ExpoSpeechRecognitionModule,
@@ -19,9 +18,11 @@ import {
 } from "react";
 import {
   Animated,
+  BackHandler,
   Easing,
   Image,
   ImageSourcePropType,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -273,8 +274,8 @@ export default function VoiceWaitingScreen() {
       : Math.max(pillBaseScale, 0.76);
   const fontScale = Math.max(scale, 0.76);
   const styles = useMemo(
-    () => createStyles(scale, fontScale, circleScale, pillScale),
-    [circleScale, fontScale, pillScale, scale],
+    () => createStyles(scale, fontScale, circleScale, pillScale, width, height),
+    [circleScale, fontScale, height, pillScale, scale, width],
   );
   const listeningCircleOpacity = useRef(new Animated.Value(0)).current;
   const listeningBadgePulse = useRef(new Animated.Value(0)).current;
@@ -300,6 +301,7 @@ export default function VoiceWaitingScreen() {
   // 응답 완료 버튼/뱃지가 떠 있는 자리 — 답변 텍스트는 항상 이 위에만 있어야 한다
   const actionPillRef = useRef<View>(null);
   const answerScrollRef = useRef<ScrollView>(null);
+  const [isExitModalVisible, setIsExitModalVisible] = useState(false);
 
   const selectedFriend =
     friends.find((friend) => friend.id === friendId) ?? friends[0];
@@ -339,12 +341,35 @@ export default function VoiceWaitingScreen() {
       setIsAnswerScrollable(true);
     }
   };
+  const goBack = () => {
+    setIsExitModalVisible(true);
+  };
+
   const clearCompleteTimers = () => {
     completeTimers.current.forEach((timer) => clearTimeout(timer));
     completeTimers.current = [];
   };
 
+  const confirmExit = () => {
+    setIsExitModalVisible(false);
+    clearCompleteTimers();
+    ExpoSpeechRecognitionModule.abort();
+    router.replace("/receipt/main");
+  };
+
   useEffect(() => clearCompleteTimers, []);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        setIsExitModalVisible(true);
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     Animated.timing(listeningCircleOpacity, {
@@ -601,7 +626,7 @@ export default function VoiceWaitingScreen() {
         <View style={styles.topRow}>
           <Pressable
             accessibilityLabel="뒤로가기"
-            onPress={goBackToPreviousScreen}
+            onPress={goBack}
             style={styles.backButton}
           >
             <Text maxFontSizeMultiplier={1.1} style={styles.backButtonText}>
@@ -962,6 +987,46 @@ export default function VoiceWaitingScreen() {
           ) : null}
         </View>
       </View>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsExitModalVisible(false)}
+        statusBarTranslucent
+        transparent
+        visible={isExitModalVisible}
+      >
+        <View style={styles.exitModalOverlay}>
+          <View style={styles.exitModalBackdrop} />
+          <View style={styles.exitModalCenter}>
+            <View style={styles.exitModalCard}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.exitModalTitle}>
+                오늘의 대화를{"\n"}종료할까요?
+              </Text>
+              <Text maxFontSizeMultiplier={1.1} style={styles.exitModalDescription}>
+                지금 나가면 진행 중인 대화는{"\n"}다시 이어갈 수 없어요.
+              </Text>
+              <View style={styles.exitModalButtonRow}>
+                <Pressable
+                  onPress={() => setIsExitModalVisible(false)}
+                  style={[styles.exitModalButton, styles.exitModalCancelButton]}
+                >
+                  <Text maxFontSizeMultiplier={1.1} style={styles.exitModalCancelText}>
+                    계속하기
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={confirmExit}
+                  style={[styles.exitModalButton, styles.exitModalConfirmButton]}
+                >
+                  <Text maxFontSizeMultiplier={1.1} style={styles.exitModalConfirmText}>
+                    홈으로 가기
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -971,11 +1036,18 @@ const createStyles = (
   fontScale: number,
   circleScale: number,
   pillScale: number,
+  width: number,
+  height: number,
 ) => {
   const actionPillWidth = scaled(146, pillScale);
   const actionPillHeight = scaled(49, pillScale);
   const actionPillBottom = scaled(304, pillScale);
   const largePhonePillLift = Math.round(Math.max(pillScale - 1, 0) * 220);
+  const exitModalHorizontalInset = scaled(26, scale);
+  const exitModalWidth = Math.min(
+    width - exitModalHorizontalInset * 2,
+    scaled(350, scale),
+  );
 
   return StyleSheet.create({
     container: {
@@ -1018,6 +1090,77 @@ const createStyles = (
       color: "#6D6D6D",
       fontFamily: "PretendardMedium",
       fontSize: fontScaled(14, fontScale),
+    },
+    exitModalOverlay: {
+      flex: 1,
+      height,
+      width: "100%",
+    },
+    exitModalBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0, 0, 0, 0.28)",
+    },
+    exitModalCenter: {
+      alignItems: "center",
+      height,
+      justifyContent: "center",
+      left: 0,
+      position: "absolute",
+      right: 0,
+      top: 0,
+      width,
+    },
+    exitModalCard: {
+      alignSelf: "center",
+      backgroundColor: "#FFFFFF",
+      borderRadius: scaled(16, scale),
+      paddingBottom: scaled(18, scale),
+      paddingHorizontal: scaled(20, scale),
+      paddingTop: scaled(24, scale),
+      width: exitModalWidth,
+    },
+    exitModalTitle: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(22, fontScale),
+      lineHeight: fontScaled(30, fontScale),
+      textAlign: "center",
+    },
+    exitModalDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, fontScale),
+      lineHeight: fontScaled(22, fontScale),
+      marginTop: scaled(8, scale),
+      textAlign: "center",
+    },
+    exitModalButtonRow: {
+      flexDirection: "row",
+      gap: scaled(10, scale),
+      marginTop: scaled(24, scale),
+    },
+    exitModalButton: {
+      alignItems: "center",
+      borderRadius: scaled(8, scale),
+      flex: 1,
+      height: scaled(50, scale),
+      justifyContent: "center",
+    },
+    exitModalCancelButton: {
+      backgroundColor: "#EEEEEE",
+    },
+    exitModalConfirmButton: {
+      backgroundColor: "#444444",
+    },
+    exitModalCancelText: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(17, fontScale),
+    },
+    exitModalConfirmText: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(17, fontScale),
     },
     header: {
       marginTop: scaled(36, scale),
