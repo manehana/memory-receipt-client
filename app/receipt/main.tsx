@@ -153,7 +153,7 @@ export default function MainScreen() {
 
         <View style={styles.cardRow}>
           <Pressable
-            onPress={() => router.replace("/receipt/conversation-onboarding")}
+            onPress={() => router.push("/receipt/conversation-onboarding")}
             style={styles.squareCard}
           >
             <Image
@@ -193,7 +193,11 @@ export default function MainScreen() {
             <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
               최근 기억 영수증
             </Text>
-            <Pressable style={styles.makeButton}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/receipt/weekly-memory-receipts")}
+              style={styles.makeButton}
+            >
               <Text maxFontSizeMultiplier={1.1} style={styles.makeText}>
                 더보기
               </Text>
