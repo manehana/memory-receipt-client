@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import {
+  Alert,
   Animated,
   BackHandler,
   Easing,
@@ -33,6 +34,14 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useMutation } from "@tanstack/react-query";
+import { ApiError, apiMultipart, apiPost } from "@/lib/api";
+import { playBase64Wav, stopCurrent } from "@/lib/audio";
+import type {
+  AnswerResponse,
+  RecallQuestion,
+  SessionStartResponse,
+} from "@/lib/types";
 import Reanimated, {
   Easing as REasing,
   LinearTransition,
@@ -160,12 +169,6 @@ const friends: ConversationFriend[] = [
   },
 ];
 
-const questions = [
-  "오늘 카페에 다녀오셨어요.\n어떤 점이 좋았는데, 기억나세요?",
-  "아쉽네요..카페 갔다가\n어디가셨는지 기억나세요?",
-  "오늘 가장 기억에 남는 시간은 무엇이었나요?",
-];
-
 type TranscriptWord = { key: string; text: string };
 
 function AnimatedWord({
@@ -263,7 +266,7 @@ function AnimatedTranscript({
 
 export default function VoiceWaitingScreen() {
   const insets = useSafeAreaInsets();
-  const { friendId } = useLocalSearchParams<{ friendId?: string }>();
+  const { voiceId } = useLocalSearchParams<{ voiceId?: string }>();
   const { width, height } = useWindowDimensions();
   const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT, 1);
   const circleScale = Math.min(width / BASE_WIDTH, 1);
@@ -286,7 +289,16 @@ export default function VoiceWaitingScreen() {
     new Animated.Value(0),
   ]).current;
   const completeTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const [questionIndex, setQuestionIndex] = useState(-1);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [totalTurns, setTotalTurns] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState<RecallQuestion | null>(
+    null,
+  );
+  // 세션이 시작되어 질문 화면으로 진입했는지(준비 화면 종료) 여부
+  const [started, setStarted] = useState(false);
+  // persist 녹음으로 만들어진 답변 오디오 파일 uri
+  const answerUriRef = useRef<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [hasResponse, setHasResponse] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -303,8 +315,8 @@ export default function VoiceWaitingScreen() {
   const answerScrollRef = useRef<ScrollView>(null);
   const [isExitModalVisible, setIsExitModalVisible] = useState(false);
 
-  const selectedFriend =
-    friends.find((friend) => friend.id === friendId) ?? friends[0];
+  // 음성별 전용 아이콘이 없어 기본 캐릭터 아이콘을 사용한다.
+  const selectedFriend = friends[0];
   const isVoiceActive = isListening || hasResponse;
   const hasTranscript = transcript.trim().length > 0;
   const answerTextStyle = useMemo(
@@ -353,6 +365,7 @@ export default function VoiceWaitingScreen() {
   const confirmExit = () => {
     setIsExitModalVisible(false);
     clearCompleteTimers();
+    stopCurrent();
     ExpoSpeechRecognitionModule.abort();
     router.replace("/receipt/main");
   };
@@ -518,13 +531,21 @@ export default function VoiceWaitingScreen() {
     setIsListening(false);
   });
 
-  // 화면 이탈 시 진행 중인 인식 정리
+  // 화면 이탈 시 진행 중인 인식/재생 정리
   useEffect(() => {
     return () => {
       clearAutoCompleteTimer();
+      stopCurrent();
       ExpoSpeechRecognitionModule.abort();
     };
   }, []);
+
+  // persist 녹음으로 만들어진 답변 오디오 파일 uri를 잡아둔다
+  useSpeechRecognitionEvent("audioend", (event) => {
+    if (event.uri) {
+      answerUriRef.current = event.uri;
+    }
+  });
 
   // 스크롤 중에도 새로 인식된 텍스트가 항상 보이도록 끝으로 따라간다
   useEffect(() => {
@@ -533,27 +554,111 @@ export default function VoiceWaitingScreen() {
     }
   }, [transcript, isAnswerScrollable]);
 
-  const startQuestion = () => {
-    clearCompleteTimers();
-    resetTranscript();
-    setQuestionIndex(0);
-    setIsListening(false);
-    setHasResponse(false);
-    setCompleteStatus("ready");
-  };
+  const goToLoading = useCallback((id: number) => {
+    router.replace({
+      pathname: "/receipt/memory-receipt-loading",
+      params: { sessionId: String(id) },
+    });
+  }, []);
 
-  const moveToNextQuestion = () => {
-    if (questionIndex >= questions.length - 1) {
-      router.push("/receipt/memory-receipt-loading");
+  // in_progress 턴으로 진입: 질문 텍스트 표시 + 오디오 재생
+  const enterTurn = useCallback(
+    (question: RecallQuestion, index: number) => {
+      clearCompleteTimers();
+      resetTranscript();
+      answerUriRef.current = null;
+      setCurrentQuestion(question);
+      setCurrentIndex(index);
+      setStarted(true);
+      setIsListening(false);
+      setHasResponse(false);
+      setCompleteStatus("ready");
+      void playBase64Wav(question.audio);
+    },
+    // resetTranscript/clearCompleteTimers는 매 렌더 재생성되지만 동작이 안정적이라 의존성에서 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const applySessionStart = useCallback(
+    (data: SessionStartResponse) => {
+      setSessionId(data.session_id);
+      setTotalTurns(data.total_turns);
+      setCurrentIndex(data.current_index);
+
+      // 분석 중/완료 상태면 질문이 없으므로 로딩 화면으로 넘어가 폴링한다.
+      if (data.status === "analyzing" || data.status === "completed") {
+        goToLoading(data.session_id);
+        return;
+      }
+
+      if (data.question) {
+        enterTurn(data.question, data.current_index);
+      }
+    },
+    [enterTurn, goToLoading],
+  );
+
+  const startSessionMutation = useMutation({
+    mutationFn: () =>
+      apiPost<SessionStartResponse>("/recall/sessions", {
+        voice_id: voiceId ? Number(voiceId) : undefined,
+      }),
+    // Gemini 혼잡(503)이면 잠시 후 재시도한다.
+    retry: (failureCount, error) =>
+      error instanceof ApiError &&
+      error.status === 503 &&
+      failureCount < 3,
+    retryDelay: 1500,
+    onSuccess: applySessionStart,
+    onError: () => {
+      Alert.alert("대화를 시작할 수 없어요", "잠시 후 다시 시도해주세요.", [
+        { text: "확인", onPress: () => router.replace("/receipt/main") },
+      ]);
+    },
+  });
+
+  const submitAnswerMutation = useMutation({
+    mutationFn: () => {
+      const form = new FormData();
+      const uri = answerUriRef.current;
+      if (uri) {
+        form.append("file", {
+          uri,
+          name: "answer.wav",
+          type: "audio/wav",
+        } as unknown as Blob);
+      }
+      form.append("transcript", transcriptRef.current.trim());
+      return apiMultipart<AnswerResponse>(
+        "POST",
+        `/recall/sessions/${sessionId}/answer`,
+        form,
+      );
+    },
+    onSuccess: (data) => {
+      if (data.is_last) {
+        goToLoading(data.session_id);
+        return;
+      }
+      enterTurn(data.question, data.current_index);
+    },
+    onError: () => {
+      Alert.alert("답변 전송 실패", "다시 시도해주세요.");
+      setCompleteStatus("ready");
+    },
+  });
+
+  // 화면 진입 시 세션을 시작/재진입한다.
+  const sessionStartRef = useRef(false);
+  useEffect(() => {
+    if (sessionStartRef.current) {
       return;
     }
-
-    resetTranscript();
-    setQuestionIndex(questionIndex + 1);
-    setIsListening(false);
-    setHasResponse(false);
-    setCompleteStatus("ready");
-  };
+    sessionStartRef.current = true;
+    startSessionMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCompletePress = () => {
     if (completeStatus !== "ready" || !hasTranscript) {
@@ -573,7 +678,7 @@ export default function VoiceWaitingScreen() {
       setCompleteStatus("done");
 
       const doneTimer = setTimeout(() => {
-        moveToNextQuestion();
+        submitAnswerMutation.mutate();
       }, COMPLETE_DONE_MS);
 
       completeTimers.current.push(doneTimer);
@@ -590,17 +695,20 @@ export default function VoiceWaitingScreen() {
     }
 
     resetTranscript();
+    answerUriRef.current = null;
     setIsListening(true);
+    // persist로 답변 오디오를 캐시에 저장해 transcript와 함께 서버로 전송한다.
     ExpoSpeechRecognitionModule.start({
       lang: "ko-KR",
       interimResults: true,
       continuous: true,
+      recordingOptions: { persist: true },
     });
   };
 
   const handleMainAction = () => {
-    if (questionIndex === -1) {
-      startQuestion();
+    // 세션 시작 전(준비 화면)에는 자동 시작을 기다린다.
+    if (!started) {
       return;
     }
 
@@ -618,7 +726,7 @@ export default function VoiceWaitingScreen() {
     ExpoSpeechRecognitionModule.stop();
   };
 
-  const questionNumber = questionIndex + 1;
+  const questionNumber = currentIndex + 1;
 
   return (
     <View style={styles.container}>
@@ -641,20 +749,20 @@ export default function VoiceWaitingScreen() {
           </Pressable>
         </View>
 
-        {questionIndex === -1 ? (
+        {!started ? (
           <View style={styles.header}>
             <Text maxFontSizeMultiplier={1.1} style={styles.readyTitle}>
               곧 시작할게요
             </Text>
             <Text maxFontSizeMultiplier={1.1} style={styles.readyDescription}>
-              질문을 듣고 편하게 말해주세요.{"\n"}총 3가지 질문을 드릴게요.
+              질문을 듣고 편하게 말해주세요.{"\n"}질문을 준비하고 있어요.
             </Text>
           </View>
         ) : (
           <View style={styles.questionBox}>
             <Text maxFontSizeMultiplier={1.1} style={styles.questionCount}>
               질문 <Text style={styles.questionCountCurrent}>{questionNumber}</Text>/
-              {questions.length}
+              {totalTurns}
             </Text>
             <View style={styles.friendAvatar}>
               <Image
@@ -664,7 +772,7 @@ export default function VoiceWaitingScreen() {
               />
             </View>
             <Text maxFontSizeMultiplier={1.1} style={styles.questionText}>
-              {questions[questionIndex]}
+              {currentQuestion?.text ?? ""}
             </Text>
             {hasTranscript ? (
               <View
