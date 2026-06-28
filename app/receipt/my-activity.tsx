@@ -4,13 +4,15 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { useStats } from "@/lib/stats";
+import type { MonthCount, SpendingStats } from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
-  type ImageSourcePropType,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,69 +27,54 @@ const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
 
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
-const completedDates = new Set([3, 4, 5, 9, 10, 11, 14, 15]);
 const calendarWeekDays = ["월", "화", "수", "목", "금", "토", "일"];
-const topPlaces = [
-  { count: "12번 갔어요.", name: "이마트 강남점", rank: 1 },
-  { count: "10번 갔어요.", name: "투썸플레이스 역삼점", rank: 2 },
-  { count: "7번 갔어요.", name: "서울내과의원", rank: 3 },
-];
-const activityBars = [
-  { color: "#9BEED0", hour: "3", value: 40 },
-  { color: "#54DFA7", hour: "6", value: 70 },
-  { color: "#54DFA7", hour: "9", value: 80 },
-  { color: "#23CC89", hour: "12", value: 100 },
-  { color: "#54DFA7", hour: "15", value: 62 },
-  { color: "#9BEED0", hour: "21", value: 52 },
-];
-const activityTicks = [
-  { label: "12", period: "오전" },
-  { barKey: "3", label: "3" },
-  { barKey: "6", label: "6" },
-  { barKey: "9", label: "9" },
-  { barKey: "12", label: "12", period: "오후" },
-  { barKey: "15", label: "15" },
-  { label: "18" },
-  { barKey: "21", label: "21" },
-  { label: "24" },
-];
-const spendingCategories: {
-  amount: string;
-  icon: ImageSourcePropType;
-  name: string;
-  percent: string;
-}[] = [
-  {
-    amount: "56,200원",
-    icon: require("../../assets/images/my-activity/consumption_activity_cafe_snack.png"),
-    name: "카페 · 간식",
-    percent: "35.4%",
-  },
-  {
-    amount: "28,200원",
-    icon: require("../../assets/images/my-activity/consumption_activity_health_fitness.png"),
-    name: "의료 · 건강 · 피트니스",
-    percent: "15.8%",
-  },
-  {
-    amount: "34,200원",
-    icon: require("../../assets/images/my-activity/consumption_activity_convenience_mart.png"),
-    name: "편의점 · 마트 · 잡화",
-    percent: "25.4%",
-  },
-  {
-    amount: "12,000원",
-    icon: require("../../assets/images/my-activity/consumption_activity_transport_vehicle.png"),
-    name: "교통 · 자동차",
-    percent: "9.6%",
-  },
-  {
-    amount: "9,800원",
-    icon: require("../../assets/images/my-activity/consumption_activity_uncategorized.png"),
-    name: "카테고리 없음",
-    percent: "5.1%",
-  },
-];
+// 시간대 차트는 0–23시를 3시간 버킷으로 묶어 보여준다.
+const BUCKET_STARTS = [0, 3, 6, 9, 12, 15, 18, 21];
+const activityTicks: { bucketStart?: number; label: string; period?: string }[] =
+  [
+    { bucketStart: 0, label: "12", period: "오전" },
+    { bucketStart: 3, label: "3" },
+    { bucketStart: 6, label: "6" },
+    { bucketStart: 9, label: "9" },
+    { bucketStart: 12, label: "12", period: "오후" },
+    { bucketStart: 15, label: "15" },
+    { bucketStart: 18, label: "18" },
+    { bucketStart: 21, label: "21" },
+    { label: "24" },
+  ];
+// 카테고리별 소비 막대 색(금액 내림차순으로 순환). 마지막 회색은 미사용 시 inline으로 덮어쓴다.
+const SEGMENT_COLORS = ["#13BB78", "#23CC89", "#54DFA7", "#9BEED0", "#E5E5E5"];
+const uncategorizedIcon = require("../../assets/images/my-activity/consumption_activity_uncategorized.png");
+
+function formatKRW(amount: number): string {
+  return `${amount.toLocaleString("ko-KR")}원`;
+}
+
+function formatPercent(part: number, total: number): string {
+  return total > 0 ? `${((part / total) * 100).toFixed(1)}%` : "0%";
+}
+
+// 가장 활발한 시간(0–23)을 한국어 라벨로. 활동이 없으면 호출하지 않는다.
+function formatPeakHour(hour: number): string {
+  if (hour === 0) {
+    return "자정";
+  }
+  if (hour === 12) {
+    return "낮 12시";
+  }
+  return hour < 12 ? `오전 ${hour}시` : `오후 ${hour - 12}시`;
+}
+
+// 막대 높이 비율(0–1)에 따른 농도 색.
+function activityBarColor(ratio: number): string {
+  if (ratio >= 0.8) {
+    return "#23CC89";
+  }
+  if (ratio >= 0.5) {
+    return "#54DFA7";
+  }
+  return "#9BEED0";
+}
 
 type CalendarDate = {
   date: number;
@@ -168,18 +155,98 @@ export default function MyActivityScreen() {
   );
   const today = useMemo(() => new Date(), []);
   const todayWeekIndex = today.getDay();
-  const completedWeekDays = useMemo(
-    () => Array.from({ length: todayWeekIndex }, (_, index) => index),
-    [todayWeekIndex]
-  );
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth();
   const currentDate = today.getDate();
-  const daysInCurrentMonth = getDaysInMonth(currentYear, currentMonth);
+
+  // 선택 월(0-based). 기본은 이번 달. 월 전환 시 이 값만 바뀐다.
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+  // 이번 달 기준 통계: 연속 일수·최고 기록·이번주 참여·월 목록("지금", 선택 월과 무관).
+  const { data: nowStatsData } = useStats(currentYear, currentMonth + 1);
+  // 선택 월 기준 통계: 월별 참여 달력·월별 소비. 선택=현재면 위와 같은 캐시를 공유한다.
+  const { data: monthStatsData } = useStats(selectedYear, selectedMonth + 1);
+
+  const engagementNow = nowStatsData?.engagement;
+  const engagementSelected = monthStatsData?.engagement;
+  const spending = monthStatsData?.spending;
+
+  const currentStreak = engagementNow?.current_streak ?? 0;
+  const bestStreak = engagementNow?.best_streak ?? 0;
+
+  // 이번주(일~토) 참여 여부. 이번 달 참여일과 대조한다(전달로 넘어간 날은 미참여 처리).
+  const participatedThisMonth = engagementNow?.participation.participated_days;
+  const completedWeekDays = useMemo(() => {
+    const days = new Set(participatedThisMonth ?? []);
+    const completed: number[] = [];
+    for (let index = 0; index < 7; index += 1) {
+      const cellDate = new Date(
+        currentYear,
+        currentMonth,
+        currentDate - todayWeekIndex + index
+      );
+      const inCurrentMonth =
+        cellDate.getFullYear() === currentYear &&
+        cellDate.getMonth() === currentMonth;
+      if (inCurrentMonth && index <= todayWeekIndex && days.has(cellDate.getDate())) {
+        completed.push(index);
+      }
+    }
+    return completed;
+  }, [
+    currentDate,
+    currentMonth,
+    currentYear,
+    participatedThisMonth,
+    todayWeekIndex,
+  ]);
+
+  // 이번주 지난 날(오늘 포함)을 모두 참여했을 때만 칭찬 배너를 보여준다.
+  const allElapsedCompleted =
+    completedWeekDays.length > 0 &&
+    Array.from({ length: todayWeekIndex + 1 }, (_, index) => index).every(
+      (index) => completedWeekDays.includes(index)
+    );
+
+  const isSelectedCurrentMonth =
+    selectedYear === currentYear && selectedMonth === currentMonth;
+  const daysInSelectedMonth = getDaysInMonth(selectedYear, selectedMonth);
   const calendarDates = useMemo(
-    () => createCalendarDates(currentYear, currentMonth),
-    [currentMonth, currentYear]
+    () => createCalendarDates(selectedYear, selectedMonth),
+    [selectedMonth, selectedYear]
   );
+  const participatedSelected = useMemo(
+    () => new Set(engagementSelected?.participation.participated_days ?? []),
+    [engagementSelected?.participation.participated_days]
+  );
+  const monthParticipationCount = engagementSelected?.participation.count ?? 0;
+
+  // 월 선택 칩 목록(최신순). 이번 달이 빠져 있으면 항상 돌아올 수 있게 앞에 끼운다.
+  const availableMonths = useMemo<MonthCount[]>(() => {
+    const months = engagementNow?.available_months ?? [];
+    const hasCurrent = months.some(
+      (month) => month.year === currentYear && month.month === currentMonth + 1
+    );
+    if (hasCurrent) {
+      return months;
+    }
+    return [
+      {
+        days: engagementNow?.participation.count ?? 0,
+        month: currentMonth + 1,
+        year: currentYear,
+      },
+      ...months,
+    ];
+  }, [currentMonth, currentYear, engagementNow]);
+
+  const selectMonth = (year: number, month1Based: number) => {
+    setSelectedYear(year);
+    setSelectedMonth(month1Based - 1);
+    setIsMonthPickerOpen(false);
+  };
   const selectTab = (nextTab: ActivityTab) => {
     if (nextTab === activeTab) {
       return;
@@ -320,7 +387,7 @@ export default function MyActivityScreen() {
                         maxFontSizeMultiplier={1.1}
                         style={styles.summaryNumber}
                       >
-                        7
+                        {currentStreak}
                       </Text>
                       <Text
                         maxFontSizeMultiplier={1.1}
@@ -348,7 +415,7 @@ export default function MyActivityScreen() {
                         maxFontSizeMultiplier={1.1}
                         style={styles.summaryNumber}
                       >
-                        15
+                        {bestStreak}
                       </Text>
                       <Text
                         maxFontSizeMultiplier={1.1}
@@ -418,16 +485,18 @@ export default function MyActivityScreen() {
                   </View>
                 </View>
 
-                <View style={styles.rewardBanner}>
-                  <Image
-                    resizeMode="contain"
-                    source={require("../../assets/images/my-activity/conversation_history_weekly_reward.png")}
-                    style={styles.rewardIcon}
-                  />
-                  <Text maxFontSizeMultiplier={1.1} style={styles.rewardText}>
-                    이번주 모두 참여했어요. 오늘도 함께해요!
-                  </Text>
-                </View>
+                {allElapsedCompleted ? (
+                  <View style={styles.rewardBanner}>
+                    <Image
+                      resizeMode="contain"
+                      source={require("../../assets/images/my-activity/conversation_history_weekly_reward.png")}
+                      style={styles.rewardIcon}
+                    />
+                    <Text maxFontSizeMultiplier={1.1} style={styles.rewardText}>
+                      이번주 모두 참여했어요. 오늘도 함께해요!
+                    </Text>
+                  </View>
+                ) : null}
 
                 <View style={styles.band} />
 
@@ -435,29 +504,32 @@ export default function MyActivityScreen() {
                   <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
                     월별 참여 현황
                   </Text>
-                  <View style={styles.monthMeta}>
+                  <Pressable
+                    onPress={() => setIsMonthPickerOpen(true)}
+                    style={styles.monthMeta}
+                  >
                     <Text maxFontSizeMultiplier={1.1} style={styles.monthText}>
-                      {currentYear}년 {currentMonth + 1}월
+                      {selectedYear}년 {selectedMonth + 1}월
                     </Text>
                     <Ionicons
                       color="#9F9F9F"
                       name="chevron-down"
                       size={scaled(18, scale)}
                     />
-                  </View>
+                  </Pressable>
                 </View>
                 <View style={styles.monthCountRow}>
                   <Text
                     maxFontSizeMultiplier={1.1}
                     style={styles.monthCountStrong}
                   >
-                    8
+                    {monthParticipationCount}
                   </Text>
                   <Text
                     maxFontSizeMultiplier={1.1}
                     style={styles.monthCountMuted}
                   >
-                    /{daysInCurrentMonth}일
+                    /{daysInSelectedMonth}일
                   </Text>
                 </View>
 
@@ -478,10 +550,11 @@ export default function MyActivityScreen() {
                       {row.map((calendarDate, index) => {
                         const isOutsideMonth = calendarDate.monthOffset !== 0;
                         const isToday =
+                          isSelectedCurrentMonth &&
                           calendarDate.monthOffset === 0 &&
                           calendarDate.date === currentDate;
                         const isCompleted =
-                          completedDates.has(calendarDate.date) &&
+                          participatedSelected.has(calendarDate.date) &&
                           !isOutsideMonth &&
                           !isToday;
                         return (
@@ -518,20 +591,122 @@ export default function MyActivityScreen() {
                 </View>
               </>
             ) : (
-              <ConsumptionHistoryContent styles={styles} />
+              <ConsumptionHistoryContent
+                onOpenMonthPicker={() => setIsMonthPickerOpen(true)}
+                selectedMonth={selectedMonth}
+                spending={spending}
+                styles={styles}
+              />
             )}
           </Animated.View>
         </ScrollView>
       </View>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsMonthPickerOpen(false)}
+        transparent
+        visible={isMonthPickerOpen}
+      >
+        <Pressable
+          onPress={() => setIsMonthPickerOpen(false)}
+          style={styles.pickerOverlay}
+        >
+          <Pressable style={styles.pickerSheet}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.pickerTitle}>
+              월 선택
+            </Text>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.pickerList}
+            >
+              {availableMonths.map((month) => {
+                const isActive =
+                  month.year === selectedYear &&
+                  month.month === selectedMonth + 1;
+                return (
+                  <Pressable
+                    key={`${month.year}-${month.month}`}
+                    onPress={() => selectMonth(month.year, month.month)}
+                    style={styles.pickerRow}
+                  >
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={[
+                        styles.pickerRowText,
+                        isActive && styles.pickerRowTextActive,
+                      ]}
+                    >
+                      {month.year}년 {month.month}월
+                    </Text>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.pickerRowMeta}
+                    >
+                      {month.days}일 참여
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 function ConsumptionHistoryContent({
+  onOpenMonthPicker,
+  selectedMonth,
+  spending,
   styles,
 }: {
+  onOpenMonthPicker: () => void;
+  selectedMonth: number;
+  spending: SpendingStats | undefined;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const topPlaces = (spending?.top_merchants ?? []).map((merchant, index) => ({
+    count: `${merchant.count}번 갔어요.`,
+    name: merchant.merchant,
+    rank: index + 1,
+  }));
+
+  // 시간대 활동: 0–23시 건수를 3시간 버킷으로 합산하고 가장 바쁜 시간을 찾는다.
+  const hourly = spending?.hourly_activity;
+  const { buckets, maxBucket, peakHour } = useMemo(() => {
+    const counts = new Array<number>(24).fill(0);
+    for (const item of hourly ?? []) {
+      if (item.hour >= 0 && item.hour < 24) {
+        counts[item.hour] = item.count;
+      }
+    }
+    const bucketMap = new Map<number, number>();
+    for (const start of BUCKET_STARTS) {
+      bucketMap.set(
+        start,
+        counts[start] + counts[start + 1] + counts[start + 2]
+      );
+    }
+    let peak = -1;
+    let peakCount = 0;
+    counts.forEach((count, hour) => {
+      if (count > peakCount) {
+        peakCount = count;
+        peak = hour;
+      }
+    });
+    return {
+      buckets: bucketMap,
+      maxBucket: Math.max(1, ...bucketMap.values()),
+      peakHour: peak,
+    };
+  }, [hourly]);
+
+  const categories = spending?.monthly_by_category.categories ?? [];
+  const monthTotal = spending?.monthly_by_category.total_amount ?? 0;
+
   return (
     <>
       <View style={styles.consumptionSectionHeader}>
@@ -544,25 +719,31 @@ function ConsumptionHistoryContent({
       </View>
 
       <View style={styles.topPlaceCard}>
-        {topPlaces.map((place) => (
-          <View key={place.rank} style={styles.topPlaceRow}>
-            <View style={styles.rankBadge}>
-              <Text maxFontSizeMultiplier={1.1} style={styles.rankText}>
-                {place.rank}
+        {topPlaces.length > 0 ? (
+          topPlaces.map((place) => (
+            <View key={place.rank} style={styles.topPlaceRow}>
+              <View style={styles.rankBadge}>
+                <Text maxFontSizeMultiplier={1.1} style={styles.rankText}>
+                  {place.rank}
+                </Text>
+              </View>
+              <Text
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.topPlaceName}
+              >
+                {place.name}
+              </Text>
+              <Text maxFontSizeMultiplier={1.1} style={styles.topPlaceCount}>
+                {place.count}
               </Text>
             </View>
-            <Text
-              maxFontSizeMultiplier={1.1}
-              numberOfLines={1}
-              style={styles.topPlaceName}
-            >
-              {place.name}
-            </Text>
-            <Text maxFontSizeMultiplier={1.1} style={styles.topPlaceCount}>
-              {place.count}
-            </Text>
-          </View>
-        ))}
+          ))
+        ) : (
+          <Text maxFontSizeMultiplier={1.1} style={styles.emptyHint}>
+            아직 자주 간 곳이 없어요
+          </Text>
+        )}
       </View>
 
       <View style={styles.band} />
@@ -592,19 +773,21 @@ function ConsumptionHistoryContent({
             )}
           </View>
           {activityTicks.map((tick, index) => {
-            const bar = activityBars.find((item) => item.hour === tick.barKey);
+            const value =
+              tick.bucketStart != null ? buckets.get(tick.bucketStart) ?? 0 : 0;
+            const ratio = value / maxBucket;
             return (
               <View
                 key={`bar-${tick.label}-${index}`}
                 style={styles.activitySlot}
               >
-                {bar ? (
+                {value > 0 ? (
                   <View
                     style={[
                       styles.activityBar,
                       {
-                        backgroundColor: bar.color,
-                        height: `${bar.value}%`,
+                        backgroundColor: activityBarColor(ratio),
+                        height: `${Math.max(ratio * 100, 6)}%`,
                       },
                     ]}
                   />
@@ -637,95 +820,94 @@ function ConsumptionHistoryContent({
         </View>
       </View>
 
-      <View style={styles.activityTipBox}>
-        <Image
-          resizeMode="contain"
-          source={require("../../assets/images/my-activity/consumption_activity_search.png")}
-          style={styles.activityTipIcon}
-        />
-        <Text maxFontSizeMultiplier={1.1} style={styles.activityTipText}>
-          낮 12시에 가장 활발하게 활동해요.
-        </Text>
-      </View>
+      {peakHour >= 0 ? (
+        <View style={styles.activityTipBox}>
+          <Image
+            resizeMode="contain"
+            source={require("../../assets/images/my-activity/consumption_activity_search.png")}
+            style={styles.activityTipIcon}
+          />
+          <Text maxFontSizeMultiplier={1.1} style={styles.activityTipText}>
+            {formatPeakHour(peakHour)}에 가장 활발하게 활동해요.
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.band} />
 
       <View style={styles.monthlySpendingHeader}>
-        <View style={styles.monthTitleRow}>
+        <Pressable onPress={onOpenMonthPicker} style={styles.monthTitleRow}>
           <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
             월별 소비 내역
           </Text>
           <Text maxFontSizeMultiplier={1.1} style={styles.spendingMonthText}>
-            6월
+            {selectedMonth + 1}월
           </Text>
           <Ionicons color="#9F9F9F" name="chevron-down" size={16} />
-        </View>
+        </Pressable>
       </View>
 
-      <View style={styles.spendingBar}>
-        <View
-          style={[
-            styles.spendingSegment,
-            styles.spendingSegmentFirst,
-            { flex: 35.4 },
-          ]}
-        />
-        <View
-          style={[
-            styles.spendingSegment,
-            { backgroundColor: "#23CC89", flex: 25.4 },
-          ]}
-        />
-        <View
-          style={[
-            styles.spendingSegment,
-            { backgroundColor: "#54DFA7", flex: 15.8 },
-          ]}
-        />
-        <View
-          style={[
-            styles.spendingSegment,
-            { backgroundColor: "#9BEED0", flex: 9.6 },
-          ]}
-        />
-        <View
-          style={[
-            styles.spendingSegment,
-            styles.spendingSegmentLast,
-            { flex: 13.8 },
-          ]}
-        />
-      </View>
-      <Text maxFontSizeMultiplier={1.1} style={styles.totalAmountText}>
-        334,590원
-      </Text>
-
-      <View style={styles.categoryList}>
-        {spendingCategories.map((category) => (
-          <View key={category.name} style={styles.categoryRow}>
-            <Image
-              resizeMode="contain"
-              source={category.icon}
-              style={styles.categoryIcon}
-            />
-            <View style={styles.categoryTextBox}>
-              <Text
-                maxFontSizeMultiplier={1.1}
-                numberOfLines={1}
-                style={styles.categoryName}
-              >
-                {category.name}
-              </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.categoryPercent}>
-                {category.percent}
-              </Text>
-            </View>
-            <Text maxFontSizeMultiplier={1.1} style={styles.categoryAmount}>
-              {category.amount}
-            </Text>
+      {categories.length > 0 ? (
+        <>
+          <View style={styles.spendingBar}>
+            {categories.map((category, index) => (
+              <View
+                key={`segment-${index}`}
+                style={[
+                  styles.spendingSegment,
+                  index === 0 && styles.spendingSegmentFirst,
+                  index === categories.length - 1 && styles.spendingSegmentLast,
+                  {
+                    backgroundColor:
+                      SEGMENT_COLORS[index % SEGMENT_COLORS.length],
+                    flex: Math.max(category.total_amount, 1),
+                  },
+                ]}
+              />
+            ))}
           </View>
-        ))}
-      </View>
+          <Text maxFontSizeMultiplier={1.1} style={styles.totalAmountText}>
+            {formatKRW(monthTotal)}
+          </Text>
+
+          <View style={styles.categoryList}>
+            {categories.map((category, index) => (
+              <View key={`cat-${index}`} style={styles.categoryRow}>
+                <Image
+                  resizeMode="contain"
+                  source={uncategorizedIcon}
+                  style={styles.categoryIcon}
+                />
+                <View style={styles.categoryTextBox}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    numberOfLines={1}
+                    style={styles.categoryName}
+                  >
+                    {category.category ?? "카테고리 없음"}
+                  </Text>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.categoryPercent}
+                  >
+                    {formatPercent(category.total_amount, monthTotal)}
+                  </Text>
+                </View>
+                <Text maxFontSizeMultiplier={1.1} style={styles.categoryAmount}>
+                  {formatKRW(category.total_amount)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </>
+      ) : (
+        <Text
+          maxFontSizeMultiplier={1.1}
+          style={[styles.emptyHint, styles.spendingEmpty]}
+        >
+          이 달 소비 내역이 없어요
+        </Text>
+      )}
     </>
   );
 }
@@ -1332,6 +1514,61 @@ const createStyles = (
       marginLeft: fixed(12),
       minWidth: fixed(88),
       textAlign: "right",
+    },
+    emptyHint: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: font(16),
+      textAlign: "center",
+      width: "100%",
+    },
+    spendingEmpty: {
+      marginTop: vertical(18),
+    },
+    pickerOverlay: {
+      alignItems: "center",
+      backgroundColor: "rgba(53, 53, 53, 0.45)",
+      flex: 1,
+      justifyContent: "center",
+      paddingHorizontal: fixed(40),
+    },
+    pickerSheet: {
+      backgroundColor: "#FFFFFF",
+      borderRadius: fixed(14),
+      maxHeight: vertical(360),
+      paddingVertical: vertical(10),
+      width: "100%",
+    },
+    pickerTitle: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(18),
+      paddingHorizontal: fixed(20),
+      paddingVertical: vertical(10),
+    },
+    pickerList: {
+      flexGrow: 0,
+    },
+    pickerRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingHorizontal: fixed(20),
+      paddingVertical: vertical(14),
+    },
+    pickerRowText: {
+      color: "#5D5D5D",
+      fontFamily: "PretendardMedium",
+      fontSize: font(18),
+    },
+    pickerRowTextActive: {
+      color: "#13BB78",
+      fontFamily: "PretendardSemiBold",
+    },
+    pickerRowMeta: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: font(15),
     },
   });
 };
