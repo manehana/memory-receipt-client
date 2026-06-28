@@ -66,7 +66,12 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiBaseUrl": "https://api.memory-receipt.today"
-    }
+      "apiBaseUrl": "https://api.memory-receipt.today",
+      "router": {},
+      "eas": {
+        "projectId": "d8d5ff72-61e1-4a57-846e-bec7a811d28d"
+      }
+    },
+    "owner": "yooahreum"
   }
 }
