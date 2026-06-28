@@ -1,0 +1,52 @@
+# EAS 업로드 제외 목록 (.gitignore 내용 + 추가분)
+# package-lock.json을 제외해 EAS(리눅스)가 npm ci 대신 npm install로
+# 플랫폼별 optional 네이티브 의존성(@emnapi 등)을 직접 해석하도록 한다.
+package-lock.json
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+
+# codegraph
+CLAUDE.md
+.claude
+.mcp.json
+.codegraph
