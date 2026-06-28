@@ -4,6 +4,7 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo, useState } from "react";
@@ -48,6 +49,7 @@ const supportItems = [
 
 export default function MoreScreen() {
   const [isGuardianSharingEnabled, setIsGuardianSharingEnabled] = useState(true);
+  const { data: user } = useCurrentUser();
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
@@ -86,7 +88,7 @@ export default function MoreScreen() {
               style={styles.profileImage}
             />
             <Text maxFontSizeMultiplier={1.1} style={styles.profileName}>
-              만에하나
+              {user?.username ?? ""}
             </Text>
             <View style={styles.statusBadge}>
               <View style={styles.statusDot} />
