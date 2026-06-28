@@ -5,9 +5,10 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { router } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Image,
   Pressable,
@@ -18,11 +19,27 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useMutation } from "@tanstack/react-query";
+import { ApiError, apiPost } from "@/lib/api";
+import { LOGIN_PASSWORD, setToken } from "@/lib/auth";
+import type { LoginResponse } from "@/lib/types";
+
+// 로그인 실패(401)면 같은 자격으로 회원가입 후 재로그인해 계정 생성을 투명하게 처리한다.
+async function loginOrRegister(username: string): Promise<LoginResponse> {
+  const body = { username, password: LOGIN_PASSWORD };
+  try {
+    return await apiPost<LoginResponse>("/auth/login", body);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      await apiPost("/auth/register", body);
+      return apiPost<LoginResponse>("/auth/login", body);
+    }
+    throw error;
+  }
+}
 
 export default function LoginScreen() {
   const [id, setId] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const loginTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dotAnimations = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
@@ -37,18 +54,17 @@ export default function LoginScreen() {
   );
   const canLogin = id.trim().length > 0;
 
-  useFocusEffect(
-    useCallback(() => {
-      setIsSubmitting(false);
-
-      return () => {
-        if (loginTimerRef.current) {
-          clearTimeout(loginTimerRef.current);
-          loginTimerRef.current = null;
-        }
-      };
-    }, [])
-  );
+  const loginMutation = useMutation({
+    mutationFn: () => loginOrRegister(id.trim()),
+    onSuccess: async (data) => {
+      await setToken(data.access_token);
+      router.replace("/receipt/main");
+    },
+    onError: () => {
+      Alert.alert("로그인 실패", "잠시 후 다시 시도해주세요.");
+    },
+  });
+  const isSubmitting = loginMutation.isPending;
 
   useEffect(() => {
     if (!isSubmitting) {
@@ -89,12 +105,7 @@ export default function LoginScreen() {
       return;
     }
 
-    setIsSubmitting(true);
-
-    loginTimerRef.current = setTimeout(() => {
-      loginTimerRef.current = null;
-      router.push("/receipt/main");
-    }, 700);
+    loginMutation.mutate();
   };
 
   return (

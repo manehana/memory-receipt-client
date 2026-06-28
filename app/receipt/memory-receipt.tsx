@@ -4,8 +4,14 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { apiGet } from "@/lib/api";
+import { getToken } from "@/lib/auth";
+import type { PaymentResponse, RecallSessionResponse } from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useQuery } from "@tanstack/react-query";
+import { Image as ExpoImage } from "expo-image";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -34,26 +40,49 @@ const BARCODE_BASE_WIDTH = 210;
 const BARCODE_BASE_HEIGHT = 44;
 const TEAR_BASE_HEIGHT = 32;
 
-const footprints = [
-  {
-    id: "01",
-    amount: "4,800원",
-    place: "스텔라플레이스 종로점",
-    time: "오전 11:43",
-  },
-  {
-    id: "02",
-    amount: "34,000원",
-    place: "하나로마트 종로점",
-    time: "오후 14:03",
-  },
-  {
-    id: "03",
-    amount: "7,000원",
-    place: "Hana 택시",
-    time: "오후 21:12",
-  },
-];
+type Footprint = {
+  id: string;
+  amount: string;
+  place: string;
+  time: string;
+};
+
+function formatKRW(amount: number): string {
+  return `${amount.toLocaleString("ko-KR")}원`;
+}
+
+// "2026-06-13T12:30:00+09:00" → "오전 11:43" 형태
+function formatPaidTime(paidAt: string): string {
+  const date = new Date(paidAt);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const meridiem = hours < 12 ? "오전" : "오후";
+  hours = hours % 12;
+  if (hours === 0) {
+    hours = 12;
+  }
+  return `${meridiem} ${hours}:${minutes}`;
+}
+
+// "2026-05-25" → "2026.05.25"
+function formatSessionDate(value: string | undefined): string {
+  if (!value) {
+    return "";
+  }
+  return value.replaceAll("-", ".");
+}
+
+function paymentToFootprint(payment: PaymentResponse, index: number): Footprint {
+  return {
+    id: String(index + 1).padStart(2, "0"),
+    amount: formatKRW(payment.amount),
+    place: payment.merchant,
+    time: formatPaidTime(payment.paid_at),
+  };
+}
 
 const shareGuardians = [
   {
@@ -70,6 +99,34 @@ const shareGuardians = [
 
 export default function MemoryReceipt() {
   const { width, height } = useWindowDimensions();
+  const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
+  const id = sessionId ? Number(sessionId) : null;
+  // 로딩 화면에서 같은 키로 캐시된 세션을 그대로 사용한다.
+  const { data: session } = useQuery({
+    queryKey: ["session", id],
+    queryFn: () => apiGet<RecallSessionResponse>(`/recall/sessions/${id}`),
+    enabled: id != null,
+  });
+  const footprints = useMemo(
+    () => (session?.payments ?? []).map(paymentToFootprint),
+    [session?.payments],
+  );
+  const dayTitle = session?.title ?? "";
+  const summary = session?.summary ?? "";
+  const dateText = formatSessionDate(session?.session_date);
+
+  // 하이라이트 이미지는 인증이 필요한 엔드포인트라 Authorization 헤더를 붙여 불러온다.
+  const [authHeaders, setAuthHeaders] = useState<
+    Record<string, string> | undefined
+  >();
+  useEffect(() => {
+    getToken().then((token) => {
+      if (token) {
+        setAuthHeaders({ Authorization: `Bearer ${token}` });
+      }
+    });
+  }, []);
+
   const [isReceiptRevealed, setIsReceiptRevealed] = useState(false);
   const receiptReveal = useRef(new Animated.Value(0)).current;
   const [isShareSheetVisible, setIsShareSheetVisible] = useState(false);
@@ -272,17 +329,36 @@ export default function MemoryReceipt() {
                       <View style={styles.titleDash} />
                     </View>
 
-                    <Image
-                      resizeMode="cover"
-                      source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
-                      style={styles.heroImage}
-                    />
+                    {session?.image_url ? (
+                      <ExpoImage
+                        contentFit="cover"
+                        source={{
+                          uri: session.image_url,
+                          headers: authHeaders,
+                        }}
+                        style={styles.heroImage}
+                      />
+                    ) : (
+                      <Image
+                        resizeMode="cover"
+                        source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
+                        style={styles.heroImage}
+                      />
+                    )}
+
+                    {dayTitle ? (
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.dayTitle}
+                      >
+                        {dayTitle}
+                      </Text>
+                    ) : null}
 
                     <SectionTitle label="오늘의 한줄" styles={styles} />
                     <View style={styles.summaryBox}>
                       <Text maxFontSizeMultiplier={1.1} style={styles.summaryText}>
-                        친구들과 스텔라플레이스에서 음료를 마시며 하루를 나누는
-                        시간이 가장 따뜻하게 남았어요.
+                        {summary}
                       </Text>
                     </View>
 
@@ -361,7 +437,7 @@ export default function MemoryReceipt() {
                       style={styles.barcode}
                     />
                     <Text maxFontSizeMultiplier={1.1} style={styles.dateText}>
-                      2026.05.25(월) 18:34
+                      {dateText}
                     </Text>
                   </View>
                 </View>
@@ -681,6 +757,15 @@ const createStyles = (
       lineHeight: receiptFont(25),
       marginTop: receiptFixed(12),
       textAlign: "center",
+    },
+    dayTitle: {
+      color: "#353535",
+      fontFamily: "PretendardBold",
+      fontSize: receiptFont(18),
+      lineHeight: receiptFont(26),
+      marginTop: receiptFixed(16),
+      textAlign: "center",
+      width: "100%",
     },
     footprintItem: {
       flexDirection: "row",

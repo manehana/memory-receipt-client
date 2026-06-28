@@ -4,11 +4,15 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { apiGet, apiPost } from "@/lib/api";
+import type { RecallSessionResponse } from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
   StyleSheet,
@@ -57,6 +61,10 @@ function getStageText(progress: number) {
 }
 
 export default function MemoryReceiptLoading() {
+  const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
+  const id = sessionId ? Number(sessionId) : null;
+  const queryClient = useQueryClient();
+  // 분석이 끝날 때까지 진행률은 표시용 인디케이터로만 반복 채운다(실제 진행도 아님).
   const [progress, setProgress] = useState(0);
   const progressAnim = useSharedValue(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -68,9 +76,38 @@ export default function MemoryReceiptLoading() {
     [fontScale, scale],
   );
 
+  // 세션 상태를 2초마다 폴링해 completed/failed로 분기한다.
+  const { data } = useQuery({
+    queryKey: ["session", id],
+    queryFn: () => apiGet<RecallSessionResponse>(`/recall/sessions/${id}`),
+    enabled: id != null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "completed" || status === "failed" ? false : 2000;
+    },
+  });
+  const status = data?.status;
+  const isFailed = status === "failed";
+
+  // 실패한 세션은 재녹음 없이 분석만 재시도한다(spec: failed + restart 미지정 → 재분석).
+  const retryMutation = useMutation({
+    mutationFn: () => apiPost("/recall/sessions", {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["session", id] });
+    },
+    onError: () => {
+      Alert.alert("다시 시도할 수 없어요", "잠시 후 다시 시도해주세요.");
+    },
+  });
+
   const svgSize = scaled(CIRCLE_VIEWBOX, scale);
   const iconSize = scaled(ICON_SIZE, scale);
-  const { title, description } = getStageText(progress);
+  const { title, description } = isFailed
+    ? {
+        title: "분석에 실패했어요",
+        description: "다시 시도하면 오늘 대화를\n다시 분석해드릴게요.",
+      }
+    : getStageText(progress);
   const animatedProps = useAnimatedProps(() => ({
     strokeDashoffset: CIRCUMFERENCE * (1 - progressAnim.value / 100),
   }));
@@ -82,9 +119,10 @@ export default function MemoryReceiptLoading() {
 
     intervalRef.current = setInterval(() => {
       setProgress((prev) => {
+        // 인디케이터: 100%에 도달하면 다시 0부터 반복한다.
         if (prev >= 100) {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-          return 100;
+          progressAnim.value = 0;
+          return 0;
         }
         const next = prev + 1;
         progressAnim.value = withTiming(next, {
@@ -93,21 +131,28 @@ export default function MemoryReceiptLoading() {
         });
         return next;
       });
-    }, 120); // 1% / 120ms → 약 12초
+    }, 120);
   }, [progressAnim]);
 
   useEffect(() => {
+    if (isFailed) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
     startProgress();
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [startProgress]);
+  }, [startProgress, isFailed]);
 
   useEffect(() => {
-    if (progress < 100) return;
+    if (status !== "completed" || id == null) return;
     const timer = setTimeout(() => {
-      router.replace("/receipt/memory-receipt");
+      router.replace({
+        pathname: "/receipt/memory-receipt",
+        params: { sessionId: String(id) },
+      });
     }, 350);
     return () => clearTimeout(timer);
-  }, [progress]);
+  }, [status, id]);
 
   return (
     <View style={styles.root}>
@@ -166,8 +211,18 @@ export default function MemoryReceiptLoading() {
         </View>
 
         {/* 진행률~버튼: 107px (402 기준) → scaled(114) */}
-        <Pressable style={styles.helpButton} onPress={startProgress}>
-          <Text style={styles.helpText}>제작이 안돼요</Text>
+        <Pressable
+          disabled={retryMutation.isPending}
+          style={styles.helpButton}
+          onPress={() => {
+            if (isFailed) {
+              retryMutation.mutate();
+            }
+          }}
+        >
+          <Text style={styles.helpText}>
+            {isFailed ? "다시 시도하기" : "제작이 안돼요"}
+          </Text>
         </Pressable>
       </View>
     </View>
