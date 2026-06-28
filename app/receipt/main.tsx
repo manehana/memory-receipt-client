@@ -4,6 +4,8 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { useCurrentUser } from "@/lib/user";
+import type { RecallSessionListItem } from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -33,22 +35,47 @@ const SAFETY_SHEET_HEIGHT = 410;
 const SAFETY_ICON_WIDTH = 103.05;
 const SAFETY_ICON_HEIGHT = 105;
 
-const recentReceipts = [
-  {
-    date: "5월 1일 (월)",
-    title: "친구들과 카페에서 커피 한잔☕",
-  },
-  {
-    date: "5월 1일 (월)",
-    title: "친구들과 카페에서 커피 한잔☕",
-  },
-  {
-    date: "5월 1일 (월)",
-    title: "친구들과 카페에서 커피 한잔☕",
-  },
-];
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
+// "2026-05-20" → "5월 20일 (수)"
+function formatReceiptDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}월 ${day}일 (${WEEKDAY_LABELS[date.getDay()]})`;
+}
+
+type RecentReceipt = {
+  id: number;
+  date: string;
+  title: string;
+};
+
+// 완료되어 제목이 생성된 세션만 최근 기억 영수증으로 노출한다.
+function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
+  if (session.status !== "completed" || !session.title) {
+    return null;
+  }
+  return {
+    id: session.id,
+    date: formatReceiptDate(session.session_date),
+    title: session.title,
+  };
+}
 
 export default function MainScreen() {
+  const { data: user } = useCurrentUser();
+  const userName = user?.username ?? "";
+  const recentReceipts = useMemo(
+    () =>
+      (user?.recall_sessions ?? [])
+        .map(toRecentReceipt)
+        .filter((receipt): receipt is RecentReceipt => receipt !== null),
+    [user?.recall_sessions],
+  );
   const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(true);
   const safetyBackdropProgress = useRef(new Animated.Value(0)).current;
   const safetySheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -125,7 +152,7 @@ export default function MainScreen() {
               어서오세요.
             </Text>
             <Text maxFontSizeMultiplier={1.1} style={styles.userLine}>
-              <Text style={styles.userName}>만에하나</Text>
+              <Text style={styles.userName}>{userName}</Text>
               <Text style={styles.userSuffix}> 님</Text>
             </Text>
           </View>
@@ -215,9 +242,9 @@ export default function MainScreen() {
             showsHorizontalScrollIndicator={false}
             style={styles.receiptScroller}
           >
-            {recentReceipts.map((receipt, index) => (
+            {recentReceipts.map((receipt) => (
               <Pressable
-                key={`${receipt.date}-${index}`}
+                key={receipt.id}
                 onPress={() => {
                   router.push({
                     params: { date: receipt.date },
