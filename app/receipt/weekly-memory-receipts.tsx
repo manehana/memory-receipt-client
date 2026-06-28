@@ -4,8 +4,13 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
+import { sessionImageUrl } from "@/lib/api";
+import type { RecallSessionListItem } from "@/lib/types";
+import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -26,35 +31,52 @@ const CARD_BASE_HEIGHT = 220;
 const IMAGE_BASE_WIDTH = 307.37;
 const IMAGE_BASE_HEIGHT = 145;
 
-const weeklyReceipts = [
-  {
-    id: "receipt-1",
-    date: "5월 1일 (월)",
-    title: "친구들과 카페에서 커피 한잔☕",
-    meta: "34,000원 · 3곳",
-  },
-  {
-    id: "receipt-2",
-    date: "5월 1일 (월)",
-    title: "친구들과 카페에서 커피 한잔☕",
-    meta: "34,000원 · 3곳",
-  },
-  {
-    id: "receipt-3",
-    date: "5월 1일 (월)",
-    title: "친구들과 카페에서 커피 한잔☕",
-    meta: "34,000원 · 3곳",
-  },
-  {
-    id: "receipt-4",
-    date: "5월 1일 (월)",
-    title: "친구들과 카페에서 커피 한잔☕",
-    meta: "34,000원 · 3곳",
-  },
-];
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
+// "2026-05-20" → "5월 20일 (수)"
+function formatReceiptDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}월 ${day}일 (${WEEKDAY_LABELS[date.getDay()]})`;
+}
+
+type WeeklyReceipt = {
+  id: number;
+  date: string;
+  title: string;
+  meta: string;
+  hasImage: boolean;
+};
+
+// 완료되어 제목이 생성된 세션만 기억 영수증 목록으로 노출한다.
+function toWeeklyReceipt(session: RecallSessionListItem): WeeklyReceipt | null {
+  if (session.status !== "completed" || !session.title) {
+    return null;
+  }
+  return {
+    id: session.id,
+    date: formatReceiptDate(session.session_date),
+    title: session.title,
+    meta: session.summary ?? "",
+    hasImage: session.image_url != null,
+  };
+}
 
 export default function WeeklyMemoryReceiptsScreen() {
   const { width, height } = useWindowDimensions();
+  const { data: user } = useCurrentUser();
+  const imageHeaders = useImageAuthHeaders();
+  const receipts = useMemo(
+    () =>
+      (user?.recall_sessions ?? [])
+        .map(toWeeklyReceipt)
+        .filter((receipt): receipt is WeeklyReceipt => receipt !== null),
+    [user?.recall_sessions]
+  );
   const scrollY = useRef(new Animated.Value(0)).current;
   const [scrollContentHeight, setScrollContentHeight] = useState(1);
   const [scrollViewportHeight, setScrollViewportHeight] = useState(1);
@@ -137,9 +159,10 @@ export default function WeeklyMemoryReceiptsScreen() {
             showsVerticalScrollIndicator={false}
             style={styles.receiptScroller}
           >
-            {weeklyReceipts.map((receipt) => (
+            {receipts.map((receipt) => (
               <WeeklyReceiptCard
                 key={receipt.id}
+                imageHeaders={imageHeaders}
                 onPress={() => {
                   router.push({
                     params: { date: receipt.date },
@@ -170,12 +193,14 @@ export default function WeeklyMemoryReceiptsScreen() {
 }
 
 type WeeklyReceiptCardProps = {
+  imageHeaders: Record<string, string> | undefined;
   onPress: () => void;
-  receipt: (typeof weeklyReceipts)[number];
+  receipt: WeeklyReceipt;
   styles: ReturnType<typeof createStyles>;
 };
 
 function WeeklyReceiptCard({
+  imageHeaders,
   onPress,
   receipt,
   styles,
@@ -294,11 +319,22 @@ function WeeklyReceiptCard({
     >
       <Animated.View style={[styles.card, cardMotionStyle, animatedStyle]}>
         <View style={styles.imageWrap}>
-          <Image
-            resizeMode="cover"
-            source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
-            style={styles.cardImage}
-          />
+          {receipt.hasImage ? (
+            <ExpoImage
+              contentFit="cover"
+              source={{
+                uri: sessionImageUrl(receipt.id),
+                headers: imageHeaders,
+              }}
+              style={styles.cardImage}
+            />
+          ) : (
+            <Image
+              resizeMode="cover"
+              source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
+              style={styles.cardImage}
+            />
+          )}
           <View style={styles.dateBadge}>
             <Text maxFontSizeMultiplier={1.1} style={styles.dateBadgeText}>
               {receipt.date}

@@ -77,6 +77,12 @@ async function request<T>(
   return parseResponse<T>(response);
 }
 
+// 서버가 내려주는 image_url은 호스트가 localhost로 박혀 올 수 있어 신뢰하지 않고,
+// 세션 ID로 우리 API base 기준 이미지 엔드포인트 URL을 직접 만든다.
+export function sessionImageUrl(sessionId: number): string {
+  return `${API_BASE_URL}/recall/sessions/${sessionId}/image`;
+}
+
 export function apiGet<T>(path: string): Promise<T> {
   return request<T>("GET", path);
 }

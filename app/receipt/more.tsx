@@ -4,11 +4,15 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { clearToken } from "@/lib/auth";
 import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
   StyleSheet,
@@ -50,6 +54,7 @@ const supportItems = [
 export default function MoreScreen() {
   const [isGuardianSharingEnabled, setIsGuardianSharingEnabled] = useState(true);
   const { data: user } = useCurrentUser();
+  const queryClient = useQueryClient();
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
@@ -57,6 +62,22 @@ export default function MoreScreen() {
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width],
   );
+
+  const handleLogout = () => {
+    Alert.alert("로그아웃", "로그아웃 하시겠어요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "로그아웃",
+        style: "destructive",
+        onPress: async () => {
+          await clearToken();
+          queryClient.clear();
+          router.replace("/receipt/login");
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
@@ -130,6 +151,16 @@ export default function MoreScreen() {
               <MenuRow key={item.label} item={item} styles={styles} />
             ))}
           </View>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleLogout}
+            style={styles.logoutButton}
+          >
+            <Text maxFontSizeMultiplier={1.1} style={styles.logoutText}>
+              로그아웃
+            </Text>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -300,6 +331,19 @@ const createStyles = (
       marginTop: sectionGap,
       paddingHorizontal: fixed(15),
       paddingTop: fixed(16),
+    },
+    logoutButton: {
+      alignItems: "center",
+      alignSelf: "center",
+      justifyContent: "center",
+      marginTop: sectionGap,
+      paddingVertical: fixed(10),
+    },
+    logoutText: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, menuFontScale),
+      textDecorationLine: "underline",
     },
     groupTitle: {
       color: "#353535",
