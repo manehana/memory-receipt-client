@@ -113,6 +113,7 @@ export default function MemoryReceipt() {
   );
   const dayTitle = session?.title ?? "";
   const summary = session?.summary ?? "";
+  const friendName = session?.voice_name ?? "";
   const dateText = formatSessionDate(session?.session_date);
 
   // 하이라이트 이미지는 인증이 필요한 엔드포인트라 Authorization 헤더를 붙여 불러온다.
@@ -362,6 +363,8 @@ export default function MemoryReceipt() {
                       </Text>
                     </View>
 
+                    {footprints.length > 0 ? (
+                      <>
                     <SectionTitle
                       label="오늘의 발자취"
                       styles={styles}
@@ -408,6 +411,8 @@ export default function MemoryReceipt() {
                         </View>
                       ))}
                     </View>
+                      </>
+                    ) : null}
 
                     <SectionTitle
                       label="오늘의 대화 친구"
@@ -426,7 +431,7 @@ export default function MemoryReceipt() {
                         numberOfLines={1}
                         style={styles.friendName}
                       >
-                        별빛이
+                        {friendName}
                       </Text>
                     </View>
 

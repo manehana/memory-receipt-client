@@ -299,6 +299,8 @@ export default function VoiceWaitingScreen() {
   const [started, setStarted] = useState(false);
   // persist 녹음으로 만들어진 답변 오디오 파일 uri
   const answerUriRef = useRef<string | null>(null);
+  // 이번 턴에서 음성 입력(STT)이 이미 시작됐는지 — 질문 음성 종료 후 자동 시작과 수동 시작의 중복을 막는다
+  const voiceStartedRef = useRef(false);
   const [isListening, setIsListening] = useState(false);
   const [hasResponse, setHasResponse] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -317,7 +319,9 @@ export default function VoiceWaitingScreen() {
 
   // 음성별 전용 아이콘이 없어 기본 캐릭터 아이콘을 사용한다.
   const selectedFriend = friends[0];
-  const isVoiceActive = isListening || hasResponse;
+  // 응답 완료를 누르면(completeStatus가 ready를 벗어나면) 음성 입력 원(애니메이션)을 idle로 되돌린다
+  const isVoiceActive =
+    (isListening || hasResponse) && completeStatus === "ready";
   const hasTranscript = transcript.trim().length > 0;
   const answerTextStyle = useMemo(
     () => [styles.answerText, isAnswerCompact ? styles.answerTextCompact : null],
@@ -567,13 +571,20 @@ export default function VoiceWaitingScreen() {
       clearCompleteTimers();
       resetTranscript();
       answerUriRef.current = null;
+      voiceStartedRef.current = false;
       setCurrentQuestion(question);
       setCurrentIndex(index);
       setStarted(true);
       setIsListening(false);
       setHasResponse(false);
       setCompleteStatus("ready");
-      void playBase64Wav(question.audio);
+      // 질문 음성 재생이 끝나면 자동으로 음성 입력을 시작한다.
+      // 사용자가 재생 중 직접 시작했다면(voiceStartedRef) 중복 시작하지 않는다.
+      void playBase64Wav(question.audio, () => {
+        if (!voiceStartedRef.current) {
+          void startListening();
+        }
+      });
     },
     // resetTranscript/clearCompleteTimers는 매 렌더 재생성되지만 동작이 안정적이라 의존성에서 제외
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -694,6 +705,7 @@ export default function VoiceWaitingScreen() {
       return;
     }
 
+    voiceStartedRef.current = true;
     resetTranscript();
     answerUriRef.current = null;
     setIsListening(true);
