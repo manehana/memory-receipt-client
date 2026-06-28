@@ -4,9 +4,12 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
+import { sessionImageUrl } from "@/lib/api";
 import { useCurrentUser } from "@/lib/user";
 import type { RecallSessionListItem } from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -52,6 +55,7 @@ type RecentReceipt = {
   id: number;
   date: string;
   title: string;
+  hasImage: boolean;
 };
 
 // 완료되어 제목이 생성된 세션만 최근 기억 영수증으로 노출한다.
@@ -63,6 +67,7 @@ function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
     id: session.id,
     date: formatReceiptDate(session.session_date),
     title: session.title,
+    hasImage: session.image_url != null,
   };
 }
 
@@ -76,6 +81,7 @@ export default function MainScreen() {
         .filter((receipt): receipt is RecentReceipt => receipt !== null),
     [user?.recall_sessions],
   );
+  const imageHeaders = useImageAuthHeaders();
   const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(true);
   const safetyBackdropProgress = useRef(new Animated.Value(0)).current;
   const safetySheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -254,11 +260,22 @@ export default function MainScreen() {
                 style={styles.receiptCard}
               >
                 <View style={styles.receiptImageWrap}>
-                  <Image
-                    resizeMode="cover"
-                    source={require("../../assets/images/memory-receipt/receipt-thumbnail.png")}
-                    style={styles.receiptImage}
-                  />
+                  {receipt.hasImage ? (
+                    <ExpoImage
+                      contentFit="cover"
+                      source={{
+                        uri: sessionImageUrl(receipt.id),
+                        headers: imageHeaders,
+                      }}
+                      style={styles.receiptImage}
+                    />
+                  ) : (
+                    <Image
+                      resizeMode="cover"
+                      source={require("../../assets/images/memory-receipt/receipt-thumbnail.png")}
+                      style={styles.receiptImage}
+                    />
+                  )}
                   <View style={styles.receiptDateBadge}>
                     <Text
                       maxFontSizeMultiplier={1.1}

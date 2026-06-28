@@ -4,8 +4,8 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
-import { apiGet } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
+import { apiGet, sessionImageUrl } from "@/lib/api";
 import type { PaymentResponse, RecallSessionResponse } from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -116,17 +116,7 @@ export default function MemoryReceipt() {
   const friendName = session?.voice_name ?? "";
   const dateText = formatSessionDate(session?.session_date);
 
-  // 하이라이트 이미지는 인증이 필요한 엔드포인트라 Authorization 헤더를 붙여 불러온다.
-  const [authHeaders, setAuthHeaders] = useState<
-    Record<string, string> | undefined
-  >();
-  useEffect(() => {
-    getToken().then((token) => {
-      if (token) {
-        setAuthHeaders({ Authorization: `Bearer ${token}` });
-      }
-    });
-  }, []);
+  const authHeaders = useImageAuthHeaders();
 
   const [isReceiptRevealed, setIsReceiptRevealed] = useState(false);
   const receiptReveal = useRef(new Animated.Value(0)).current;
@@ -330,11 +320,11 @@ export default function MemoryReceipt() {
                       <View style={styles.titleDash} />
                     </View>
 
-                    {session?.image_url ? (
+                    {session?.image_url && id != null ? (
                       <ExpoImage
                         contentFit="cover"
                         source={{
-                          uri: session.image_url,
+                          uri: sessionImageUrl(id),
                           headers: authHeaders,
                         }}
                         style={styles.heroImage}
