@@ -6,8 +6,8 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
-import { useCurrentUser } from "@/lib/user";
 import type { RecallSessionListItem } from "@/lib/types";
+import { useCurrentUser } from "@/lib/user";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
@@ -79,7 +79,7 @@ export default function MainScreen() {
       (user?.recall_sessions ?? [])
         .map(toRecentReceipt)
         .filter((receipt): receipt is RecentReceipt => receipt !== null),
-    [user?.recall_sessions],
+    [user?.recall_sessions]
   );
   const imageHeaders = useImageAuthHeaders();
   const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(true);
@@ -213,10 +213,18 @@ export default function MainScreen() {
           style={styles.reportCard}
         >
           <Image
-            resizeMode="stretch"
-            source={require("../../assets/images/main/main-cognitive-report.png")}
-            style={styles.reportImage}
+            resizeMode="contain"
+            source={require("../../assets/images/main/main-search.png")}
+            style={styles.reportIcon}
           />
+          <View style={styles.reportTextWrap}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.reportTitle}>
+              MY 상세
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.reportDescription}>
+              나의 인지 상태, 소비 상태를 한눈에
+            </Text>
+          </View>
         </Pressable>
 
         <View style={styles.divider} />
@@ -507,16 +515,38 @@ const createStyles = (
       width: "100%",
     },
     reportCard: {
+      alignItems: "center",
       alignSelf: "center",
+      backgroundColor: "#707070",
       borderRadius: scaled(8, scale),
+      flexDirection: "row",
+      gap: Math.round(contentWidth * 0.04),
       height: reportHeight,
       marginTop: verticalScaled(16),
       overflow: "hidden",
+      paddingLeft: Math.round(contentWidth * 0.06),
       width: contentWidth,
     },
-    reportImage: {
-      height: "100%",
-      width: "100%",
+    reportIcon: {
+      height: Math.round(reportHeight * 0.64),
+      width: Math.round(reportHeight * 0.64),
+    },
+    reportTextWrap: {
+      flex: 1,
+      justifyContent: "center",
+    },
+    reportTitle: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardBold",
+      fontSize: fontScaled(28, fontScale),
+      lineHeight: fontScaled(36, fontScale),
+    },
+    reportDescription: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(18, fontScale),
+      lineHeight: fontScaled(26, fontScale),
+      marginTop: Math.round(reportHeight * 0.02),
     },
     divider: {
       backgroundColor: "#F2F2F2",
