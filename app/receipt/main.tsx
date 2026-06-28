@@ -250,71 +250,72 @@ export default function MainScreen() {
             </Pressable>
           </View>
 
-          <ScrollView
-            contentContainerStyle={styles.receiptList}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.receiptScroller}
-          >
-            {recentReceipts.map((receipt) => (
-              <Pressable
-                key={receipt.id}
-                onPress={() => {
-                  router.push({
-                    params: { date: receipt.date },
-                    pathname: "/receipt/weekly-memory-receipt-detail",
-                  });
-                }}
-                style={styles.receiptCard}
-              >
-                <View style={styles.receiptImageWrap}>
-                  {receipt.hasImage ? (
-                    <ExpoImage
-                      contentFit="cover"
-                      source={{
-                        uri: sessionImageUrl(receipt.id),
-                        headers: imageHeaders,
-                      }}
-                      style={styles.receiptImage}
-                    />
-                  ) : (
-                    <Image
-                      resizeMode="cover"
-                      source={require("../../assets/images/memory-receipt/receipt-thumbnail.png")}
-                      style={styles.receiptImage}
-                    />
-                  )}
-                  <View style={styles.receiptDateBadge}>
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      style={styles.receiptDateText}
-                    >
-                      {receipt.date}
-                    </Text>
-                  </View>
-                </View>
-                <Text
-                  maxFontSizeMultiplier={1.1}
-                  numberOfLines={1}
-                  style={styles.receiptTitle}
+          {recentReceipts.length > 0 ? (
+            <ScrollView
+              contentContainerStyle={styles.receiptList}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.receiptScroller}
+            >
+              {recentReceipts.map((receipt) => (
+                <Pressable
+                  key={receipt.id}
+                  onPress={() => {
+                    router.push({
+                      params: { date: receipt.date },
+                      pathname: "/receipt/weekly-memory-receipt-detail",
+                    });
+                  }}
+                  style={styles.receiptCard}
                 >
-                  {receipt.title}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          {/*
-          <View style={styles.emptyBox}>
-            <Ionicons
-              color="#D8D8D8"
-              name="document"
-              size={scaled(62, scale)}
-            />
-            <Text maxFontSizeMultiplier={1.1} style={styles.emptyText}>
-              기억 영수증이 없어요
-            </Text>
-          </View>
-          */}
+                  <View style={styles.receiptImageWrap}>
+                    {receipt.hasImage ? (
+                      <ExpoImage
+                        contentFit="cover"
+                        source={{
+                          uri: sessionImageUrl(receipt.id),
+                          headers: imageHeaders,
+                        }}
+                        style={styles.receiptImage}
+                      />
+                    ) : (
+                      <Image
+                        resizeMode="cover"
+                        source={require("../../assets/images/memory-receipt/receipt-thumbnail.png")}
+                        style={styles.receiptImage}
+                      />
+                    )}
+                    <View style={styles.receiptDateBadge}>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.receiptDateText}
+                      >
+                        {receipt.date}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    numberOfLines={1}
+                    style={styles.receiptTitle}
+                  >
+                    {receipt.title}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyBox}>
+              <Ionicons
+                color="#D8D8D8"
+                name="document"
+                size={scaled(62, scale)}
+              />
+              <Text maxFontSizeMultiplier={1.1} style={styles.emptyText}>
+                기억 영수증이 없어요
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -718,7 +719,6 @@ const createStyles = (
       fontSize: modalScaled(20),
       lineHeight: modalScaled(26),
     },
-    /*
     emptyBox: {
       alignItems: "center",
       marginTop: scaled(64, scale),
@@ -729,6 +729,5 @@ const createStyles = (
       fontSize: fontScaled(16, fontScale),
       marginTop: scaled(12, scale),
     },
-    */
   });
 };
