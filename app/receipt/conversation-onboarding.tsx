@@ -144,13 +144,13 @@ export default function ConversationOnboardingScreen() {
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
+  const pageWidth = width - scaled(46, scale);
   const styles = useMemo(
     () => createStyles(scale, fontScale),
     [fontScale, scale]
   );
   const [step, setStep] = useState(0);
   const [nextStep, setNextStep] = useState<number | null>(null);
-  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
   const [friendSheetVisible, setFriendSheetVisible] = useState(false);
   const [friendSheetMode, setFriendSheetMode] = useState<"confirm" | "select">(
     "confirm"
@@ -170,7 +170,7 @@ export default function ConversationOnboardingScreen() {
   const friendBackdropProgress = useRef(new Animated.Value(1)).current;
   const friendSheetProgress = useRef(new Animated.Value(1)).current;
   const friendSheetTranslateX = useRef(new Animated.Value(0)).current;
-  const pageTurnProgress = useRef(new Animated.Value(0)).current;
+  const pageTranslateX = useRef(new Animated.Value(0)).current;
   const isPageTurningRef = useRef(false);
   const shouldReturnToInlineConfirmRef = useRef(false);
 
@@ -179,26 +179,30 @@ export default function ConversationOnboardingScreen() {
     friends[0] ??
     FALLBACK_FRIEND;
 
+  useEffect(() => {
+    if (!isPageTurningRef.current) {
+      pageTranslateX.setValue(-step * pageWidth);
+    }
+  }, [pageTranslateX, pageWidth, step]);
+
   const turnToStep = (targetStep: number) => {
     if (isPageTurningRef.current || targetStep === step) {
       return;
     }
 
     isPageTurningRef.current = true;
-    setSlideDirection(targetStep > step ? 1 : -1);
     setNextStep(targetStep);
-    pageTurnProgress.setValue(0);
-    Animated.timing(pageTurnProgress, {
-      duration: 300,
+    Animated.timing(pageTranslateX, {
+      duration: 260,
       easing: Easing.out(Easing.cubic),
-      toValue: 1,
+      toValue: -targetStep * pageWidth,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {
         setStep(targetStep);
+        pageTranslateX.setValue(-targetStep * pageWidth);
       }
       setNextStep(null);
-      pageTurnProgress.setValue(0);
       isPageTurningRef.current = false;
     });
   };
@@ -360,25 +364,9 @@ export default function ConversationOnboardingScreen() {
     },
   });
   const progressStep = nextStep ?? step;
-  const outgoingPageStyle = {
-    transform: [
-      {
-        translateX: pageTurnProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -width * slideDirection],
-        }),
-      },
-    ],
-  };
-  const incomingPageStyle = {
-    transform: [
-      {
-        translateX: pageTurnProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [width * slideDirection, 0],
-        }),
-      },
-    ],
+  const pagerStyle = {
+    transform: [{ translateX: pageTranslateX }],
+    width: pageWidth * steps.length,
   };
 
   const renderFriendConfirmContent = (
@@ -488,7 +476,11 @@ export default function ConversationOnboardingScreen() {
     const isLastStep = pageStep === steps.length - 1;
 
     return (
-      <View style={styles.page}>
+      <View
+        key={pageStep}
+        pointerEvents={isInteractive ? "auto" : "none"}
+        style={[styles.page, { width: pageWidth }]}
+      >
         <View style={styles.content}>
           <View style={styles.mainIconFrame}>
             <Image
@@ -624,19 +616,15 @@ export default function ConversationOnboardingScreen() {
           )}
         </View>
 
-        <View style={styles.pageStage} {...swipeResponder.panHandlers}>
-          {nextStep === null ? (
-            renderPage(step, true)
-          ) : (
-            <>
-              <Animated.View style={[styles.turnPage, outgoingPageStyle]}>
-                {renderPage(step, false)}
-              </Animated.View>
-              <Animated.View style={[styles.turnPage, incomingPageStyle]}>
-                {renderPage(nextStep, false)}
-              </Animated.View>
-            </>
-          )}
+        <View
+          style={[styles.pageStage, { width: pageWidth }]}
+          {...swipeResponder.panHandlers}
+        >
+          <Animated.View style={[styles.pager, pagerStyle]}>
+            {steps.map((_, index) =>
+              renderPage(index, nextStep === null && index === step)
+            )}
+          </Animated.View>
         </View>
       </View>
 
@@ -849,13 +837,14 @@ const createStyles = (scale: number, fontScale: number) =>
       flex: 1,
     },
     pageStage: {
+      alignSelf: "center",
       flex: 1,
       overflow: "hidden",
-      paddingHorizontal: scaled(23, scale),
     },
-    turnPage: {
-      ...StyleSheet.absoluteFillObject,
+    pager: {
       backfaceVisibility: "hidden",
+      flexDirection: "row",
+      flex: 1,
     },
     mainIconFrame: {
       height: scaled(150, scale),

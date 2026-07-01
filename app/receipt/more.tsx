@@ -15,6 +15,7 @@ import {
   Alert,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -101,7 +102,11 @@ export default function MoreScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          style={styles.contentScroll}
+        >
           <View style={[styles.card, styles.profileCard]}>
             <Image
               resizeMode="contain"
@@ -161,7 +166,7 @@ export default function MoreScreen() {
               로그아웃
             </Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -189,7 +194,12 @@ function MenuRow({
   styles: MoreStyles;
 }) {
   return (
-    <Pressable style={[styles.menuRow, { marginTop: styles.itemGapScale.height * item.gapTop }]}>
+    <Pressable
+      style={[
+        styles.menuRow,
+        { marginTop: styles.itemGapScale.height * item.gapTop },
+      ]}
+    >
       <View style={styles.menuTextBox}>
         <Text maxFontSizeMultiplier={1.1} style={styles.menuText}>
           {item.label}
@@ -238,7 +248,6 @@ const createStyles = (
   const fixed = (value: number) => Math.round(value * layoutScale);
   const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
   const cardRadius = fixed(15);
-  const compactCardExtra = isCompactHeight ? fixed(30) : 0;
   const sectionGap = isCompactHeight ? vertical(14) : vertical(12);
 
   return StyleSheet.create({
@@ -251,8 +260,11 @@ const createStyles = (
       paddingHorizontal: horizontalPadding,
       paddingTop: isCompactHeight ? vertical(10) : vertical(28),
     },
-    content: {
+    contentScroll: {
       flex: 1,
+    },
+    content: {
+      paddingBottom: vertical(28),
     },
     header: {
       alignItems: "center",
@@ -315,20 +327,23 @@ const createStyles = (
       fontSize: fontScaled(16, menuFontScale),
     },
     conversationCard: {
-      height: fixed(211) + compactCardExtra,
       marginTop: sectionGap,
+      minHeight: fixed(211),
+      paddingBottom: fixed(18),
       paddingHorizontal: fixed(15),
       paddingTop: fixed(16),
     },
     guardianCard: {
-      height: fixed(194.7) + compactCardExtra,
       marginTop: sectionGap,
+      minHeight: fixed(195),
+      paddingBottom: fixed(18),
       paddingHorizontal: fixed(15),
       paddingTop: fixed(16),
     },
     supportCard: {
-      height: fixed(198) + (isCompactHeight ? fixed(22) : 0),
       marginTop: sectionGap,
+      minHeight: fixed(198),
+      paddingBottom: fixed(18),
       paddingHorizontal: fixed(15),
       paddingTop: fixed(16),
     },
@@ -353,11 +368,13 @@ const createStyles = (
     },
     menuRow: {
       alignItems: "center",
+      columnGap: fixed(8),
       flexDirection: "row",
       minHeight: fixed(25),
     },
     menuTextBox: {
       flex: 1,
+      minWidth: 0,
       justifyContent: "center",
     },
     menuText: {

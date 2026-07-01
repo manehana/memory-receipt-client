@@ -54,20 +54,36 @@ function formatReceiptDate(value: string): string {
 type RecentReceipt = {
   id: number;
   date: string;
+  sortTime: number;
   title: string;
   hasImage: boolean;
+  weekKey: string;
 };
+
+function getNotebookWeekKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const weekIndex = Math.floor((date.getDate() - 1) / 8);
+  return `${year}-${month}-${weekIndex + 1}`;
+}
 
 // 완료되어 제목이 생성된 세션만 최근 기억 영수증으로 노출한다.
 function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
   if (session.status !== "completed" || !session.title) {
     return null;
   }
+  const sessionDate = new Date(session.session_date);
+  if (Number.isNaN(sessionDate.getTime())) {
+    return null;
+  }
+
   return {
     id: session.id,
     date: formatReceiptDate(session.session_date),
+    sortTime: sessionDate.getTime(),
     title: session.title,
     hasImage: session.image_url != null,
+    weekKey: getNotebookWeekKey(sessionDate),
   };
 }
 
@@ -93,6 +109,27 @@ export default function MainScreen() {
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width]
   );
+  const goToRecentReceiptMore = useCallback(() => {
+    if (recentReceipts.length === 0) {
+      router.push("/receipt/memory-notebook");
+      return;
+    }
+
+    const currentWeekKey = getNotebookWeekKey(new Date());
+    const currentWeekLatestReceipt = recentReceipts
+      .filter((receipt) => receipt.weekKey === currentWeekKey)
+      .sort((a, b) => b.sortTime - a.sortTime)[0];
+
+    if (!currentWeekLatestReceipt) {
+      router.push("/receipt/memory-notebook");
+      return;
+    }
+
+    router.push({
+      params: { date: currentWeekLatestReceipt.date },
+      pathname: "/receipt/weekly-memory-receipt-detail",
+    });
+  }, [recentReceipts]);
   const dismissSafetyReport = useCallback(() => {
     if (isDismissingSafetyReport.current) {
       return;
@@ -236,7 +273,7 @@ export default function MainScreen() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push("/receipt/weekly-memory-receipts")}
+              onPress={goToRecentReceiptMore}
               style={styles.makeButton}
             >
               <Text maxFontSizeMultiplier={1.1} style={styles.makeText}>

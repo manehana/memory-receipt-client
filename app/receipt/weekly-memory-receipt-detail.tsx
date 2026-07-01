@@ -190,8 +190,10 @@ export default function WeeklyMemoryReceiptDetail() {
         </View>
 
         <ScrollView
+          alwaysBounceVertical={false}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          style={styles.scrollArea}
         >
           <View style={styles.receiptWrap}>
             <View style={styles.receiptPaper}>
@@ -602,10 +604,12 @@ const createStyles = (
     },
     header: {
       alignItems: "center",
+      backgroundColor: "#FFFFFF",
       flexDirection: "row",
-      height: vertical(48),
+      height: vertical(56),
       paddingLeft: fixed(24),
       width: "100%",
+      zIndex: 10,
     },
     headerTitle: {
       color: "#5D5D5D",
@@ -670,13 +674,16 @@ const createStyles = (
       width: receiptWidth,
     },
     safeArea: {
+      backgroundColor: "#FFFFFF",
+      flex: 1,
+    },
+    scrollArea: {
       backgroundColor: "#F8F8F8",
       flex: 1,
     },
     screen: {
       backgroundColor: "#F8F8F8",
       flex: 1,
-      paddingTop: vertical(18),
     },
     sectionDash: {
       borderColor: "#13BB78",
