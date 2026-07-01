@@ -128,3 +128,67 @@ export type RecallSessionResponse = {
   final_score: number | null;
   error: string | null;
 };
+
+// GET /stats — 마이페이지/대시보드용 집계(대화 참여 + 소비). api_spec.md §7.
+
+// 참여한 날이 있는 (year, month)와 그 달 참여일 수.
+export type MonthCount = {
+  year: number;
+  month: number;
+  days: number;
+};
+
+// 요청한 year+month의 참여 현황. participated_days는 day-of-month 오름차순.
+export type MonthParticipation = {
+  year: number;
+  month: number;
+  participated_days: number[];
+  count: number;
+};
+
+export type EngagementStats = {
+  current_streak: number;
+  best_streak: number;
+  last_participated_date: string | null;
+  // 참여한 달 전체(최신순).
+  available_months: MonthCount[];
+  participation: MonthParticipation;
+};
+
+export type MerchantStat = {
+  merchant: string;
+  count: number;
+  total_amount: number;
+};
+
+// 시간대(0–23, KST)별 결제 활동. 결제 없는 시간대는 0으로 채워 24개.
+export type HourlyStat = {
+  hour: number;
+  count: number;
+  total_amount: number;
+};
+
+// category가 null이면 "카테고리 없음"(결제 적재 시 분류 미지정).
+export type CategoryAmount = {
+  category: string | null;
+  total_amount: number;
+  count: number;
+};
+
+export type MonthlyCategoryBreakdown = {
+  year: number;
+  month: number;
+  categories: CategoryAmount[];
+  total_amount: number;
+};
+
+export type SpendingStats = {
+  top_merchants: MerchantStat[];
+  hourly_activity: HourlyStat[];
+  monthly_by_category: MonthlyCategoryBreakdown;
+};
+
+export type StatsResponse = {
+  engagement: EngagementStats;
+  spending: SpendingStats;
+};

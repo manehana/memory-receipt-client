@@ -1,0 +1,94 @@
+name: Android CD
+
+# Builds a release APK on a self-hosted runner and returns it as both a
+# workflow artifact and a GitHub Release asset.
+#
+# NOTE: the android/ folder is gitignored (Expo prebuild output). This workflow
+# deliberately reuses the copy that already lives on the self-hosted runner,
+# so checkout runs with clean: false (the default clean:true would `git clean
+# -ffdx` and delete the generated android/ and node_modules/ folders).
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+# Only one build per branch at a time — the runner shares a single persisted
+# android/ working copy, so overlapping builds would clobber each other.
+concurrency:
+  group: android-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # required for creating the GitHub Release
+
+jobs:
+  build:
+    name: Build release APK
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout (preserve generated android/ and node_modules/)
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate android/ if missing (Expo prebuild)
+        run: |
+          if [ ! -d android ]; then
+            npx expo prebuild -p android --no-install
+          fi
+
+      - name: Clean stale native build artifacts
+        working-directory: android
+        run: rm -rf app/.cxx app/build build
+
+      - name: Gradle clean
+        working-directory: android
+        run: ./gradlew clean
+
+      - name: Assemble release APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Stage APK with descriptive name
+        id: apk
+        shell: bash
+        run: |
+          src="android/app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$src" ]; then
+            echo "::error::Expected APK not found at $src"
+            exit 1
+          fi
+          branch="${GITHUB_REF_NAME//\//-}"
+          name="memory-receipt-${branch}-${{ github.run_number }}-${GITHUB_SHA::7}.apk"
+          mkdir -p artifacts
+          cp "$src" "artifacts/${name}"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "path=artifacts/${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Android build ${{ github.run_number }} (${{ github.ref_name }})"
+          body: |
+            Automated Android release build.
+
+            - Branch: `${{ github.ref_name }}`
+            - Commit: ${{ github.sha }}
+            - APK: `${{ steps.apk.outputs.name }}` (debug-signed)
+          prerelease: true
+          files: ${{ steps.apk.outputs.path }}
