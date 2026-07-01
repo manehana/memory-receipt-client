@@ -1,13 +1,18 @@
-import {
-  fontScaled,
-  scaled,
-} from "@/constants/responsive";
+import { fontScaled, scaled } from "@/constants/responsive";
+import { ApiError, apiMultipart, apiPost } from "@/lib/api";
+import { playBase64Wav, stopCurrent } from "@/lib/audio";
+import type {
+  AnswerResponse,
+  RecallQuestion,
+  SessionStartResponse,
+} from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useMutation } from "@tanstack/react-query";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
-import { router, useLocalSearchParams } from "expo-router";
 import {
   Fragment,
   useCallback,
@@ -28,23 +33,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
+  View,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
-  useWindowDimensions,
-  View,
 } from "react-native";
-import { useMutation } from "@tanstack/react-query";
-import { ApiError, apiMultipart, apiPost } from "@/lib/api";
-import { playBase64Wav, stopCurrent } from "@/lib/audio";
-import type {
-  AnswerResponse,
-  RecallQuestion,
-  SessionStartResponse,
-} from "@/lib/types";
 import Reanimated, {
-  Easing as REasing,
   LinearTransition,
+  Easing as REasing,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -229,7 +226,9 @@ function AnimatedTranscript({
   const seqRef = useRef(0);
 
   const words = useMemo(() => {
-    const tokens = transcript.trim().length ? transcript.trim().split(/\s+/) : [];
+    const tokens = transcript.trim().length
+      ? transcript.trim().split(/\s+/)
+      : [];
     const prev = prevRef.current;
     const next = tokens.map((text, index) => {
       if (prev[index] && prev[index].text === text) {
@@ -243,10 +242,15 @@ function AnimatedTranscript({
 
   // 줄바꿈 위치는 화면 렌더링이 아니라 단어별 UTF-8 바이트 합산으로 직접 계산한다
   const lineBreaks = useMemo(
-    () => computeLineBreaks(words.map((word) => word.text), ANSWER_LINE_MAX_BYTES),
-    [words],
+    () =>
+      computeLineBreaks(
+        words.map((word) => word.text),
+        ANSWER_LINE_MAX_BYTES
+      ),
+    [words]
   );
-  const lineCount = words.length === 0 ? 0 : 1 + lineBreaks.filter(Boolean).length;
+  const lineCount =
+    words.length === 0 ? 0 : 1 + lineBreaks.filter(Boolean).length;
 
   useEffect(() => {
     onLineCountChange(lineCount);
@@ -257,7 +261,11 @@ function AnimatedTranscript({
       {words.map((word, index) => (
         <Fragment key={word.key}>
           {lineBreaks[index] ? <View style={LINE_BREAK_STYLE} /> : null}
-          <AnimatedWord text={word.text} textStyle={textStyle} wrapStyle={wrapStyle} />
+          <AnimatedWord
+            text={word.text}
+            textStyle={textStyle}
+            wrapStyle={wrapStyle}
+          />
         </Fragment>
       ))}
     </View>
@@ -278,7 +286,7 @@ export default function VoiceWaitingScreen() {
   const fontScale = Math.max(scale, 0.76);
   const styles = useMemo(
     () => createStyles(scale, fontScale, circleScale, pillScale, width, height),
-    [circleScale, fontScale, height, pillScale, scale, width],
+    [circleScale, fontScale, height, pillScale, scale, width]
   );
   const listeningCircleOpacity = useRef(new Animated.Value(0)).current;
   const listeningBadgePulse = useRef(new Animated.Value(0)).current;
@@ -293,7 +301,7 @@ export default function VoiceWaitingScreen() {
   const [totalTurns, setTotalTurns] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState<RecallQuestion | null>(
-    null,
+    null
   );
   // 세션이 시작되어 질문 화면으로 진입했는지(준비 화면 종료) 여부
   const [started, setStarted] = useState(false);
@@ -304,8 +312,7 @@ export default function VoiceWaitingScreen() {
   const [isListening, setIsListening] = useState(false);
   const [hasResponse, setHasResponse] = useState(false);
   const [transcript, setTranscript] = useState("");
-  const [completeStatus, setCompleteStatus] =
-    useState<CompleteStatus>("ready");
+  const [completeStatus, setCompleteStatus] = useState<CompleteStatus>("ready");
   const [isAnswerCompact, setIsAnswerCompact] = useState(false);
   const [isAnswerScrollable, setIsAnswerScrollable] = useState(false);
   const [answerAvailableHeight, setAnswerAvailableHeight] = useState<
@@ -324,14 +331,18 @@ export default function VoiceWaitingScreen() {
     (isListening || hasResponse) && completeStatus === "ready";
   const hasTranscript = transcript.trim().length > 0;
   const answerTextStyle = useMemo(
-    () => [styles.answerText, isAnswerCompact ? styles.answerTextCompact : null],
-    [isAnswerCompact, styles],
+    () => [
+      styles.answerText,
+      isAnswerCompact ? styles.answerTextCompact : null,
+    ],
+    [isAnswerCompact, styles]
   );
   const answerBottomGap = scaled(20, scale);
   // 스크롤 컨테이너가 6번째 줄까지는 그대로 보여주고 그 다음 줄부터만 스크롤되도록
   // 화면 여유 공간과 무관하게 6줄 높이로 상한을 둔다
   const answerScrollMaxHeight =
-    fontScaled(ANSWER_LINE_HEIGHT_COMPACT, fontScale) * ANSWER_SCROLL_LINE_THRESHOLD;
+    fontScaled(ANSWER_LINE_HEIGHT_COMPACT, fontScale) *
+    ANSWER_SCROLL_LINE_THRESHOLD;
   const updateAnswerAvailableHeight = useCallback(() => {
     requestAnimationFrame(() => {
       const answerNode = answerAreaRef.current;
@@ -382,7 +393,7 @@ export default function VoiceWaitingScreen() {
       () => {
         setIsExitModalVisible(true);
         return true;
-      },
+      }
     );
 
     return () => subscription.remove();
@@ -423,23 +434,23 @@ export default function VoiceWaitingScreen() {
           toValue: 0,
           useNativeDriver: true,
         }),
-      ]),
+      ])
     );
     const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(listeningBlurPulse, {
-          duration: 760,
+          duration: 800,
           easing: Easing.out(Easing.quad),
           toValue: 1,
           useNativeDriver: true,
         }),
         Animated.timing(listeningBlurPulse, {
-          duration: 760,
+          duration: 800,
           easing: Easing.in(Easing.quad),
           toValue: 0,
           useNativeDriver: true,
         }),
-      ]),
+      ])
     );
 
     badgeAnimation.start();
@@ -447,12 +458,12 @@ export default function VoiceWaitingScreen() {
     const makeWave = (offset: Animated.Value) =>
       Animated.sequence([
         Animated.timing(offset, {
-          duration: 290,
-          toValue: -7,
+          duration: 320,
+          toValue: -5,
           useNativeDriver: true,
         }),
         Animated.timing(offset, {
-          duration: 290,
+          duration: 320,
           toValue: 0,
           useNativeDriver: true,
         }),
@@ -462,7 +473,7 @@ export default function VoiceWaitingScreen() {
       Animated.sequence([
         Animated.stagger(150, listeningMicroOffsets.map(makeWave)),
         Animated.delay(120),
-      ]),
+      ])
     );
 
     microAnimation.start();
@@ -484,7 +495,7 @@ export default function VoiceWaitingScreen() {
   const transcriptRef = useRef("");
   // 말 시작 후 일정 시간이 지나면 녹음은 유지한 채 응답완료 버튼만 띄우는 타이머
   const autoCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
+    null
   );
 
   const clearAutoCompleteTimer = () => {
@@ -588,7 +599,7 @@ export default function VoiceWaitingScreen() {
     },
     // resetTranscript/clearCompleteTimers는 매 렌더 재생성되지만 동작이 안정적이라 의존성에서 제외
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    []
   );
 
   const applySessionStart = useCallback(
@@ -607,7 +618,7 @@ export default function VoiceWaitingScreen() {
         enterTurn(data.question, data.current_index);
       }
     },
-    [enterTurn, goToLoading],
+    [enterTurn, goToLoading]
   );
 
   const startSessionMutation = useMutation({
@@ -617,9 +628,7 @@ export default function VoiceWaitingScreen() {
       }),
     // Gemini 혼잡(503)이면 잠시 후 재시도한다.
     retry: (failureCount, error) =>
-      error instanceof ApiError &&
-      error.status === 503 &&
-      failureCount < 3,
+      error instanceof ApiError && error.status === 503 && failureCount < 3,
     retryDelay: 1500,
     onSuccess: applySessionStart,
     onError: () => {
@@ -644,7 +653,7 @@ export default function VoiceWaitingScreen() {
       return apiMultipart<AnswerResponse>(
         "POST",
         `/recall/sessions/${sessionId}/answer`,
-        form,
+        form
       );
     },
     onSuccess: (data) => {
@@ -725,20 +734,18 @@ export default function VoiceWaitingScreen() {
     }
 
     if (hasResponse) {
-      handleCompletePress();
       return;
     }
 
-    if (!isListening) {
-      void startListening();
+    if (isListening) {
       return;
     }
 
-    // 녹음 종료 → "end" 이벤트에서 hasResponse 처리
-    ExpoSpeechRecognitionModule.stop();
+    void startListening();
   };
 
   const questionNumber = currentIndex + 1;
+  const isMicActionDisabled = isListening || hasResponse;
 
   return (
     <View style={styles.container}>
@@ -773,7 +780,8 @@ export default function VoiceWaitingScreen() {
         ) : (
           <View style={styles.questionBox}>
             <Text maxFontSizeMultiplier={1.1} style={styles.questionCount}>
-              질문 <Text style={styles.questionCountCurrent}>{questionNumber}</Text>/
+              질문{" "}
+              <Text style={styles.questionCountCurrent}>{questionNumber}</Text>/
               {totalTurns}
             </Text>
             <View style={styles.friendAvatar}>
@@ -801,7 +809,10 @@ export default function VoiceWaitingScreen() {
                       {
                         maxHeight:
                           answerAvailableHeight != null
-                            ? Math.min(answerAvailableHeight, answerScrollMaxHeight)
+                            ? Math.min(
+                                answerAvailableHeight,
+                                answerScrollMaxHeight
+                              )
                             : answerScrollMaxHeight,
                       },
                     ]}
@@ -828,10 +839,7 @@ export default function VoiceWaitingScreen() {
             {isListening ? (
               <>
                 {!hasTranscript ? (
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.answerPrompt}
-                  >
+                  <Text maxFontSizeMultiplier={1.1} style={styles.answerPrompt}>
                     지금 응답해주세요...|
                   </Text>
                 ) : null}
@@ -867,14 +875,15 @@ export default function VoiceWaitingScreen() {
               <>
                 {hasTranscript ? (
                   <Pressable
-                  disabled={completeStatus !== "ready"}
-                  onPress={handleCompletePress}
-                  style={[
-                    styles.completeButton,
-                    completeStatus === "pressed" && styles.completeButtonPressed,
-                  ]}
-                >
-                  {completeStatus === "ready" ? (
+                    disabled={completeStatus !== "ready"}
+                    onPress={handleCompletePress}
+                    style={[
+                      styles.completeButton,
+                      completeStatus === "pressed" &&
+                        styles.completeButtonPressed,
+                    ]}
+                  >
+                    {completeStatus === "ready" ? (
                       <Text
                         maxFontSizeMultiplier={1.1}
                         style={styles.completeButtonText}
@@ -896,35 +905,20 @@ export default function VoiceWaitingScreen() {
           </View>
         )}
 
-        <Pressable onPress={handleMainAction} style={styles.micArea}>
+        <View style={styles.micArea}>
           <View style={styles.voiceCircleFrame}>
-            <Animated.Image
-              resizeMode="stretch"
-              source={voiceIdleCircleImage}
-              style={[
-                styles.voiceCircleImage,
-                {
-                  opacity: listeningCircleOpacity.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, 0],
-                  }),
-                },
-              ]}
-            />
-            <Animated.Image
-              resizeMode="stretch"
-              source={voiceListeningCircleImage}
-              style={[
-                styles.voiceCircleImage,
-                { opacity: listeningCircleOpacity },
-              ]}
-            />
-            <View pointerEvents="none" style={styles.voiceSmallCircleLayer}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isMicActionDisabled }}
+              disabled={isMicActionDisabled}
+              onPress={handleMainAction}
+              style={styles.voiceCirclePressLayer}
+            >
               <Animated.Image
-                resizeMode="contain"
-                source={voiceIdleSmallCircleImage}
+                resizeMode="stretch"
+                source={voiceIdleCircleImage}
                 style={[
-                  styles.voiceSmallCircle,
+                  styles.voiceCircleImage,
                   {
                     opacity: listeningCircleOpacity.interpolate({
                       inputRange: [0, 1],
@@ -934,57 +928,80 @@ export default function VoiceWaitingScreen() {
                 ]}
               />
               <Animated.Image
-                resizeMode="contain"
-                source={voiceListeningSmallCircleBlurImage}
+                resizeMode="stretch"
+                source={voiceListeningCircleImage}
                 style={[
-                  styles.voiceListeningSmallCircleBlur,
-                  {
-                    opacity: listeningCircleOpacity,
-                    transform: [
-                      {
-                        scale: listeningBlurPulse.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.92, 1.08],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              />
-              <Animated.Image
-                resizeMode="contain"
-                source={voiceListeningSmallCircleImage}
-                style={[
-                  styles.voiceSmallCircle,
+                  styles.voiceCircleImage,
                   { opacity: listeningCircleOpacity },
                 ]}
               />
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.voiceMicroCircleRow,
-                  { opacity: listeningCircleOpacity },
-                ]}
-              >
-                {listeningMicroOffsets.map((offset, index) => (
-                  <Animated.View
-                    key={index}
-                    style={[
-                      styles.voiceMicroCircleWrap,
-                      {
-                        transform: [{ translateY: offset }],
-                      },
-                    ]}
-                  >
-                    <Image
-                      resizeMode="contain"
-                      source={voiceListeningMicroCircleImage}
-                      style={styles.voiceMicroCircle}
-                    />
-                  </Animated.View>
-                ))}
-              </Animated.View>
-            </View>
+              <View pointerEvents="none" style={styles.voiceSmallCircleLayer}>
+                <Animated.Image
+                  resizeMode="contain"
+                  source={voiceIdleSmallCircleImage}
+                  style={[
+                    styles.voiceSmallCircle,
+                    {
+                      opacity: listeningCircleOpacity.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 0.2],
+                      }),
+                    },
+                  ]}
+                />
+                <Animated.Image
+                  resizeMode="contain"
+                  source={voiceListeningSmallCircleBlurImage}
+                  style={[
+                    styles.voiceListeningSmallCircleBlur,
+                    {
+                      opacity: listeningCircleOpacity,
+                      transform: [
+                        {
+                          scale: listeningBlurPulse.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.92, 1.08],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.Image
+                  resizeMode="contain"
+                  source={voiceListeningSmallCircleImage}
+                  style={[
+                    styles.voiceSmallCircle,
+                    { opacity: listeningCircleOpacity },
+                  ]}
+                />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.voiceMicroCircleRow,
+                    { opacity: listeningCircleOpacity },
+                  ]}
+                >
+                  {listeningMicroOffsets.map((offset, index) => (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.voiceMicroCircleWrap,
+                        {
+                          transform: [{ translateY: offset }],
+                        },
+                      ]}
+                    >
+                      <Image
+                        resizeMode="contain"
+                        source={voiceListeningMicroCircleImage}
+                        style={styles.voiceMicroCircle}
+                      />
+                    </Animated.View>
+                  ))}
+                </Animated.View>
+              </View>
+            </Pressable>
             <View
               onLayout={updateAnswerAvailableHeight}
               pointerEvents="box-none"
@@ -1025,7 +1042,8 @@ export default function VoiceWaitingScreen() {
                   onPress={handleCompletePress}
                   style={[
                     styles.floatingCompleteButton,
-                    completeStatus === "pressed" && styles.completeButtonPressed,
+                    completeStatus === "pressed" &&
+                      styles.completeButtonPressed,
                   ]}
                 >
                   {completeStatus === "ready" ? (
@@ -1047,8 +1065,7 @@ export default function VoiceWaitingScreen() {
               ) : null}
             </View>
           </View>
-
-        </Pressable>
+        </View>
 
         <View pointerEvents="box-none" style={styles.actionPillLayer}>
           {isListening ? (
@@ -1122,7 +1139,10 @@ export default function VoiceWaitingScreen() {
               <Text maxFontSizeMultiplier={1.1} style={styles.exitModalTitle}>
                 오늘의 대화를{"\n"}종료할까요?
               </Text>
-              <Text maxFontSizeMultiplier={1.1} style={styles.exitModalDescription}>
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={styles.exitModalDescription}
+              >
                 지금 나가면 진행 중인 대화는{"\n"}다시 이어갈 수 없어요.
               </Text>
               <View style={styles.exitModalButtonRow}>
@@ -1130,15 +1150,24 @@ export default function VoiceWaitingScreen() {
                   onPress={() => setIsExitModalVisible(false)}
                   style={[styles.exitModalButton, styles.exitModalCancelButton]}
                 >
-                  <Text maxFontSizeMultiplier={1.1} style={styles.exitModalCancelText}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.exitModalCancelText}
+                  >
                     계속하기
                   </Text>
                 </Pressable>
                 <Pressable
                   onPress={confirmExit}
-                  style={[styles.exitModalButton, styles.exitModalConfirmButton]}
+                  style={[
+                    styles.exitModalButton,
+                    styles.exitModalConfirmButton,
+                  ]}
                 >
-                  <Text maxFontSizeMultiplier={1.1} style={styles.exitModalConfirmText}>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.exitModalConfirmText}
+                  >
                     홈으로 가기
                   </Text>
                 </Pressable>
@@ -1157,7 +1186,7 @@ const createStyles = (
   circleScale: number,
   pillScale: number,
   width: number,
-  height: number,
+  height: number
 ) => {
   const actionPillWidth = scaled(146, pillScale);
   const actionPillHeight = scaled(49, pillScale);
@@ -1166,7 +1195,7 @@ const createStyles = (
   const exitModalHorizontalInset = scaled(26, scale);
   const exitModalWidth = Math.min(
     width - exitModalHorizontalInset * 2,
-    scaled(350, scale),
+    scaled(350, scale)
   );
 
   return StyleSheet.create({
@@ -1405,17 +1434,17 @@ const createStyles = (
       alignItems: "center",
       backgroundColor: "#FFFFFF",
       borderRadius: actionPillHeight / 2,
-      elevation: 20,
+      elevation: 10,
       flexDirection: "row",
       gap: scaled(10, pillScale),
       height: actionPillHeight,
       justifyContent: "center",
-      shadowColor: "#13BB78",
+      shadowColor: "#CDCDCD",
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.3,
-      shadowRadius: 10,
+      shadowRadius: 6,
       width: actionPillWidth,
-      zIndex: 20,
+      zIndex: 0,
     },
     listeningBadgeDotFrame: {
       alignItems: "center",
@@ -1425,16 +1454,16 @@ const createStyles = (
     },
     listeningBadgeDotOuter: {
       backgroundColor: "#9FF3D1",
-      borderRadius: scaled(13, pillScale),
-      height: scaled(26, pillScale),
+      borderRadius: scaled(10, pillScale),
+      height: scaled(18, pillScale),
       position: "absolute",
-      width: scaled(26, pillScale),
+      width: scaled(18, pillScale),
     },
     listeningBadgeDotInner: {
       backgroundColor: "#54E5AC",
-      borderRadius: scaled(8, pillScale),
-      height: scaled(16, pillScale),
-      width: scaled(16, pillScale),
+      borderRadius: scaled(6, pillScale),
+      height: scaled(10, pillScale),
+      width: scaled(10, pillScale),
     },
     listeningBadgeText: {
       color: "#9A9A9A",
@@ -1525,6 +1554,12 @@ const createStyles = (
       overflow: "visible",
       position: "absolute",
       width: scaled(525, circleScale),
+    },
+    voiceCirclePressLayer: {
+      alignItems: "center",
+      height: "100%",
+      justifyContent: "center",
+      width: "100%",
     },
     voiceCircleImage: {
       height: "100%",

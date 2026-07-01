@@ -6,8 +6,8 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
-import { useCurrentUser } from "@/lib/user";
 import type { RecallSessionListItem } from "@/lib/types";
+import { useCurrentUser } from "@/lib/user";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
@@ -54,20 +54,36 @@ function formatReceiptDate(value: string): string {
 type RecentReceipt = {
   id: number;
   date: string;
+  sortTime: number;
   title: string;
   hasImage: boolean;
+  weekKey: string;
 };
+
+function getNotebookWeekKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const weekIndex = Math.floor((date.getDate() - 1) / 8);
+  return `${year}-${month}-${weekIndex + 1}`;
+}
 
 // 완료되어 제목이 생성된 세션만 최근 기억 영수증으로 노출한다.
 function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
   if (session.status !== "completed" || !session.title) {
     return null;
   }
+  const sessionDate = new Date(session.session_date);
+  if (Number.isNaN(sessionDate.getTime())) {
+    return null;
+  }
+
   return {
     id: session.id,
     date: formatReceiptDate(session.session_date),
+    sortTime: sessionDate.getTime(),
     title: session.title,
     hasImage: session.image_url != null,
+    weekKey: getNotebookWeekKey(sessionDate),
   };
 }
 
@@ -79,7 +95,7 @@ export default function MainScreen() {
       (user?.recall_sessions ?? [])
         .map(toRecentReceipt)
         .filter((receipt): receipt is RecentReceipt => receipt !== null),
-    [user?.recall_sessions],
+    [user?.recall_sessions]
   );
   const imageHeaders = useImageAuthHeaders();
   const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(true);
@@ -93,6 +109,27 @@ export default function MainScreen() {
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width]
   );
+  const goToRecentReceiptMore = useCallback(() => {
+    if (recentReceipts.length === 0) {
+      router.push("/receipt/memory-notebook");
+      return;
+    }
+
+    const currentWeekKey = getNotebookWeekKey(new Date());
+    const currentWeekLatestReceipt = recentReceipts
+      .filter((receipt) => receipt.weekKey === currentWeekKey)
+      .sort((a, b) => b.sortTime - a.sortTime)[0];
+
+    if (!currentWeekLatestReceipt) {
+      router.push("/receipt/memory-notebook");
+      return;
+    }
+
+    router.push({
+      params: { date: currentWeekLatestReceipt.date },
+      pathname: "/receipt/weekly-memory-receipt-detail",
+    });
+  }, [recentReceipts]);
   const dismissSafetyReport = useCallback(() => {
     if (isDismissingSafetyReport.current) {
       return;
@@ -213,10 +250,18 @@ export default function MainScreen() {
           style={styles.reportCard}
         >
           <Image
-            resizeMode="stretch"
-            source={require("../../assets/images/main/main-cognitive-report.png")}
-            style={styles.reportImage}
+            resizeMode="contain"
+            source={require("../../assets/images/main/main-search.png")}
+            style={styles.reportIcon}
           />
+          <View style={styles.reportTextWrap}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.reportTitle}>
+              MY 상세
+            </Text>
+            <Text maxFontSizeMultiplier={1.1} style={styles.reportDescription}>
+              나의 인지 상태, 소비 상태를 한눈에
+            </Text>
+          </View>
         </Pressable>
 
         <View style={styles.divider} />
@@ -228,7 +273,7 @@ export default function MainScreen() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push("/receipt/weekly-memory-receipts")}
+              onPress={goToRecentReceiptMore}
               style={styles.makeButton}
             >
               <Text maxFontSizeMultiplier={1.1} style={styles.makeText}>
@@ -242,71 +287,72 @@ export default function MainScreen() {
             </Pressable>
           </View>
 
-          <ScrollView
-            contentContainerStyle={styles.receiptList}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.receiptScroller}
-          >
-            {recentReceipts.map((receipt) => (
-              <Pressable
-                key={receipt.id}
-                onPress={() => {
-                  router.push({
-                    params: { date: receipt.date },
-                    pathname: "/receipt/weekly-memory-receipt-detail",
-                  });
-                }}
-                style={styles.receiptCard}
-              >
-                <View style={styles.receiptImageWrap}>
-                  {receipt.hasImage ? (
-                    <ExpoImage
-                      contentFit="cover"
-                      source={{
-                        uri: sessionImageUrl(receipt.id),
-                        headers: imageHeaders,
-                      }}
-                      style={styles.receiptImage}
-                    />
-                  ) : (
-                    <Image
-                      resizeMode="cover"
-                      source={require("../../assets/images/memory-receipt/receipt-thumbnail.png")}
-                      style={styles.receiptImage}
-                    />
-                  )}
-                  <View style={styles.receiptDateBadge}>
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      style={styles.receiptDateText}
-                    >
-                      {receipt.date}
-                    </Text>
-                  </View>
-                </View>
-                <Text
-                  maxFontSizeMultiplier={1.1}
-                  numberOfLines={1}
-                  style={styles.receiptTitle}
+          {recentReceipts.length > 0 ? (
+            <ScrollView
+              contentContainerStyle={styles.receiptList}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.receiptScroller}
+            >
+              {recentReceipts.map((receipt) => (
+                <Pressable
+                  key={receipt.id}
+                  onPress={() => {
+                    router.push({
+                      params: { date: receipt.date },
+                      pathname: "/receipt/weekly-memory-receipt-detail",
+                    });
+                  }}
+                  style={styles.receiptCard}
                 >
-                  {receipt.title}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          {/*
-          <View style={styles.emptyBox}>
-            <Ionicons
-              color="#D8D8D8"
-              name="document"
-              size={scaled(62, scale)}
-            />
-            <Text maxFontSizeMultiplier={1.1} style={styles.emptyText}>
-              기억 영수증이 없어요
-            </Text>
-          </View>
-          */}
+                  <View style={styles.receiptImageWrap}>
+                    {receipt.hasImage ? (
+                      <ExpoImage
+                        contentFit="cover"
+                        source={{
+                          uri: sessionImageUrl(receipt.id),
+                          headers: imageHeaders,
+                        }}
+                        style={styles.receiptImage}
+                      />
+                    ) : (
+                      <Image
+                        resizeMode="cover"
+                        source={require("../../assets/images/memory-receipt/receipt-thumbnail.png")}
+                        style={styles.receiptImage}
+                      />
+                    )}
+                    <View style={styles.receiptDateBadge}>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.receiptDateText}
+                      >
+                        {receipt.date}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    numberOfLines={1}
+                    style={styles.receiptTitle}
+                  >
+                    {receipt.title}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyBox}>
+              <Ionicons
+                color="#D8D8D8"
+                name="document"
+                size={scaled(62, scale)}
+              />
+              <Text maxFontSizeMultiplier={1.1} style={styles.emptyText}>
+                기억 영수증이 없어요
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -507,16 +553,38 @@ const createStyles = (
       width: "100%",
     },
     reportCard: {
+      alignItems: "center",
       alignSelf: "center",
+      backgroundColor: "#707070",
       borderRadius: scaled(8, scale),
+      flexDirection: "row",
+      gap: Math.round(contentWidth * 0.04),
       height: reportHeight,
       marginTop: verticalScaled(16),
       overflow: "hidden",
+      paddingLeft: Math.round(contentWidth * 0.06),
       width: contentWidth,
     },
-    reportImage: {
-      height: "100%",
-      width: "100%",
+    reportIcon: {
+      height: Math.round(reportHeight * 0.64),
+      width: Math.round(reportHeight * 0.64),
+    },
+    reportTextWrap: {
+      flex: 1,
+      justifyContent: "center",
+    },
+    reportTitle: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardBold",
+      fontSize: fontScaled(28, fontScale),
+      lineHeight: fontScaled(36, fontScale),
+    },
+    reportDescription: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(18, fontScale),
+      lineHeight: fontScaled(26, fontScale),
+      marginTop: Math.round(reportHeight * 0.02),
     },
     divider: {
       backgroundColor: "#F2F2F2",
@@ -688,7 +756,6 @@ const createStyles = (
       fontSize: modalScaled(20),
       lineHeight: modalScaled(26),
     },
-    /*
     emptyBox: {
       alignItems: "center",
       marginTop: scaled(64, scale),
@@ -699,6 +766,5 @@ const createStyles = (
       fontSize: fontScaled(16, fontScale),
       marginTop: scaled(12, scale),
     },
-    */
   });
 };

@@ -4,8 +4,13 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
+import { sessionImageUrl } from "@/lib/api";
+import type { RecallSessionListItem } from "@/lib/types";
+import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image as ExpoImage } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -31,39 +36,118 @@ const sortOptions: { label: string; value: SortOption }[] = [
   { label: "오래된순", value: "oldest" },
 ];
 
-const memoryNotebookMonths = [
-  {
-    month: "5월",
-    weeks: [
-      { id: "5-1", period: "5.1~5.8(첫째주)" },
-      { id: "5-2", period: "5.9~5.16(둘째주)" },
-      { id: "5-3", period: "5.17~5.24(셋째주)" },
-      { id: "5-4", period: "5.25~5.31(넷째주)" },
-    ],
-  },
-  {
-    month: "7월",
-    weeks: [
-      { id: "7-1", period: "7.1~7.6(첫째주)" },
-      { id: "7-2", period: "7.7~7.12(둘째주)" },
-      { id: "7-3", period: "7.13~7.18(셋째주)" },
-      { id: "7-4", period: "7.19~7.24(넷째주)" },
-      { id: "7-5", period: "7.25~7.31(다섯째주)" },
-    ],
-  },
-  {
-    month: "8월",
-    weeks: [
-      { id: "8-1", period: "8.1~8.8(첫째주)" },
-      { id: "8-2", period: "8.9~8.16(둘째주)" },
-      { id: "8-3", period: "8.17~8.24(셋째주)" },
-      { id: "8-4", period: "8.25~8.31(넷째주)" },
-    ],
-  },
-];
+const WEEK_LABELS = ["첫째주", "둘째주", "셋째주", "넷째주", "다섯째주"];
+
+type MemoryNotebookWeek = {
+  hasImage: boolean;
+  id: string;
+  latestReceiptTime: number;
+  period: string;
+  receiptId: number;
+  sortTime: number;
+};
+
+type MemoryNotebookMonth = {
+  key: string;
+  month: string;
+  sortTime: number;
+  weeks: MemoryNotebookWeek[];
+};
+
+function getValidSessionDate(session: RecallSessionListItem): Date | null {
+  if (session.status !== "completed" || !session.title) {
+    return null;
+  }
+
+  const date = new Date(session.session_date);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function createWeek(
+  session: RecallSessionListItem,
+  date: Date,
+): MemoryNotebookWeek {
+  const year = date.getFullYear();
+  const monthIndex = date.getMonth();
+  const month = monthIndex + 1;
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  const weekIndex = Math.floor((date.getDate() - 1) / 8);
+  const startDay = weekIndex * 8 + 1;
+  const endDay = Math.min(startDay + 7, lastDay);
+  const weekLabel = WEEK_LABELS[weekIndex] ?? `${weekIndex + 1}주`;
+
+  return {
+    hasImage: session.image_url != null,
+    id: `${year}-${month}-${weekIndex + 1}`,
+    latestReceiptTime: date.getTime(),
+    period: `${month}.${startDay}~${month}.${endDay}(${weekLabel})`,
+    receiptId: session.id,
+    sortTime: new Date(year, monthIndex, startDay).getTime(),
+  };
+}
+
+function createEmptyCurrentMonth(): MemoryNotebookMonth {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth() + 1;
+
+  return {
+    key: `${year}-${month}`,
+    month: `${month}월`,
+    sortTime: new Date(year, month - 1, 1).getTime(),
+    weeks: [],
+  };
+}
+
+function toMemoryNotebookMonths(
+  sessions: RecallSessionListItem[],
+): MemoryNotebookMonth[] {
+  const monthMap = new Map<string, MemoryNotebookMonth>();
+
+  sessions.forEach((session) => {
+    const date = getValidSessionDate(session);
+    if (!date) {
+      return;
+    }
+
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const monthKey = `${year}-${month}`;
+    const monthSection =
+      monthMap.get(monthKey) ??
+      ({
+        key: monthKey,
+        month: `${month}월`,
+        sortTime: new Date(year, month - 1, 1).getTime(),
+        weeks: [],
+      } satisfies MemoryNotebookMonth);
+    const week = createWeek(session, date);
+    const existingWeekIndex = monthSection.weeks.findIndex(
+      (item) => item.id === week.id,
+    );
+
+    if (existingWeekIndex === -1) {
+      monthSection.weeks.push(week);
+    } else if (
+      week.latestReceiptTime >
+      monthSection.weeks[existingWeekIndex].latestReceiptTime
+    ) {
+      monthSection.weeks[existingWeekIndex] = week;
+    }
+
+    monthMap.set(monthKey, monthSection);
+  });
+
+  return Array.from(monthMap.values()).map((section) => ({
+    ...section,
+    weeks: [...section.weeks].sort((a, b) => a.sortTime - b.sortTime),
+  }));
+}
 
 export default function MemoryNotebookScreen() {
   const { width, height } = useWindowDimensions();
+  const { data: user } = useCurrentUser();
+  const imageHeaders = useImageAuthHeaders();
   const insets = useSafeAreaInsets();
   const [selectedSort, setSelectedSort] = useState<SortOption>("latest");
   const [isSortSheetVisible, setIsSortSheetVisible] = useState(false);
@@ -77,12 +161,23 @@ export default function MemoryNotebookScreen() {
   const selectedSortLabel =
     sortOptions.find((option) => option.value === selectedSort)?.label ??
     sortOptions[0].label;
+  const memoryNotebookMonths = useMemo(
+    () => toMemoryNotebookMonths(user?.recall_sessions ?? []),
+    [user?.recall_sessions],
+  );
   const sortedMemoryNotebookMonths = useMemo(
-    () =>
-      selectedSort === "latest"
-        ? [...memoryNotebookMonths].reverse()
-        : memoryNotebookMonths,
-    [selectedSort],
+    () => {
+      const sortedMonths = [...memoryNotebookMonths].sort((a, b) =>
+        selectedSort === "latest"
+          ? b.sortTime - a.sortTime
+          : a.sortTime - b.sortTime,
+      );
+
+      return sortedMonths.length > 0
+        ? sortedMonths
+        : [createEmptyCurrentMonth()];
+    },
+    [memoryNotebookMonths, selectedSort],
   );
 
   const openSortSheet = () => {
@@ -169,32 +264,61 @@ export default function MemoryNotebookScreen() {
                 <View style={styles.monthDivider} />
               </View>
 
-              <ScrollView
-                contentContainerStyle={styles.cardList}
-                horizontal
-                nestedScrollEnabled
-                showsHorizontalScrollIndicator={false}
-              >
-                {section.weeks.map((week) => (
-                  <Pressable
-                    key={week.id}
-                    onPress={() => router.push("/receipt/weekly-memory-receipts")}
-                    style={styles.card}
-                  >
-                    <Image
-                      resizeMode="cover"
-                      source={require("../../assets/images/memory-notebook/memory-note-thumbnail.png")}
-                      style={styles.cardImage}
-                    />
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      style={styles.cardPeriodText}
+              {section.weeks.length > 0 ? (
+                <ScrollView
+                  contentContainerStyle={styles.cardList}
+                  horizontal
+                  nestedScrollEnabled
+                  showsHorizontalScrollIndicator={false}
+                >
+                  {section.weeks.map((week) => (
+                    <Pressable
+                      key={week.id}
+                      onPress={() =>
+                        router.push("/receipt/weekly-memory-receipts")
+                      }
+                      style={styles.card}
                     >
-                      {week.period}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+                      {week.hasImage ? (
+                        <ExpoImage
+                          contentFit="cover"
+                          source={{
+                            uri: sessionImageUrl(week.receiptId),
+                            headers: imageHeaders,
+                          }}
+                          style={styles.cardImage}
+                        />
+                      ) : (
+                        <Image
+                          resizeMode="cover"
+                          source={require("../../assets/images/memory-notebook/memory-note-thumbnail.png")}
+                          style={styles.cardImage}
+                        />
+                      )}
+                      <View style={styles.cardOverlay} />
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.cardPeriodText}
+                      >
+                        {week.period}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.emptyBox}>
+                  <Ionicons
+                    color="#D8D8D8"
+                    name="document"
+                    size={scaled(62, scale)}
+                  />
+                  <Text maxFontSizeMultiplier={1.1} style={styles.emptyText}>
+                    아직 쌓인 기억 수첩이 없네요.{"\n"}
+                    오늘의 대화를 통해 기억 영수증을{"\n"}
+                    차곡차곡 쌓아 봐요.
+                  </Text>
+                </View>
+              )}
             </View>
           ))}
         </ScrollView>
@@ -318,6 +442,14 @@ const createStyles = (
       paddingRight: horizontalPadding,
       paddingTop: fixed(16),
     },
+    cardOverlay: {
+      backgroundColor: "rgba(0, 0, 0, 0.36)",
+      bottom: 0,
+      height: fixed(52),
+      left: 0,
+      position: "absolute",
+      right: 0,
+    },
     cardPeriodText: {
       bottom: fixed(12),
       color: "#FFFFFF",
@@ -327,8 +459,23 @@ const createStyles = (
       position: "absolute",
     },
     content: {
+      flexGrow: 1,
       paddingBottom: vertical(40),
       paddingTop: vertical(12),
+    },
+    emptyBox: {
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: vertical(460),
+      paddingHorizontal: horizontalPadding,
+    },
+    emptyText: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: font(16),
+      lineHeight: font(24),
+      marginTop: fixed(18),
+      textAlign: "center",
     },
     header: {
       alignItems: "center",
