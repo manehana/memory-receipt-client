@@ -4,11 +4,18 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { apiGet } from "@/lib/api";
 import { useStats } from "@/lib/stats";
-import type { MonthCount, SpendingStats } from "@/lib/types";
+import type {
+  MonthCount,
+  RecallSessionListItem,
+  RecallSessionResponse,
+  SpendingStats,
+} from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -81,6 +88,63 @@ type CalendarDate = {
   monthOffset: -1 | 0 | 1;
 };
 type ActivityTab = "conversation" | "consumption";
+
+type RecallScoreState = Pick<
+  RecallSessionResponse,
+  | "score_memory_accuracy"
+  | "score_memory_specificity"
+  | "score_fluency_silence"
+  | "score_fluency_rate"
+  | "score_fluency_filler"
+  | "score_prosody_pitch"
+  | "score_prosody_spectrum"
+  | "anomaly_penalty"
+  | "final_score"
+  | "score_detail"
+  | "image_url"
+  | "title"
+  | "summary"
+>;
+
+function getSessionTime(session: RecallSessionListItem): number {
+  const time = new Date(session.session_date).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function getLatestCompletedSession(
+  sessions: RecallSessionListItem[] | undefined
+): RecallSessionListItem | null {
+  return (sessions ?? [])
+    .filter((session) => session.status === "completed")
+    .reduce<RecallSessionListItem | null>((latest, session) => {
+      if (!latest) {
+        return session;
+      }
+      return getSessionTime(session) > getSessionTime(latest)
+        ? session
+        : latest;
+    }, null);
+}
+
+function toRecallScoreState(
+  session: RecallSessionResponse
+): RecallScoreState {
+  return {
+    anomaly_penalty: session.anomaly_penalty,
+    final_score: session.final_score,
+    image_url: session.image_url,
+    score_detail: session.score_detail,
+    score_fluency_filler: session.score_fluency_filler,
+    score_fluency_rate: session.score_fluency_rate,
+    score_fluency_silence: session.score_fluency_silence,
+    score_memory_accuracy: session.score_memory_accuracy,
+    score_memory_specificity: session.score_memory_specificity,
+    score_prosody_pitch: session.score_prosody_pitch,
+    score_prosody_spectrum: session.score_prosody_spectrum,
+    summary: session.summary,
+    title: session.title,
+  };
+}
 
 function DashedCircle({ color }: { color: string }) {
   return (
@@ -168,6 +232,32 @@ export default function MyActivityScreen() {
   const { data: nowStatsData } = useStats(currentYear, currentMonth + 1);
   // 선택 월 기준 통계: 월별 참여 달력·월별 소비. 선택=현재면 위와 같은 캐시를 공유한다.
   const { data: monthStatsData } = useStats(selectedYear, selectedMonth + 1);
+  const [recallScore, setRecallScore] = useState<RecallScoreState | null>(
+    null
+  );
+  const { data: recallSessions, isSuccess: isRecallSessionsSuccess } =
+    useQuery({
+      queryKey: ["recall-sessions"],
+      queryFn: () => apiGet<RecallSessionListItem[]>("/recall/sessions"),
+      retry: false,
+      staleTime: 1000 * 60 * 5,
+    });
+  const latestCompletedSession = useMemo(
+    () => getLatestCompletedSession(recallSessions),
+    [recallSessions]
+  );
+  const latestCompletedSessionId = latestCompletedSession?.id ?? null;
+  const { data: recallSessionDetail, isError: isRecallSessionDetailError } =
+    useQuery({
+      queryKey: ["recall-session-detail", latestCompletedSessionId],
+      queryFn: () =>
+        apiGet<RecallSessionResponse>(
+          `/recall/sessions/${latestCompletedSessionId}`
+        ),
+      enabled: latestCompletedSessionId != null,
+      retry: false,
+      staleTime: 1000 * 60 * 5,
+    });
 
   const engagementNow = nowStatsData?.engagement;
   const engagementSelected = monthStatsData?.engagement;
@@ -175,6 +265,24 @@ export default function MyActivityScreen() {
 
   const currentStreak = engagementNow?.current_streak ?? 0;
   const bestStreak = engagementNow?.best_streak ?? 0;
+  const hasNoCompletedRecall =
+    isRecallSessionsSuccess && latestCompletedSessionId == null;
+  const shouldShowRecallScore =
+    recallScore != null && !isRecallSessionDetailError;
+
+  useEffect(() => {
+    if (recallSessionDetail) {
+      setRecallScore(toRecallScoreState(recallSessionDetail));
+      return;
+    }
+    if (latestCompletedSessionId == null || isRecallSessionDetailError) {
+      setRecallScore(null);
+    }
+  }, [
+    isRecallSessionDetailError,
+    latestCompletedSessionId,
+    recallSessionDetail,
+  ]);
 
   // 이번주(일~토) 참여 여부. 이번 달 참여일과 대조한다(전달로 넘어간 날은 미참여 처리).
   const participatedThisMonth = engagementNow?.participation.participated_days;
@@ -426,6 +534,54 @@ export default function MyActivityScreen() {
                     </View>
                   </View>
                 </View>
+
+                {shouldShowRecallScore ? (
+                  <View style={styles.recallReportCard}>
+                    <View style={styles.recallReportHeader}>
+                      <View style={styles.recallReportTitleBox}>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.recallReportLabel}
+                        >
+                          안전 리포트
+                        </Text>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          numberOfLines={1}
+                          style={styles.recallReportTitle}
+                        >
+                          {recallScore.title ?? "최근 회상 결과"}
+                        </Text>
+                      </View>
+                      <View style={styles.recallScoreBadge}>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.recallScoreValue}
+                        >
+                          {recallScore.final_score ?? "-"}
+                        </Text>
+                      </View>
+                    </View>
+                    {recallScore.summary ? (
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        numberOfLines={2}
+                        style={styles.recallReportSummary}
+                      >
+                        {recallScore.summary}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : hasNoCompletedRecall ? (
+                  <View style={styles.recallEmptyCard}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.recallEmptyText}
+                    >
+                      회상 결과가 없습니다.
+                    </Text>
+                  </View>
+                ) : null}
 
                 <View style={styles.band} />
 
@@ -1091,6 +1247,72 @@ const createStyles = (
       backgroundColor: "#F8F8F8",
       height: fixed(69),
       width: fixed(2),
+    },
+    recallReportCard: {
+      backgroundColor: "#F8F8F8",
+      borderRadius: fixed(10),
+      marginTop: vertical(14),
+      paddingHorizontal: fixed(18),
+      paddingVertical: vertical(16),
+      width: contentWidth,
+    },
+    recallReportHeader: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    recallReportTitleBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    recallReportLabel: {
+      color: "#13BB78",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(15),
+      lineHeight: font(21),
+    },
+    recallReportTitle: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: font(19),
+      lineHeight: font(26),
+      marginTop: vertical(2),
+    },
+    recallReportSummary: {
+      color: "#7A7A7A",
+      fontFamily: "PretendardMedium",
+      fontSize: font(15),
+      lineHeight: font(21),
+      marginTop: vertical(10),
+    },
+    recallScoreBadge: {
+      alignItems: "center",
+      backgroundColor: "#23CC89",
+      borderRadius: fixed(24),
+      height: fixed(48),
+      justifyContent: "center",
+      marginLeft: fixed(14),
+      width: fixed(48),
+    },
+    recallScoreValue: {
+      color: "#FFFFFF",
+      fontFamily: "PretendardBold",
+      fontSize: font(20),
+      lineHeight: font(26),
+    },
+    recallEmptyCard: {
+      alignItems: "center",
+      backgroundColor: "#F8F8F8",
+      borderRadius: fixed(10),
+      marginTop: vertical(14),
+      paddingVertical: vertical(18),
+      width: contentWidth,
+    },
+    recallEmptyText: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: font(16),
+      lineHeight: font(22),
     },
     band: {
       alignSelf: "center",
