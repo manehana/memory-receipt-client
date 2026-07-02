@@ -21,25 +21,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation } from "@tanstack/react-query";
 import { ApiError, apiPost } from "@/lib/api";
-import { LOGIN_PASSWORD, setToken } from "@/lib/auth";
+import { setToken } from "@/lib/auth";
 import type { LoginResponse } from "@/lib/types";
 
-// 로그인 실패(401)면 같은 자격으로 회원가입 후 재로그인해 계정 생성을 투명하게 처리한다.
-async function loginOrRegister(username: string): Promise<LoginResponse> {
-  const body = { username, password: LOGIN_PASSWORD };
-  try {
-    return await apiPost<LoginResponse>("/auth/login", body);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      await apiPost("/auth/register", body);
-      return apiPost<LoginResponse>("/auth/login", body);
-    }
-    throw error;
-  }
+async function login(username: string, password: string): Promise<LoginResponse> {
+  const body = { username, password };
+
+  return apiPost<LoginResponse>("/auth/login", body);
 }
 
 export default function LoginScreen() {
   const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
   const dotAnimations = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
@@ -52,15 +45,25 @@ export default function LoginScreen() {
     () => createStyles(scale, fontScale, width),
     [fontScale, scale, width]
   );
-  const canLogin = id.trim().length > 0;
+  const trimmedId = id.trim();
+  const canLogin =
+    trimmedId.length > 0 &&
+    trimmedId.length <= 50 &&
+    password.length > 0 &&
+    password.length <= 128;
 
   const loginMutation = useMutation({
-    mutationFn: () => loginOrRegister(id.trim()),
+    mutationFn: () => login(trimmedId, password),
     onSuccess: async (data) => {
       await setToken(data.access_token);
       router.replace("/receipt/main");
     },
-    onError: () => {
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 401) {
+        Alert.alert("로그인 실패", "아이디 또는 비밀번호를 확인해주세요.");
+        return;
+      }
+
       Alert.alert("로그인 실패", "잠시 후 다시 시도해주세요.");
     },
   });
@@ -119,52 +122,92 @@ export default function LoginScreen() {
           />
 
           <View style={styles.form}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.label}>
-              아이디
-            </Text>
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isSubmitting}
-              maxFontSizeMultiplier={1.1}
-              placeholder="아이디를 입력하세요."
-              placeholderTextColor="#9F9F9F"
-              style={styles.input}
-              value={id}
-              onChangeText={setId}
-            />
+            <View style={styles.field}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.label}>
+                아이디
+              </Text>
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isSubmitting}
+                maxLength={50}
+                maxFontSizeMultiplier={1.1}
+                placeholder="아이디를 입력하세요."
+                placeholderTextColor="#9F9F9F"
+                returnKeyType="next"
+                style={styles.input}
+                value={id}
+                onChangeText={setId}
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.label}>
+                비밀번호
+              </Text>
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isSubmitting}
+                maxLength={128}
+                maxFontSizeMultiplier={1.1}
+                placeholder="비밀번호를 입력하세요."
+                placeholderTextColor="#9F9F9F"
+                returnKeyType="done"
+                secureTextEntry
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                onSubmitEditing={handleLogin}
+              />
+            </View>
           </View>
         </View>
 
-        <Pressable
-          disabled={!canLogin || isSubmitting}
-          style={[styles.loginButton, canLogin && styles.loginButtonActive]}
-          onPress={handleLogin}
-        >
-          {isSubmitting ? (
-            <View style={styles.loadingDots}>
-              {dotAnimations.map((animation, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.loadingDot,
-                    { transform: [{ translateY: animation }] },
-                  ]}
-                />
-              ))}
-            </View>
-          ) : (
+        <View style={styles.bottomActions}>
+          <Pressable
+            disabled={!canLogin || isSubmitting}
+            style={[styles.loginButton, canLogin && styles.loginButtonActive]}
+            onPress={handleLogin}
+          >
+            {isSubmitting ? (
+              <View style={styles.loadingDots}>
+                {dotAnimations.map((animation, index) => (
+                  <Animated.View
+                    key={index}
+                    style={[
+                      styles.loadingDot,
+                      { transform: [{ translateY: animation }] },
+                    ]}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={[
+                  styles.loginButtonText,
+                  canLogin && styles.loginButtonTextActive,
+                ]}
+              >
+                로그인
+              </Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            disabled={isSubmitting}
+            style={styles.signUpLink}
+            onPress={() => router.push("/receipt/signup")}
+          >
             <Text
               maxFontSizeMultiplier={1.1}
-              style={[
-                styles.loginButtonText,
-                canLogin && styles.loginButtonTextActive,
-              ]}
+              style={styles.signUpLinkText}
             >
-              로그인
+              회원가입
             </Text>
-          )}
-        </Pressable>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -187,6 +230,10 @@ function createStyles(scale: number, fontScale: number, screenWidth: number) {
     topContent: {
       flexShrink: 1,
     },
+    bottomActions: {
+      alignItems: "center",
+      gap: scaled(18, scale),
+    },
     logo: {
       width: scaled(139, scale),
       height: scaled(121, scale),
@@ -195,9 +242,12 @@ function createStyles(scale: number, fontScale: number, screenWidth: number) {
     },
     form: {
       marginTop: scaled(28, scale),
+      gap: scaled(18, scale),
+    },
+    field: {
+      gap: scaled(14, scale),
     },
     label: {
-      marginBottom: scaled(14, scale),
       color: "#3D3D3A",
       fontSize: fontScaled(20, fontScale),
       fontFamily: "PretendardSemiBold",
@@ -242,6 +292,15 @@ function createStyles(scale: number, fontScale: number, screenWidth: number) {
       height: 11,
       borderRadius: 5.5,
       backgroundColor: "#FFFFFF",
+    },
+    signUpLink: {
+      paddingHorizontal: scaled(16, scale),
+      paddingVertical: scaled(6, scale),
+    },
+    signUpLinkText: {
+      color: "#7A7A7A",
+      fontSize: fontScaled(17, fontScale),
+      fontFamily: "PretendardSemiBold",
     },
   });
 }
