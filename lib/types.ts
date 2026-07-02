@@ -125,7 +125,16 @@ export type RecallSessionResponse = {
   image_url: string | null;
   turns: TurnResponse[];
   payments: PaymentResponse[];
+  score_memory_accuracy: number | null;
+  score_memory_specificity: number | null;
+  score_fluency_silence: number | null;
+  score_fluency_rate: number | null;
+  score_fluency_filler: number | null;
+  score_prosody_pitch: number | null;
+  score_prosody_spectrum: number | null;
+  anomaly_penalty: number | null;
   final_score: number | null;
+  score_detail: Record<string, unknown> | null;
   error: string | null;
 };
 
