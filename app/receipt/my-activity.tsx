@@ -1745,7 +1745,7 @@ const createStyles = (
       width: "100%",
     },
     spendingEmpty: {
-      marginTop: vertical(18),
+      marginTop: vertical(128),
     },
     pickerOverlay: {
       alignItems: "center",
