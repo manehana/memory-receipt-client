@@ -1740,12 +1740,12 @@ const createStyles = (
     emptyHint: {
       color: "#9F9F9F",
       fontFamily: "PretendardMedium",
-      fontSize: font(16),
+      fontSize: font(18),
       textAlign: "center",
       width: "100%",
     },
     spendingEmpty: {
-      marginTop: vertical(128),
+      marginTop: vertical(64),
     },
     pickerOverlay: {
       alignItems: "center",
