@@ -4,18 +4,11 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
-import { apiGet } from "@/lib/api";
 import { useStats } from "@/lib/stats";
-import type {
-  MonthCount,
-  RecallSessionListItem,
-  RecallSessionResponse,
-  SpendingStats,
-} from "@/lib/types";
+import type { MonthCount, SpendingStats } from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -89,64 +82,7 @@ type CalendarDate = {
 };
 type ActivityTab = "conversation" | "consumption";
 
-type RecallScoreState = Pick<
-  RecallSessionResponse,
-  | "score_memory_accuracy"
-  | "score_memory_specificity"
-  | "score_fluency_silence"
-  | "score_fluency_rate"
-  | "score_fluency_filler"
-  | "score_prosody_pitch"
-  | "score_prosody_spectrum"
-  | "anomaly_penalty"
-  | "final_score"
-  | "score_detail"
-  | "image_url"
-  | "title"
-  | "summary"
->;
-
-function getSessionTime(session: RecallSessionListItem): number {
-  const time = new Date(session.session_date).getTime();
-  return Number.isNaN(time) ? 0 : time;
-}
-
-function getLatestCompletedSession(
-  sessions: RecallSessionListItem[] | undefined
-): RecallSessionListItem | null {
-  return (sessions ?? [])
-    .filter((session) => session.status === "completed")
-    .reduce<RecallSessionListItem | null>((latest, session) => {
-      if (!latest) {
-        return session;
-      }
-      return getSessionTime(session) > getSessionTime(latest)
-        ? session
-        : latest;
-    }, null);
-}
-
-function toRecallScoreState(
-  session: RecallSessionResponse
-): RecallScoreState {
-  return {
-    anomaly_penalty: session.anomaly_penalty,
-    final_score: session.final_score,
-    image_url: session.image_url,
-    score_detail: session.score_detail,
-    score_fluency_filler: session.score_fluency_filler,
-    score_fluency_rate: session.score_fluency_rate,
-    score_fluency_silence: session.score_fluency_silence,
-    score_memory_accuracy: session.score_memory_accuracy,
-    score_memory_specificity: session.score_memory_specificity,
-    score_prosody_pitch: session.score_prosody_pitch,
-    score_prosody_spectrum: session.score_prosody_spectrum,
-    summary: session.summary,
-    title: session.title,
-  };
-}
-
-function DashedCircle({ color }: { color: string }) {
+function DashedCircle({ color, fill }: { color: string; fill?: string }) {
   return (
     <Svg
       height="100%"
@@ -154,6 +90,7 @@ function DashedCircle({ color }: { color: string }) {
       viewBox="0 0 100 100"
       width="100%"
     >
+      {fill ? <Circle cx="50" cy="50" fill={fill} r="47" /> : null}
       <Circle
         cx="50"
         cy="50"
@@ -232,32 +169,6 @@ export default function MyActivityScreen() {
   const { data: nowStatsData } = useStats(currentYear, currentMonth + 1);
   // 선택 월 기준 통계: 월별 참여 달력·월별 소비. 선택=현재면 위와 같은 캐시를 공유한다.
   const { data: monthStatsData } = useStats(selectedYear, selectedMonth + 1);
-  const [recallScore, setRecallScore] = useState<RecallScoreState | null>(
-    null
-  );
-  const { data: recallSessions, isSuccess: isRecallSessionsSuccess } =
-    useQuery({
-      queryKey: ["recall-sessions"],
-      queryFn: () => apiGet<RecallSessionListItem[]>("/recall/sessions"),
-      retry: false,
-      staleTime: 1000 * 60 * 5,
-    });
-  const latestCompletedSession = useMemo(
-    () => getLatestCompletedSession(recallSessions),
-    [recallSessions]
-  );
-  const latestCompletedSessionId = latestCompletedSession?.id ?? null;
-  const { data: recallSessionDetail, isError: isRecallSessionDetailError } =
-    useQuery({
-      queryKey: ["recall-session-detail", latestCompletedSessionId],
-      queryFn: () =>
-        apiGet<RecallSessionResponse>(
-          `/recall/sessions/${latestCompletedSessionId}`
-        ),
-      enabled: latestCompletedSessionId != null,
-      retry: false,
-      staleTime: 1000 * 60 * 5,
-    });
 
   const engagementNow = nowStatsData?.engagement;
   const engagementSelected = monthStatsData?.engagement;
@@ -265,24 +176,6 @@ export default function MyActivityScreen() {
 
   const currentStreak = engagementNow?.current_streak ?? 0;
   const bestStreak = engagementNow?.best_streak ?? 0;
-  const hasNoCompletedRecall =
-    isRecallSessionsSuccess && latestCompletedSessionId == null;
-  const shouldShowRecallScore =
-    recallScore != null && !isRecallSessionDetailError;
-
-  useEffect(() => {
-    if (recallSessionDetail) {
-      setRecallScore(toRecallScoreState(recallSessionDetail));
-      return;
-    }
-    if (latestCompletedSessionId == null || isRecallSessionDetailError) {
-      setRecallScore(null);
-    }
-  }, [
-    isRecallSessionDetailError,
-    latestCompletedSessionId,
-    recallSessionDetail,
-  ]);
 
   // 이번주(일~토) 참여 여부. 이번 달 참여일과 대조한다(전달로 넘어간 날은 미참여 처리).
   const participatedThisMonth = engagementNow?.participation.participated_days;
@@ -311,15 +204,11 @@ export default function MyActivityScreen() {
     todayWeekIndex,
   ]);
 
-  // 이번주 지난 날(오늘 포함)을 모두 참여했을 때만 칭찬 배너를 보여준다.
-  const allElapsedCompleted =
-    completedWeekDays.length > 0 &&
-    Array.from({ length: todayWeekIndex + 1 }, (_, index) => index).every(
-      (index) => completedWeekDays.includes(index)
-    );
-
   const isSelectedCurrentMonth =
     selectedYear === currentYear && selectedMonth === currentMonth;
+  // 과거 이동 한계: 1년 전(같은 달)에 도달하면 더 이상 왼쪽으로 못 간다.
+  const isSelectedEarliestMonth =
+    selectedYear === currentYear - 1 && selectedMonth === currentMonth;
   const daysInSelectedMonth = getDaysInMonth(selectedYear, selectedMonth);
   const calendarDates = useMemo(
     () => createCalendarDates(selectedYear, selectedMonth),
@@ -354,6 +243,18 @@ export default function MyActivityScreen() {
     setSelectedYear(year);
     setSelectedMonth(month1Based - 1);
     setIsMonthPickerOpen(false);
+  };
+  // 월별 참여 현황: 이번 달을 기준으로 좌우 화살표로 월을 이동한다(미래로는 이동 불가).
+  const changeMonth = (delta: number) => {
+    const base = new Date(selectedYear, selectedMonth + delta, 1);
+    // 미래(이번 달 이후)로는 못 가고, 과거는 1년 전(같은 달)까지만 이동한다.
+    const upperBound = new Date(currentYear, currentMonth, 1);
+    const lowerBound = new Date(currentYear - 1, currentMonth, 1);
+    if (base > upperBound || base < lowerBound) {
+      return;
+    }
+    setSelectedYear(base.getFullYear());
+    setSelectedMonth(base.getMonth());
   };
   const selectTab = (nextTab: ActivityTab) => {
     if (nextTab === activeTab) {
@@ -535,54 +436,6 @@ export default function MyActivityScreen() {
                   </View>
                 </View>
 
-                {shouldShowRecallScore ? (
-                  <View style={styles.recallReportCard}>
-                    <View style={styles.recallReportHeader}>
-                      <View style={styles.recallReportTitleBox}>
-                        <Text
-                          maxFontSizeMultiplier={1.1}
-                          style={styles.recallReportLabel}
-                        >
-                          안전 리포트
-                        </Text>
-                        <Text
-                          maxFontSizeMultiplier={1.1}
-                          numberOfLines={1}
-                          style={styles.recallReportTitle}
-                        >
-                          {recallScore.title ?? "최근 회상 결과"}
-                        </Text>
-                      </View>
-                      <View style={styles.recallScoreBadge}>
-                        <Text
-                          maxFontSizeMultiplier={1.1}
-                          style={styles.recallScoreValue}
-                        >
-                          {recallScore.final_score ?? "-"}
-                        </Text>
-                      </View>
-                    </View>
-                    {recallScore.summary ? (
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        numberOfLines={2}
-                        style={styles.recallReportSummary}
-                      >
-                        {recallScore.summary}
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : hasNoCompletedRecall ? (
-                  <View style={styles.recallEmptyCard}>
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      style={styles.recallEmptyText}
-                    >
-                      회상 결과가 없습니다.
-                    </Text>
-                  </View>
-                ) : null}
-
                 <View style={styles.band} />
 
                 <View style={styles.sectionHeader}>
@@ -641,18 +494,16 @@ export default function MyActivityScreen() {
                   </View>
                 </View>
 
-                {allElapsedCompleted ? (
-                  <View style={styles.rewardBanner}>
-                    <Image
-                      resizeMode="contain"
-                      source={require("../../assets/images/my-activity/conversation_history_weekly_reward.png")}
-                      style={styles.rewardIcon}
-                    />
-                    <Text maxFontSizeMultiplier={1.1} style={styles.rewardText}>
-                      이번주 모두 참여했어요. 오늘도 함께해요!
-                    </Text>
-                  </View>
-                ) : null}
+                <View style={styles.rewardBanner}>
+                  <Image
+                    resizeMode="contain"
+                    source={require("../../assets/images/my-activity/conversation_history_weekly_reward.png")}
+                    style={styles.rewardIcon}
+                  />
+                  <Text maxFontSizeMultiplier={1.1} style={styles.rewardText}>
+                    이번주 모두 참여했어요. 오늘도 함께해요!
+                  </Text>
+                </View>
 
                 <View style={styles.band} />
 
@@ -660,33 +511,51 @@ export default function MyActivityScreen() {
                   <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
                     월별 참여 현황
                   </Text>
-                  <Pressable
-                    onPress={() => setIsMonthPickerOpen(true)}
-                    style={styles.monthMeta}
-                  >
-                    <Text maxFontSizeMultiplier={1.1} style={styles.monthText}>
-                      {selectedYear}년 {selectedMonth + 1}월
-                    </Text>
-                    <Ionicons
-                      color="#9F9F9F"
-                      name="chevron-down"
-                      size={scaled(18, scale)}
-                    />
-                  </Pressable>
                 </View>
                 <View style={styles.monthCountRow}>
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.monthCountStrong}
-                  >
-                    {monthParticipationCount}
-                  </Text>
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.monthCountMuted}
-                  >
-                    /{daysInSelectedMonth}일
-                  </Text>
+                  <View style={styles.monthCount}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.monthCountStrong}
+                    >
+                      {monthParticipationCount}
+                    </Text>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.monthCountMuted}
+                    >
+                      /{daysInSelectedMonth}일
+                    </Text>
+                  </View>
+                  <View style={styles.monthMeta}>
+                    <Pressable
+                      disabled={isSelectedEarliestMonth}
+                      hitSlop={8}
+                      onPress={() => changeMonth(-1)}
+                      style={styles.monthArrow}
+                    >
+                      <Ionicons
+                        color={isSelectedEarliestMonth ? "#D8D8D8" : "#9F9F9F"}
+                        name="caret-back"
+                        size={styles.monthArrowSize}
+                      />
+                    </Pressable>
+                    <Text maxFontSizeMultiplier={1.1} style={styles.monthText}>
+                      {selectedMonth + 1}월
+                    </Text>
+                    <Pressable
+                      disabled={isSelectedCurrentMonth}
+                      hitSlop={8}
+                      onPress={() => changeMonth(1)}
+                      style={styles.monthArrow}
+                    >
+                      <Ionicons
+                        color={isSelectedCurrentMonth ? "#D8D8D8" : "#9F9F9F"}
+                        name="caret-forward"
+                        size={styles.monthArrowSize}
+                      />
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View style={styles.calendarCard}>
@@ -722,11 +591,10 @@ export default function MyActivityScreen() {
                               style={[
                                 styles.dateCircle,
                                 isCompleted && styles.dateCircleCompleted,
-                                isToday && styles.dateCircleToday,
                               ]}
                             >
                               {isToday ? (
-                                <DashedCircle color="#54E5AC" />
+                                <DashedCircle color="#54E5AC" fill="#EBFCF5" />
                               ) : null}
                               <Text
                                 maxFontSizeMultiplier={1.1}
@@ -863,6 +731,11 @@ function ConsumptionHistoryContent({
   const categories = spending?.monthly_by_category.categories ?? [];
   const monthTotal = spending?.monthly_by_category.total_amount ?? 0;
 
+  // 소비 데이터는 전날 오후 11:59 기준 집계라, "전날" 대신 실제 어제 날짜를 노출한다.
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const referenceLabel = `${yesterday.getMonth() + 1}월 ${yesterday.getDate()}일 오후 11:59 기준`;
+
   return (
     <>
       <View style={styles.consumptionSectionHeader}>
@@ -870,7 +743,7 @@ function ConsumptionHistoryContent({
           자주 간 곳 TOP3
         </Text>
         <Text maxFontSizeMultiplier={1.1} style={styles.referenceText}>
-          전날 오후 11:59 기준
+          {referenceLabel}
         </Text>
       </View>
 
@@ -909,7 +782,7 @@ function ConsumptionHistoryContent({
           시간대 별 활동
         </Text>
         <Text maxFontSizeMultiplier={1.1} style={styles.referenceText}>
-          전날 오후 11:59 기준
+          {referenceLabel}
         </Text>
       </View>
 
@@ -1087,8 +960,10 @@ const createStyles = (
   const calendarCellWidth = Math.floor((contentWidth - fixed(22)) / 7);
   const weekCircleSize = fixed(36.5);
   const dateCircleSize = fixed(39.77);
+  // 월 선택 삼각형: 402×874 기준 18을 폰트와 동일한 반응형 스케일로 노출한다.
+  const monthArrowSize = font(18);
 
-  return StyleSheet.create({
+  const styles = StyleSheet.create({
     safeArea: {
       backgroundColor: "#FFFFFF",
       flex: 1,
@@ -1248,72 +1123,6 @@ const createStyles = (
       height: fixed(69),
       width: fixed(2),
     },
-    recallReportCard: {
-      backgroundColor: "#F8F8F8",
-      borderRadius: fixed(10),
-      marginTop: vertical(14),
-      paddingHorizontal: fixed(18),
-      paddingVertical: vertical(16),
-      width: contentWidth,
-    },
-    recallReportHeader: {
-      alignItems: "center",
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    recallReportTitleBox: {
-      flex: 1,
-      minWidth: 0,
-    },
-    recallReportLabel: {
-      color: "#13BB78",
-      fontFamily: "PretendardSemiBold",
-      fontSize: font(15),
-      lineHeight: font(21),
-    },
-    recallReportTitle: {
-      color: "#353535",
-      fontFamily: "PretendardSemiBold",
-      fontSize: font(19),
-      lineHeight: font(26),
-      marginTop: vertical(2),
-    },
-    recallReportSummary: {
-      color: "#7A7A7A",
-      fontFamily: "PretendardMedium",
-      fontSize: font(15),
-      lineHeight: font(21),
-      marginTop: vertical(10),
-    },
-    recallScoreBadge: {
-      alignItems: "center",
-      backgroundColor: "#23CC89",
-      borderRadius: fixed(24),
-      height: fixed(48),
-      justifyContent: "center",
-      marginLeft: fixed(14),
-      width: fixed(48),
-    },
-    recallScoreValue: {
-      color: "#FFFFFF",
-      fontFamily: "PretendardBold",
-      fontSize: font(20),
-      lineHeight: font(26),
-    },
-    recallEmptyCard: {
-      alignItems: "center",
-      backgroundColor: "#F8F8F8",
-      borderRadius: fixed(10),
-      marginTop: vertical(14),
-      paddingVertical: vertical(18),
-      width: contentWidth,
-    },
-    recallEmptyText: {
-      color: "#9F9F9F",
-      fontFamily: "PretendardMedium",
-      fontSize: font(16),
-      lineHeight: font(22),
-    },
     band: {
       alignSelf: "center",
       backgroundColor: "#F8F8F8",
@@ -1421,17 +1230,28 @@ const createStyles = (
     monthMeta: {
       alignItems: "center",
       flexDirection: "row",
+      gap: fixed(2),
+    },
+    monthArrow: {
+      alignItems: "center",
+      justifyContent: "center",
     },
     monthText: {
       color: "#9F9F9F",
       fontFamily: "PretendardMedium",
       fontSize: font(18),
-      marginRight: fixed(3),
+      minWidth: fixed(32),
+      textAlign: "center",
     },
     monthCountRow: {
+      alignItems: "flex-end",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: vertical(5),
+    },
+    monthCount: {
       alignItems: "baseline",
       flexDirection: "row",
-      marginTop: vertical(5),
     },
     monthCountStrong: {
       color: "#13BB78",
@@ -1485,9 +1305,6 @@ const createStyles = (
     },
     dateCircleCompleted: {
       backgroundColor: "#23CC89",
-    },
-    dateCircleToday: {
-      backgroundColor: "#EBFCF5",
     },
     dateText: {
       color: "#5D5D5D",
@@ -1740,12 +1557,12 @@ const createStyles = (
     emptyHint: {
       color: "#9F9F9F",
       fontFamily: "PretendardMedium",
-      fontSize: font(16),
+      fontSize: font(18),
       textAlign: "center",
       width: "100%",
     },
     spendingEmpty: {
-      marginTop: vertical(18),
+      marginTop: vertical(64),
     },
     pickerOverlay: {
       alignItems: "center",
@@ -1793,4 +1610,6 @@ const createStyles = (
       fontSize: font(15),
     },
   });
+
+  return Object.assign(styles, { monthArrowSize });
 };
