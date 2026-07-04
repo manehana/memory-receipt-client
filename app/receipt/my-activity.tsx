@@ -206,6 +206,9 @@ export default function MyActivityScreen() {
 
   const isSelectedCurrentMonth =
     selectedYear === currentYear && selectedMonth === currentMonth;
+  // 과거 이동 한계: 1년 전(같은 달)에 도달하면 더 이상 왼쪽으로 못 간다.
+  const isSelectedEarliestMonth =
+    selectedYear === currentYear - 1 && selectedMonth === currentMonth;
   const daysInSelectedMonth = getDaysInMonth(selectedYear, selectedMonth);
   const calendarDates = useMemo(
     () => createCalendarDates(selectedYear, selectedMonth),
@@ -244,16 +247,14 @@ export default function MyActivityScreen() {
   // 월별 참여 현황: 이번 달을 기준으로 좌우 화살표로 월을 이동한다(미래로는 이동 불가).
   const changeMonth = (delta: number) => {
     const base = new Date(selectedYear, selectedMonth + delta, 1);
-    const nextYear = base.getFullYear();
-    const nextMonth = base.getMonth();
-    if (
-      nextYear > currentYear ||
-      (nextYear === currentYear && nextMonth > currentMonth)
-    ) {
+    // 미래(이번 달 이후)로는 못 가고, 과거는 1년 전(같은 달)까지만 이동한다.
+    const upperBound = new Date(currentYear, currentMonth, 1);
+    const lowerBound = new Date(currentYear - 1, currentMonth, 1);
+    if (base > upperBound || base < lowerBound) {
       return;
     }
-    setSelectedYear(nextYear);
-    setSelectedMonth(nextMonth);
+    setSelectedYear(base.getFullYear());
+    setSelectedMonth(base.getMonth());
   };
   const selectTab = (nextTab: ActivityTab) => {
     if (nextTab === activeTab) {
@@ -528,12 +529,13 @@ export default function MyActivityScreen() {
                   </View>
                   <View style={styles.monthMeta}>
                     <Pressable
+                      disabled={isSelectedEarliestMonth}
                       hitSlop={8}
                       onPress={() => changeMonth(-1)}
                       style={styles.monthArrow}
                     >
                       <Ionicons
-                        color="#9F9F9F"
+                        color={isSelectedEarliestMonth ? "#D8D8D8" : "#9F9F9F"}
                         name="caret-back"
                         size={styles.monthArrowSize}
                       />
