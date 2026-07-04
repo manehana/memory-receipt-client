@@ -146,7 +146,7 @@ function toRecallScoreState(
   };
 }
 
-function DashedCircle({ color }: { color: string }) {
+function DashedCircle({ color, fill }: { color: string; fill?: string }) {
   return (
     <Svg
       height="100%"
@@ -154,6 +154,7 @@ function DashedCircle({ color }: { color: string }) {
       viewBox="0 0 100 100"
       width="100%"
     >
+      {fill ? <Circle cx="50" cy="50" fill={fill} r="47" /> : null}
       <Circle
         cx="50"
         cy="50"
@@ -753,11 +754,10 @@ export default function MyActivityScreen() {
                               style={[
                                 styles.dateCircle,
                                 isCompleted && styles.dateCircleCompleted,
-                                isToday && styles.dateCircleToday,
                               ]}
                             >
                               {isToday ? (
-                                <DashedCircle color="#54E5AC" />
+                                <DashedCircle color="#54E5AC" fill="#EBFCF5" />
                               ) : null}
                               <Text
                                 maxFontSizeMultiplier={1.1}
@@ -1534,9 +1534,6 @@ const createStyles = (
     },
     dateCircleCompleted: {
       backgroundColor: "#23CC89",
-    },
-    dateCircleToday: {
-      backgroundColor: "#EBFCF5",
     },
     dateText: {
       color: "#5D5D5D",
