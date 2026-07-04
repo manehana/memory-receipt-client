@@ -1,7 +1,9 @@
 name: Android CD
 
-# Builds a release APK on a self-hosted runner and returns it as both a
-# workflow artifact and a GitHub Release asset.
+# Builds a release APK on a self-hosted runner and publishes it as a GitHub
+# Release asset. (We intentionally do NOT also upload it as a workflow artifact:
+# the self-hosted runner's upload bandwidth is the bottleneck, and uploading the
+# same APK twice roughly doubled the total time.)
 #
 # NOTE: the android/ folder is gitignored (Expo prebuild output). This workflow
 # deliberately reuses the copy that already lives on the self-hosted runner,
@@ -70,14 +72,6 @@ jobs:
           cp "$src" "artifacts/${name}"
           echo "name=${name}" >> "$GITHUB_OUTPUT"
           echo "path=artifacts/${name}" >> "$GITHUB_OUTPUT"
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.apk.outputs.name }}
-          path: ${{ steps.apk.outputs.path }}
-          if-no-files-found: error
-          retention-days: 30
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
