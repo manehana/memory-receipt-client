@@ -863,6 +863,11 @@ function ConsumptionHistoryContent({
   const categories = spending?.monthly_by_category.categories ?? [];
   const monthTotal = spending?.monthly_by_category.total_amount ?? 0;
 
+  // 소비 데이터는 전날 오후 11:59 기준 집계라, "전날" 대신 실제 어제 날짜를 노출한다.
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const referenceLabel = `${yesterday.getMonth() + 1}월 ${yesterday.getDate()}일 오후 11:59 기준`;
+
   return (
     <>
       <View style={styles.consumptionSectionHeader}>
@@ -870,7 +875,7 @@ function ConsumptionHistoryContent({
           자주 간 곳 TOP3
         </Text>
         <Text maxFontSizeMultiplier={1.1} style={styles.referenceText}>
-          전날 오후 11:59 기준
+          {referenceLabel}
         </Text>
       </View>
 
@@ -909,7 +914,7 @@ function ConsumptionHistoryContent({
           시간대 별 활동
         </Text>
         <Text maxFontSizeMultiplier={1.1} style={styles.referenceText}>
-          전날 오후 11:59 기준
+          {referenceLabel}
         </Text>
       </View>
 
