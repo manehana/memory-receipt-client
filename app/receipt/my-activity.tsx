@@ -355,6 +355,20 @@ export default function MyActivityScreen() {
     setSelectedMonth(month1Based - 1);
     setIsMonthPickerOpen(false);
   };
+  // 월별 참여 현황: 이번 달을 기준으로 좌우 화살표로 월을 이동한다(미래로는 이동 불가).
+  const changeMonth = (delta: number) => {
+    const base = new Date(selectedYear, selectedMonth + delta, 1);
+    const nextYear = base.getFullYear();
+    const nextMonth = base.getMonth();
+    if (
+      nextYear > currentYear ||
+      (nextYear === currentYear && nextMonth > currentMonth)
+    ) {
+      return;
+    }
+    setSelectedYear(nextYear);
+    setSelectedMonth(nextMonth);
+  };
   const selectTab = (nextTab: ActivityTab) => {
     if (nextTab === activeTab) {
       return;
@@ -660,33 +674,50 @@ export default function MyActivityScreen() {
                   <Text maxFontSizeMultiplier={1.1} style={styles.sectionTitle}>
                     월별 참여 현황
                   </Text>
-                  <Pressable
-                    onPress={() => setIsMonthPickerOpen(true)}
-                    style={styles.monthMeta}
-                  >
-                    <Text maxFontSizeMultiplier={1.1} style={styles.monthText}>
-                      {selectedYear}년 {selectedMonth + 1}월
-                    </Text>
-                    <Ionicons
-                      color="#9F9F9F"
-                      name="chevron-down"
-                      size={scaled(18, scale)}
-                    />
-                  </Pressable>
                 </View>
                 <View style={styles.monthCountRow}>
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.monthCountStrong}
-                  >
-                    {monthParticipationCount}
-                  </Text>
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.monthCountMuted}
-                  >
-                    /{daysInSelectedMonth}일
-                  </Text>
+                  <View style={styles.monthCount}>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.monthCountStrong}
+                    >
+                      {monthParticipationCount}
+                    </Text>
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.monthCountMuted}
+                    >
+                      /{daysInSelectedMonth}일
+                    </Text>
+                  </View>
+                  <View style={styles.monthMeta}>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => changeMonth(-1)}
+                      style={styles.monthArrow}
+                    >
+                      <Ionicons
+                        color="#9F9F9F"
+                        name="caret-back"
+                        size={styles.monthArrowSize}
+                      />
+                    </Pressable>
+                    <Text maxFontSizeMultiplier={1.1} style={styles.monthText}>
+                      {selectedMonth + 1}월
+                    </Text>
+                    <Pressable
+                      disabled={isSelectedCurrentMonth}
+                      hitSlop={8}
+                      onPress={() => changeMonth(1)}
+                      style={styles.monthArrow}
+                    >
+                      <Ionicons
+                        color={isSelectedCurrentMonth ? "#D8D8D8" : "#9F9F9F"}
+                        name="caret-forward"
+                        size={styles.monthArrowSize}
+                      />
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View style={styles.calendarCard}>
@@ -1092,8 +1123,10 @@ const createStyles = (
   const calendarCellWidth = Math.floor((contentWidth - fixed(22)) / 7);
   const weekCircleSize = fixed(36.5);
   const dateCircleSize = fixed(39.77);
+  // 월 선택 삼각형: 402×874 기준 18을 폰트와 동일한 반응형 스케일로 노출한다.
+  const monthArrowSize = font(18);
 
-  return StyleSheet.create({
+  const styles = StyleSheet.create({
     safeArea: {
       backgroundColor: "#FFFFFF",
       flex: 1,
@@ -1426,17 +1459,28 @@ const createStyles = (
     monthMeta: {
       alignItems: "center",
       flexDirection: "row",
+      gap: fixed(2),
+    },
+    monthArrow: {
+      alignItems: "center",
+      justifyContent: "center",
     },
     monthText: {
       color: "#9F9F9F",
       fontFamily: "PretendardMedium",
       fontSize: font(18),
-      marginRight: fixed(3),
+      minWidth: fixed(32),
+      textAlign: "center",
     },
     monthCountRow: {
+      alignItems: "flex-end",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: vertical(5),
+    },
+    monthCount: {
       alignItems: "baseline",
       flexDirection: "row",
-      marginTop: vertical(5),
     },
     monthCountStrong: {
       color: "#13BB78",
@@ -1798,4 +1842,6 @@ const createStyles = (
       fontSize: font(15),
     },
   });
+
+  return Object.assign(styles, { monthArrowSize });
 };
