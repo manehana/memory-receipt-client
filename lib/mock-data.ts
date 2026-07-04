@@ -272,15 +272,14 @@ const mockStats: StatsResponse = {
     best_streak: 15,
     last_participated_date: "2026-06-16",
     available_months: [
-      { year: 2026, month: 7, days: 6 },
-      { year: 2026, month: 6, days: 6 },
+      { year: 2026, month: 6, days: 3 },
       { year: 2026, month: 5, days: 6 },
     ],
     participation: {
       year: 2026,
       month: 6,
-      participated_days: [3, 8, 13, 18, 23, 29],
-      count: 6,
+      participated_days: [3, 8, 13],
+      count: 3,
     },
   },
   spending: {

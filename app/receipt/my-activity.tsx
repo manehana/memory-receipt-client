@@ -343,6 +343,11 @@ export default function MyActivityScreen() {
 
   const isSelectedCurrentMonth =
     selectedYear === currentYear && selectedMonth === currentMonth;
+  const currentDayTime = new Date(
+    currentYear,
+    currentMonth,
+    currentDate
+  ).getTime();
   const daysInSelectedMonth = getDaysInMonth(selectedYear, selectedMonth);
   const calendarDates = useMemo(
     () => createCalendarDates(selectedYear, selectedMonth),
@@ -732,10 +737,18 @@ export default function MyActivityScreen() {
                           isSelectedCurrentMonth &&
                           calendarDate.monthOffset === 0 &&
                           calendarDate.date === currentDate;
+                        const isFutureDate =
+                          !isOutsideMonth &&
+                          new Date(
+                            selectedYear,
+                            selectedMonth,
+                            calendarDate.date
+                          ).getTime() > currentDayTime;
                         const isCompleted =
                           participatedSelected.has(calendarDate.date) &&
                           !isOutsideMonth &&
-                          !isToday;
+                          !isToday &&
+                          !isFutureDate;
                         return (
                           <View
                             key={`${rowIndex}-${index}`}

@@ -202,9 +202,27 @@ export default function MainScreen() {
           >
             <Image
               resizeMode="stretch"
-              source={require("../../assets/images/main/main-chat.png")}
+              source={require("../../assets/images/main/main_today_card.png")}
               style={styles.squareCardImage}
             />
+            <View pointerEvents="none" style={styles.squareCardContent}>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardTitle}
+              >
+                오늘의 대화
+              </Text>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardDescription}
+              >
+                소비 이력 기반 음성 대화
+              </Text>
+            </View>
           </Pressable>
 
           <Pressable
@@ -213,9 +231,27 @@ export default function MainScreen() {
           >
             <Image
               resizeMode="stretch"
-              source={require("../../assets/images/main/main-memory-book.png")}
+              source={require("../../assets/images/main/main_diary_card.png")}
               style={styles.squareCardImage}
             />
+            <View pointerEvents="none" style={styles.squareCardContent}>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardTitle}
+              >
+                기억 수첩
+              </Text>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardDescription}
+              >
+                기억 영수증 모음
+              </Text>
+            </View>
           </Pressable>
         </View>
 
@@ -526,11 +562,31 @@ const createStyles = (
     },
     squareCard: {
       height: cardHeight,
+      overflow: "hidden",
       width: cardWidth,
     },
     squareCardImage: {
       height: "100%",
       width: "100%",
+    },
+    squareCardContent: {
+      left: Math.round(cardWidth * 0.08),
+      position: "absolute",
+      right: Math.round(cardWidth * 0.08),
+      top: Math.round(cardHeight * 0.08),
+    },
+    squareCardTitle: {
+      color: "#444444",
+      fontFamily: "PretendardBold",
+      fontSize: fontScaled(22, fontScale),
+      lineHeight: fontScaled(30, fontScale),
+    },
+    squareCardDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, fontScale),
+      lineHeight: fontScaled(21, fontScale),
+      marginTop: Math.round(cardHeight * 0.02),
     },
     reportCard: {
       alignItems: "center",
