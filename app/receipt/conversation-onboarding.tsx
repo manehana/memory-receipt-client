@@ -46,14 +46,26 @@ type OnboardingStep = {
 
 type FriendGroupId = "protector" | "celebrity" | "default";
 
-type ConversationFriend = {
-  id: string;
-  name: string;
-  description: string;
+type MockFriend = {
+  name: string; // 표시 + 매칭 + 선택 식별
   group: FriendGroupId;
-  activeIcon: ImageSourcePropType;
-  inactiveIcon: ImageSourcePropType;
+  icon: ImageSourcePropType;
 };
+
+// 화면에 항상 보여야 하는 9명. 순서/그룹은 목업 기준.
+const MOCK_FRIENDS: MockFriend[] = [
+  { name: "아들", group: "protector", icon: require("../../assets/images/voice-icon/son.png") },
+  { name: "딸", group: "protector", icon: require("../../assets/images/voice-icon/daughter.png") },
+  { name: "강호동", group: "celebrity", icon: require("../../assets/images/voice-icon/hodong.png") },
+  { name: "손흥민", group: "celebrity", icon: require("../../assets/images/voice-icon/heungmin.png") },
+  { name: "임영웅", group: "celebrity", icon: require("../../assets/images/voice-icon/yeongung.png") },
+  { name: "지드래곤", group: "celebrity", icon: require("../../assets/images/voice-icon/gdragon.png") },
+  { name: "안유진", group: "celebrity", icon: require("../../assets/images/voice-icon/yujin.png") },
+  { name: "별봄이", group: "default", icon: require("../../assets/images/voice-icon/bombi.png") },
+  { name: "별송이", group: "default", icon: require("../../assets/images/voice-icon/songi.png") },
+];
+
+const FRIEND_DESCRIPTION = "원하는 목소리로\n편하게 대화해봐요!";
 
 const steps: OnboardingStep[] = [
   {
@@ -95,41 +107,6 @@ const steps: OnboardingStep[] = [
   },
 ];
 
-// 음성마다 전용 아이콘이 없으므로 기본 캐릭터 아이콘을 공통으로 사용한다.
-const DEFAULT_ACTIVE_ICON = require("../../assets/images/onboarding/friend-hanaboy-active-icon.png");
-const DEFAULT_INACTIVE_ICON = require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png");
-
-// is_default/owned 기준으로 음성을 화면 그룹에 매핑한다.
-function groupForVoice(voice: VoiceResponse): FriendGroupId {
-  if (voice.is_default) {
-    return "default";
-  }
-  if (voice.owned) {
-    return "protector";
-  }
-  return "celebrity";
-}
-
-function voiceToFriend(voice: VoiceResponse): ConversationFriend {
-  return {
-    id: String(voice.id),
-    name: voice.name,
-    description: "원하는 목소리로\n편하게 대화해봐요!",
-    group: groupForVoice(voice),
-    activeIcon: DEFAULT_ACTIVE_ICON,
-    inactiveIcon: DEFAULT_INACTIVE_ICON,
-  };
-}
-
-const FALLBACK_FRIEND: ConversationFriend = {
-  id: "",
-  name: "",
-  description: "",
-  group: "default",
-  activeIcon: DEFAULT_INACTIVE_ICON,
-  inactiveIcon: DEFAULT_INACTIVE_ICON,
-};
-
 const friendGroups: {
   id: FriendGroupId;
   label: string;
@@ -155,18 +132,20 @@ export default function ConversationOnboardingScreen() {
   const [friendSheetMode, setFriendSheetMode] = useState<"confirm" | "select">(
     "confirm"
   );
-  const [selectedFriendId, setSelectedFriendId] = useState("");
+  const [selectedName, setSelectedName] = useState(MOCK_FRIENDS[0].name);
   const { data: voices = [] } = useQuery({
     queryKey: ["voices"],
     queryFn: () => apiGet<VoiceResponse[]>("/voices"),
   });
-  const friends = useMemo(() => voices.map(voiceToFriend), [voices]);
-
-  useEffect(() => {
-    if (!selectedFriendId && friends.length > 0) {
-      setSelectedFriendId(friends[0].id);
-    }
-  }, [friends, selectedFriendId]);
+  // 이름 접두사 매칭, 여러 개면 마지막(뒤엣것)의 id를 실제 음성으로 바인딩.
+  const friends = useMemo(
+    () =>
+      MOCK_FRIENDS.map((f) => ({
+        ...f,
+        apiId: voices.filter((v) => v.name.trim().startsWith(f.name)).pop()?.id,
+      })),
+    [voices]
+  );
   const friendBackdropProgress = useRef(new Animated.Value(1)).current;
   const friendSheetProgress = useRef(new Animated.Value(1)).current;
   const friendSheetTranslateX = useRef(new Animated.Value(0)).current;
@@ -175,9 +154,7 @@ export default function ConversationOnboardingScreen() {
   const shouldReturnToInlineConfirmRef = useRef(false);
 
   const selectedFriend =
-    friends.find((friend) => friend.id === selectedFriendId) ??
-    friends[0] ??
-    FALLBACK_FRIEND;
+    friends.find((friend) => friend.name === selectedName) ?? friends[0];
 
   useEffect(() => {
     if (!isPageTurningRef.current) {
@@ -267,13 +244,26 @@ export default function ConversationOnboardingScreen() {
   };
 
   const openFriendConfirmSheet = () => {
-    setFriendSheetMode("confirm");
-    friendSheetTranslateX.setValue(-width);
-    Animated.timing(friendSheetTranslateX, {
+    // 선택 시트를 아래로 내린 뒤, 확인 시트를 아래에서 위로 올린다.
+    Animated.timing(friendSheetProgress, {
       duration: 220,
-      toValue: 0,
+      toValue: 1,
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => {
+      if (!finished) {
+        return;
+      }
+
+      setFriendSheetMode("confirm");
+      friendSheetTranslateX.setValue(0);
+      requestAnimationFrame(() => {
+        Animated.timing(friendSheetProgress, {
+          duration: 220,
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      });
+    });
   };
 
   const completeFriendSelection = () => {
@@ -310,23 +300,19 @@ export default function ConversationOnboardingScreen() {
   };
 
   const startConversation = () => {
-    if (!selectedFriendId) {
-      return;
-    }
+    const voiceId =
+      selectedFriend.apiId != null ? String(selectedFriend.apiId) : undefined;
+    const target = "/receipt/voice-waiting" as const;
+    const nav = () =>
+      voiceId ? { pathname: target, params: { voiceId } } : { pathname: target };
 
     if (!friendSheetVisible) {
-      router.replace({
-        pathname: "/receipt/voice-waiting",
-        params: { voiceId: selectedFriendId },
-      });
+      router.replace(nav());
       return;
     }
 
     closeFriendSheet(() => {
-      router.push({
-        pathname: "/receipt/voice-waiting",
-        params: { voiceId: selectedFriendId },
-      });
+      router.push(nav());
     });
   };
 
@@ -385,7 +371,7 @@ export default function ConversationOnboardingScreen() {
       <View style={styles.currentFriendRow}>
         <Image
           resizeMode="contain"
-          source={selectedFriend.inactiveIcon}
+          source={selectedFriend.icon}
           style={styles.currentFriendImage}
         />
         <View style={styles.currentFriendTextBox}>
@@ -396,7 +382,7 @@ export default function ConversationOnboardingScreen() {
             maxFontSizeMultiplier={1.1}
             style={styles.currentFriendDescription}
           >
-            {selectedFriend.description}
+            {FRIEND_DESCRIPTION}
           </Text>
         </View>
         <Pressable
@@ -432,7 +418,7 @@ export default function ConversationOnboardingScreen() {
         <View style={styles.inlineFriendRow}>
           <Image
             resizeMode="contain"
-            source={selectedFriend.inactiveIcon}
+            source={selectedFriend.icon}
             style={styles.inlineFriendImage}
           />
           <View style={styles.inlineFriendTextBox}>
@@ -444,7 +430,7 @@ export default function ConversationOnboardingScreen() {
               numberOfLines={1}
               style={styles.inlineFriendDescription}
             >
-              {selectedFriend.description.replace(/\n/g, " ")}
+              {FRIEND_DESCRIPTION.replace(/\n/g, " ")}
             </Text>
           </View>
           <Pressable
@@ -729,22 +715,23 @@ export default function ConversationOnboardingScreen() {
                       {friends
                         .filter((friend) => friend.group === group.id)
                         .map((friend) => {
-                          const isSelected = friend.id === selectedFriendId;
+                          const isSelected = friend.name === selectedName;
 
                           return (
                             <Pressable
-                              key={friend.id}
-                              onPress={() => setSelectedFriendId(friend.id)}
+                              key={friend.name}
+                              onPress={() => setSelectedName(friend.name)}
                               style={styles.friendItem}
                             >
-                              <View style={styles.friendAvatarBox}>
+                              <View
+                                style={[
+                                  styles.friendAvatarBox,
+                                  isSelected && styles.friendAvatarSelected,
+                                ]}
+                              >
                                 <Image
                                   resizeMode="contain"
-                                  source={
-                                    isSelected
-                                      ? friend.activeIcon
-                                      : friend.inactiveIcon
-                                  }
+                                  source={friend.icon}
                                   style={styles.friendAvatarImage}
                                 />
                                 {isSelected ? (
@@ -1196,8 +1183,13 @@ const createStyles = (scale: number, fontScale: number) =>
       width: scaled(58, scale),
     },
     friendAvatarBox: {
+      borderRadius: scaled(26, scale),
       height: scaled(52, scale),
       width: scaled(52, scale),
+    },
+    friendAvatarSelected: {
+      borderColor: "#22CB88",
+      borderWidth: scaled(2.5, scale),
     },
     friendAvatarImage: {
       height: "100%",
