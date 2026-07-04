@@ -6,6 +6,7 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
+import { USE_DEMO_MOCK_DATA } from "@/lib/mock-data";
 import type { RecallSessionListItem } from "@/lib/types";
 import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
@@ -22,7 +23,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
@@ -70,6 +74,7 @@ export default function WeeklyMemoryReceiptsScreen() {
   const { width, height } = useWindowDimensions();
   const { data: user } = useCurrentUser();
   const imageHeaders = useImageAuthHeaders();
+  const insets = useSafeAreaInsets();
   const receipts = useMemo(
     () =>
       (user?.recall_sessions ?? [])
@@ -83,8 +88,8 @@ export default function WeeklyMemoryReceiptsScreen() {
   const scale = getScreenScale(width, height);
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
-    () => createStyles(width, height, scale, fontScale),
-    [fontScale, height, scale, width]
+    () => createStyles(width, height, scale, fontScale, insets.top),
+    [fontScale, height, insets.top, scale, width]
   );
   const widthScale = width / BASE_WIDTH;
   const heightScale = height / BASE_HEIGHT;
@@ -104,7 +109,7 @@ export default function WeeklyMemoryReceiptsScreen() {
     outputRange: [0, Math.max(0, scrollbarTrackHeight - scrollbarThumbHeight)],
   });
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={["left", "right", "bottom"]} style={styles.safeArea}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable
@@ -319,13 +324,19 @@ function WeeklyReceiptCard({
     >
       <Animated.View style={[styles.card, cardMotionStyle, animatedStyle]}>
         <View style={styles.imageWrap}>
-          {receipt.hasImage ? (
+          {receipt.hasImage && !USE_DEMO_MOCK_DATA ? (
             <ExpoImage
               contentFit="cover"
               source={{
                 uri: sessionImageUrl(receipt.id),
                 headers: imageHeaders,
               }}
+              style={styles.cardImage}
+            />
+          ) : receipt.hasImage && USE_DEMO_MOCK_DATA ? (
+            <Image
+              resizeMode="cover"
+              source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
               style={styles.cardImage}
             />
           ) : (
@@ -350,7 +361,12 @@ function WeeklyReceiptCard({
         >
           {receipt.title}
         </Text>
-        <Text maxFontSizeMultiplier={1.1} style={styles.cardMeta}>
+        <Text
+          ellipsizeMode="tail"
+          maxFontSizeMultiplier={1.1}
+          numberOfLines={1}
+          style={styles.cardMeta}
+        >
           {receipt.meta}
         </Text>
       </Animated.View>
@@ -362,7 +378,8 @@ const createStyles = (
   screenWidth: number,
   screenHeight: number,
   scale: number,
-  fontScale: number
+  fontScale: number,
+  topInset: number
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = screenHeight / BASE_HEIGHT;
@@ -451,10 +468,11 @@ const createStyles = (
     },
     header: {
       alignItems: "center",
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#FFFFFF",
       elevation: 12,
       flexDirection: "row",
-      height: fixed(48),
+      height: topInset + fixed(48),
+      paddingTop: topInset,
       width: "100%",
       zIndex: 20,
     },
@@ -499,13 +517,12 @@ const createStyles = (
       zIndex: 0,
     },
     safeArea: {
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#FFFFFF",
       flex: 1,
     },
     screen: {
       backgroundColor: "#F8F8F8",
       flex: 1,
-      paddingTop: Math.round(18 * Math.min(heightScale, 1.04)),
     },
     scrollbarThumb: {
       backgroundColor: "#5D5D5D",

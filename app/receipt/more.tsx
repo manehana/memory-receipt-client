@@ -93,13 +93,7 @@ export default function MoreScreen() {
           <Text maxFontSizeMultiplier={1.1} style={styles.headerTitle}>
             더보기
           </Text>
-          <Pressable hitSlop={scaled(12, scale)} style={styles.headerButton}>
-            <Ionicons
-              color="#9F9F9F"
-              name="chevron-forward"
-              size={scaled(24, scale)}
-            />
-          </Pressable>
+          <View style={styles.headerButton} />
         </View>
 
         <ScrollView
@@ -113,15 +107,28 @@ export default function MoreScreen() {
               source={require("../../assets/images/more/more-profile.png")}
               style={styles.profileImage}
             />
-            <Text maxFontSizeMultiplier={1.1} style={styles.profileName}>
-              {user?.username ?? ""}
-            </Text>
-            <View style={styles.statusBadge}>
-              <View style={styles.statusDot} />
-              <Text maxFontSizeMultiplier={1.1} style={styles.statusText}>
-                정상
+            <View style={styles.profileInfo}>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.profileName}
+              >
+                {user?.username ?? ""}
               </Text>
+              <View style={styles.statusBadge}>
+                <View style={styles.statusDot} />
+                <Text maxFontSizeMultiplier={1.1} style={styles.statusText}>
+                  정상
+                </Text>
+              </View>
             </View>
+            <Ionicons
+              color="#9F9F9F"
+              name="chevron-forward"
+              size={scaled(24, scale)}
+              style={styles.profileChevron}
+            />
           </View>
 
           <View style={[styles.card, styles.conversationCard]}>
@@ -299,20 +306,32 @@ const createStyles = (
       height: fixed(57),
       width: fixed(57),
     },
+    profileInfo: {
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      marginLeft: fixed(13),
+      minWidth: 0,
+    },
     profileName: {
       color: "#353535",
+      flexShrink: 1,
       fontFamily: "PretendardSemiBold",
       fontSize: fontScaled(20, menuFontScale),
-      marginLeft: fixed(13),
+      minWidth: 0,
     },
     statusBadge: {
       alignItems: "center",
       backgroundColor: "#D5FAEB",
       borderRadius: fixed(45),
+      flexShrink: 0,
       flexDirection: "row",
       height: fixed(30),
       marginLeft: fixed(12),
       paddingHorizontal: fixed(11),
+    },
+    profileChevron: {
+      marginLeft: fixed(10),
     },
     statusDot: {
       backgroundColor: "#0ABD76",

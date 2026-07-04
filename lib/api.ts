@@ -1,5 +1,10 @@
 import { API_BASE_URL } from "./config";
 import { getToken } from "./auth";
+import {
+  getMockApiData,
+  getMockApiPostData,
+  USE_DEMO_MOCK_DATA,
+} from "./mock-data";
 
 export class ApiError extends Error {
   status: number;
@@ -84,10 +89,24 @@ export function sessionImageUrl(sessionId: number): string {
 }
 
 export function apiGet<T>(path: string): Promise<T> {
+  if (USE_DEMO_MOCK_DATA) {
+    const mockData = getMockApiData<T>(path);
+    if (mockData !== undefined) {
+      return Promise.resolve(mockData);
+    }
+  }
+
   return request<T>("GET", path);
 }
 
 export function apiPost<T>(path: string, body?: RequestBody): Promise<T> {
+  if (USE_DEMO_MOCK_DATA) {
+    const mockData = getMockApiPostData<T>(path);
+    if (mockData !== undefined) {
+      return Promise.resolve(mockData);
+    }
+  }
+
   return request<T>("POST", path, body);
 }
 

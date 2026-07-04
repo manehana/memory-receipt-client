@@ -5,6 +5,7 @@ import {
   scaled,
 } from "@/constants/responsive";
 import { apiGet } from "@/lib/api";
+import { USE_DEMO_MOCK_DATA } from "@/lib/mock-data";
 import { useStats } from "@/lib/stats";
 import type {
   MonthCount,
@@ -27,6 +28,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 
@@ -52,6 +54,16 @@ const activityTicks: { bucketStart?: number; label: string; period?: string }[] 
 // 카테고리별 소비 막대 색(금액 내림차순으로 순환). 마지막 회색은 미사용 시 inline으로 덮어쓴다.
 const SEGMENT_COLORS = ["#13BB78", "#23CC89", "#54DFA7", "#9BEED0", "#E5E5E5"];
 const uncategorizedIcon = require("../../assets/images/my-activity/consumption_activity_uncategorized.png");
+const categoryIconMap: Record<string, ImageSourcePropType> = {
+  "카페간식": require("../../assets/images/my-activity/consumption_activity_cafe_snack.png"),
+  "의료건강피트니스": require("../../assets/images/my-activity/consumption_activity_health_fitness.png"),
+  "건강운동": require("../../assets/images/my-activity/consumption_activity_health_fitness.png"),
+  "편의점마트잡화": require("../../assets/images/my-activity/consumption_activity_convenience_mart.png"),
+  "편의점마트": require("../../assets/images/my-activity/consumption_activity_convenience_mart.png"),
+  "교통자동차": require("../../assets/images/my-activity/consumption_activity_transport_vehicle.png"),
+  "교통차량": require("../../assets/images/my-activity/consumption_activity_transport_vehicle.png"),
+  "카테고리없음": uncategorizedIcon,
+};
 
 function formatKRW(amount: number): string {
   return `${amount.toLocaleString("ko-KR")}원`;
@@ -59,6 +71,14 @@ function formatKRW(amount: number): string {
 
 function formatPercent(part: number, total: number): string {
   return total > 0 ? `${((part / total) * 100).toFixed(1)}%` : "0%";
+}
+
+function normalizeCategory(category: string | null): string {
+  return (category ?? "카테고리 없음").replace(/[\s/·ㆍ・.]/g, "");
+}
+
+function categoryIconFor(category: string | null): ImageSourcePropType {
+  return categoryIconMap[normalizeCategory(category)] ?? uncategorizedIcon;
 }
 
 // 가장 활발한 시간(0–23)을 한국어 라벨로. 활동이 없으면 호출하지 않는다.
@@ -217,7 +237,10 @@ export default function MyActivityScreen() {
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width]
   );
-  const today = useMemo(() => new Date(), []);
+  const today = useMemo(
+    () => (USE_DEMO_MOCK_DATA ? new Date(2026, 5, 18) : new Date()),
+    []
+  );
   const todayWeekIndex = today.getDay();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth();
@@ -268,7 +291,7 @@ export default function MyActivityScreen() {
   const hasNoCompletedRecall =
     isRecallSessionsSuccess && latestCompletedSessionId == null;
   const shouldShowRecallScore =
-    recallScore != null && !isRecallSessionDetailError;
+    !USE_DEMO_MOCK_DATA && recallScore != null && !isRecallSessionDetailError;
 
   useEffect(() => {
     if (recallSessionDetail) {
@@ -1031,7 +1054,7 @@ function ConsumptionHistoryContent({
               <View key={`cat-${index}`} style={styles.categoryRow}>
                 <Image
                   resizeMode="contain"
-                  source={uncategorizedIcon}
+                  source={categoryIconFor(category.category)}
                   style={styles.categoryIcon}
                 />
                 <View style={styles.categoryTextBox}>

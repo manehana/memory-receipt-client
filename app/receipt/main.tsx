@@ -6,6 +6,7 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
+import { USE_DEMO_MOCK_DATA } from "@/lib/mock-data";
 import type { RecallSessionListItem } from "@/lib/types";
 import { useCurrentUser } from "@/lib/user";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -57,15 +58,7 @@ type RecentReceipt = {
   sortTime: number;
   title: string;
   hasImage: boolean;
-  weekKey: string;
 };
-
-function getNotebookWeekKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const weekIndex = Math.floor((date.getDate() - 1) / 8);
-  return `${year}-${month}-${weekIndex + 1}`;
-}
 
 // 완료되어 제목이 생성된 세션만 최근 기억 영수증으로 노출한다.
 function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
@@ -83,7 +76,6 @@ function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
     sortTime: sessionDate.getTime(),
     title: session.title,
     hasImage: session.image_url != null,
-    weekKey: getNotebookWeekKey(sessionDate),
   };
 }
 
@@ -110,26 +102,8 @@ export default function MainScreen() {
     [fontScale, height, scale, width]
   );
   const goToRecentReceiptMore = useCallback(() => {
-    if (recentReceipts.length === 0) {
-      router.push("/receipt/memory-notebook");
-      return;
-    }
-
-    const currentWeekKey = getNotebookWeekKey(new Date());
-    const currentWeekLatestReceipt = recentReceipts
-      .filter((receipt) => receipt.weekKey === currentWeekKey)
-      .sort((a, b) => b.sortTime - a.sortTime)[0];
-
-    if (!currentWeekLatestReceipt) {
-      router.push("/receipt/memory-notebook");
-      return;
-    }
-
-    router.push({
-      params: { date: currentWeekLatestReceipt.date },
-      pathname: "/receipt/weekly-memory-receipt-detail",
-    });
-  }, [recentReceipts]);
+    router.push("/receipt/memory-notebook");
+  }, []);
   const dismissSafetyReport = useCallback(() => {
     if (isDismissingSafetyReport.current) {
       return;
@@ -306,13 +280,19 @@ export default function MainScreen() {
                   style={styles.receiptCard}
                 >
                   <View style={styles.receiptImageWrap}>
-                    {receipt.hasImage ? (
+                    {receipt.hasImage && !USE_DEMO_MOCK_DATA ? (
                       <ExpoImage
                         contentFit="cover"
                         source={{
                           uri: sessionImageUrl(receipt.id),
                           headers: imageHeaders,
                         }}
+                        style={styles.receiptImage}
+                      />
+                    ) : receipt.hasImage && USE_DEMO_MOCK_DATA ? (
+                      <Image
+                        resizeMode="cover"
+                        source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
                         style={styles.receiptImage}
                       />
                     ) : (
@@ -576,7 +556,7 @@ const createStyles = (
     reportTitle: {
       color: "#FFFFFF",
       fontFamily: "PretendardBold",
-      fontSize: fontScaled(28, fontScale),
+      fontSize: fontScaled(26, fontScale),
       lineHeight: fontScaled(36, fontScale),
     },
     reportDescription: {
@@ -614,8 +594,8 @@ const createStyles = (
     },
     makeText: {
       color: "#A1A1A1",
-      fontFamily: "PretendardSemiBold",
-      fontSize: fontScaled(16, fontScale),
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(20, fontScale),
     },
     receiptList: {
       gap: receiptScaled(12),

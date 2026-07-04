@@ -4,13 +4,13 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { apiGet } from "@/lib/api";
+import type { VoiceResponse } from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/api";
-import type { VoiceResponse } from "@/lib/types";
 import {
   Animated,
   Easing,
@@ -706,67 +706,67 @@ export default function ConversationOnboardingScreen() {
               <View style={styles.friendGrid}>
                 {friendGroups
                   .filter((group) =>
-                    friends.some((friend) => friend.group === group.id),
+                    friends.some((friend) => friend.group === group.id)
                   )
                   .map((group) => (
-                  <View key={group.id} style={styles.friendGroup}>
-                    <View style={styles.friendGroupHeader}>
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        style={styles.friendGroupLabel}
-                      >
-                        {group.label}
-                        {group.suffix ? (
-                          <Text style={styles.friendGroupHighlight}>
-                            {group.suffix}
-                          </Text>
-                        ) : null}
-                      </Text>
-                      <View style={styles.friendGroupLine} />
-                    </View>
+                    <View key={group.id} style={styles.friendGroup}>
+                      <View style={styles.friendGroupHeader}>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.friendGroupLabel}
+                        >
+                          {group.label}
+                          {group.suffix ? (
+                            <Text style={styles.friendGroupHighlight}>
+                              {group.suffix}
+                            </Text>
+                          ) : null}
+                        </Text>
+                        <View style={styles.friendGroupLine} />
+                      </View>
 
-                    <View style={styles.friendGroupList}>
-                      {friends
-                        .filter((friend) => friend.group === group.id)
-                        .map((friend) => {
-                          const isSelected = friend.id === selectedFriendId;
+                      <View style={styles.friendGroupList}>
+                        {friends
+                          .filter((friend) => friend.group === group.id)
+                          .map((friend) => {
+                            const isSelected = friend.id === selectedFriendId;
 
-                          return (
-                            <Pressable
-                              key={friend.id}
-                              onPress={() => setSelectedFriendId(friend.id)}
-                              style={styles.friendItem}
-                            >
-                              <View style={styles.friendAvatarBox}>
-                                <Image
-                                  resizeMode="contain"
-                                  source={
-                                    isSelected
-                                      ? friend.activeIcon
-                                      : friend.inactiveIcon
-                                  }
-                                  style={styles.friendAvatarImage}
-                                />
-                                {isSelected ? (
+                            return (
+                              <Pressable
+                                key={friend.id}
+                                onPress={() => setSelectedFriendId(friend.id)}
+                                style={styles.friendItem}
+                              >
+                                <View style={styles.friendAvatarBox}>
                                   <Image
                                     resizeMode="contain"
-                                    source={require("../../assets/images/onboarding/friend-check-icon.png")}
-                                    style={styles.friendCheckIcon}
+                                    source={
+                                      isSelected
+                                        ? friend.activeIcon
+                                        : friend.inactiveIcon
+                                    }
+                                    style={styles.friendAvatarImage}
                                   />
-                                ) : null}
-                              </View>
-                              <Text
-                                maxFontSizeMultiplier={1.1}
-                                style={styles.friendName}
-                              >
-                                {friend.name}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
+                                  {isSelected ? (
+                                    <Image
+                                      resizeMode="contain"
+                                      source={require("../../assets/images/onboarding/friend-check-icon.png")}
+                                      style={styles.friendCheckIcon}
+                                    />
+                                  ) : null}
+                                </View>
+                                <Text
+                                  maxFontSizeMultiplier={1.1}
+                                  style={styles.friendName}
+                                >
+                                  {friend.name}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  ))}
               </View>
 
               <Pressable

@@ -6,6 +6,7 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { apiGet, sessionImageUrl } from "@/lib/api";
+import { USE_DEMO_MOCK_DATA } from "@/lib/mock-data";
 import type { PaymentResponse, RecallSessionResponse } from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -320,13 +321,19 @@ export default function MemoryReceipt() {
                       <View style={styles.titleDash} />
                     </View>
 
-                    {session?.image_url && id != null ? (
+                    {session?.image_url && id != null && !USE_DEMO_MOCK_DATA ? (
                       <ExpoImage
                         contentFit="cover"
                         source={{
                           uri: sessionImageUrl(id),
                           headers: authHeaders,
                         }}
+                        style={styles.heroImage}
+                      />
+                    ) : session?.image_url && USE_DEMO_MOCK_DATA ? (
+                      <Image
+                        resizeMode="cover"
+                        source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
                         style={styles.heroImage}
                       />
                     ) : (
@@ -887,7 +894,7 @@ const createStyles = (
       zIndex: 3,
     },
     safeArea: {
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#FFFFFF",
       flex: 1,
     },
     saveModalButton: {
@@ -966,7 +973,7 @@ const createStyles = (
       lineHeight: font(28),
     },
     screen: {
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#FFFFFF",
       flex: 1,
       overflow: "visible",
       paddingTop: vertical(30),
@@ -992,7 +999,7 @@ const createStyles = (
     },
     shareBar: {
       alignItems: "center",
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#FFFFFF",
       bottom: 0,
       height: shareBarHeight,
       left: 0,
