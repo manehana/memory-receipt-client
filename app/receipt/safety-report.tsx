@@ -741,7 +741,7 @@ export default function SafetyReportScreen() {
                   style={styles.productSheetDescription}
                 >
                   전 금융기관 자산을 하나원큐 앱 하나로 통합 조회하고 실시간
-                  소비·자산 변화를 AI가 분석해요. 기억 Hana의 이상 패턴 탐지
+                  소비·자산 변화를 AI가 분석해요. 기억 HANA의 이상 패턴 탐지
                   기준선이 되는 핵심 데이터 소스예요.
                 </Text>
 
