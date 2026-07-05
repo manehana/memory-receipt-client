@@ -4,13 +4,13 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { apiGet } from "@/lib/api";
+import type { VoiceResponse } from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/api";
-import type { VoiceResponse } from "@/lib/types";
 import {
   Animated,
   Easing,
@@ -49,20 +49,66 @@ type FriendGroupId = "protector" | "celebrity" | "default";
 type MockFriend = {
   name: string; // 표시 + 매칭 + 선택 식별
   group: FriendGroupId;
-  icon: ImageSourcePropType;
+  activeIcon: ImageSourcePropType;
+  inactiveIcon: ImageSourcePropType;
 };
 
 // 화면에 항상 보여야 하는 9명. 순서/그룹은 목업 기준.
 const MOCK_FRIENDS: MockFriend[] = [
-  { name: "아들", group: "protector", icon: require("../../assets/images/voice-icon/son.png") },
-  { name: "딸", group: "protector", icon: require("../../assets/images/voice-icon/daughter.png") },
-  { name: "강호동", group: "celebrity", icon: require("../../assets/images/voice-icon/hodong.png") },
-  { name: "손흥민", group: "celebrity", icon: require("../../assets/images/voice-icon/heungmin.png") },
-  { name: "임영웅", group: "celebrity", icon: require("../../assets/images/voice-icon/yeongung.png") },
-  { name: "지드래곤", group: "celebrity", icon: require("../../assets/images/voice-icon/gdragon.png") },
-  { name: "안유진", group: "celebrity", icon: require("../../assets/images/voice-icon/yujin.png") },
-  { name: "별봄이", group: "default", icon: require("../../assets/images/voice-icon/bombi.png") },
-  { name: "별송이", group: "default", icon: require("../../assets/images/voice-icon/songi.png") },
+  {
+    name: "아들",
+    group: "protector",
+    activeIcon: require("../../assets/images/onboarding/friend-son-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-son-inactive-icon.png"),
+  },
+  {
+    name: "딸",
+    group: "protector",
+    activeIcon: require("../../assets/images/onboarding/friend-daughter-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-daughter-inactive-icon.png"),
+  },
+  {
+    name: "강호동",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-hodong-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-hodong-inactive-icon.png"),
+  },
+  {
+    name: "손흥민",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-heungmin-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-heungmin-inactive-icon.png"),
+  },
+  {
+    name: "임영웅",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-yeongung-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-yeongung-inactive-icon.png"),
+  },
+  {
+    name: "지드래곤",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-gdragon-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-gdragon-inactive-icon.png"),
+  },
+  {
+    name: "안유진",
+    group: "celebrity",
+    activeIcon: require("../../assets/images/onboarding/friend-yujin-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-yujin-inactive-icon.png"),
+  },
+  {
+    name: "별봄이",
+    group: "default",
+    activeIcon: require("../../assets/images/onboarding/friend-hanaboy-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png"),
+  },
+  {
+    name: "별송이",
+    group: "default",
+    activeIcon: require("../../assets/images/onboarding/friend-hanagirl-active-icon.png"),
+    inactiveIcon: require("../../assets/images/onboarding/friend-hanagirl-inactive-icon.png"),
+  },
 ];
 
 const FRIEND_DESCRIPTION = "원하는 목소리로\n편하게 대화해봐요!";
@@ -304,7 +350,9 @@ export default function ConversationOnboardingScreen() {
       selectedFriend.apiId != null ? String(selectedFriend.apiId) : undefined;
     const target = "/receipt/voice-waiting" as const;
     const nav = () =>
-      voiceId ? { pathname: target, params: { voiceId } } : { pathname: target };
+      voiceId
+        ? { pathname: target, params: { voiceId } }
+        : { pathname: target };
 
     if (!friendSheetVisible) {
       router.replace(nav());
@@ -371,7 +419,7 @@ export default function ConversationOnboardingScreen() {
       <View style={styles.currentFriendRow}>
         <Image
           resizeMode="contain"
-          source={selectedFriend.icon}
+          source={selectedFriend.activeIcon}
           style={styles.currentFriendImage}
         />
         <View style={styles.currentFriendTextBox}>
@@ -418,7 +466,7 @@ export default function ConversationOnboardingScreen() {
         <View style={styles.inlineFriendRow}>
           <Image
             resizeMode="contain"
-            source={selectedFriend.icon}
+            source={selectedFriend.activeIcon}
             style={styles.inlineFriendImage}
           />
           <View style={styles.inlineFriendTextBox}>
@@ -692,68 +740,79 @@ export default function ConversationOnboardingScreen() {
               <View style={styles.friendGrid}>
                 {friendGroups
                   .filter((group) =>
-                    friends.some((friend) => friend.group === group.id),
+                    friends.some((friend) => friend.group === group.id)
                   )
                   .map((group) => (
-                  <View key={group.id} style={styles.friendGroup}>
-                    <View style={styles.friendGroupHeader}>
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        style={styles.friendGroupLabel}
-                      >
-                        {group.label}
-                        {group.suffix ? (
-                          <Text style={styles.friendGroupHighlight}>
-                            {group.suffix}
-                          </Text>
-                        ) : null}
-                      </Text>
-                      <View style={styles.friendGroupLine} />
-                    </View>
+                    <View key={group.id} style={styles.friendGroup}>
+                      <View style={styles.friendGroupHeader}>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.friendGroupLabel}
+                        >
+                          {group.label}
+                          {group.suffix ? (
+                            <Text style={styles.friendGroupHighlight}>
+                              {group.suffix}
+                            </Text>
+                          ) : null}
+                        </Text>
+                        <View style={styles.friendGroupLine} />
+                      </View>
 
-                    <View style={styles.friendGroupList}>
-                      {friends
-                        .filter((friend) => friend.group === group.id)
-                        .map((friend) => {
-                          const isSelected = friend.name === selectedName;
+                      <View style={styles.friendGroupList}>
+                        {friends
+                          .filter((friend) => friend.group === group.id)
+                          .map((friend) => {
+                            const isSelected = friend.name === selectedName;
 
-                          return (
-                            <Pressable
-                              key={friend.name}
-                              onPress={() => setSelectedName(friend.name)}
-                              style={styles.friendItem}
-                            >
-                              <View
-                                style={[
-                                  styles.friendAvatarBox,
-                                  isSelected && styles.friendAvatarSelected,
-                                ]}
+                            return (
+                              <Pressable
+                                key={friend.name}
+                                onPress={() => setSelectedName(friend.name)}
+                                style={styles.friendItem}
                               >
-                                <Image
-                                  resizeMode="contain"
-                                  source={friend.icon}
-                                  style={styles.friendAvatarImage}
-                                />
-                                {isSelected ? (
-                                  <Image
-                                    resizeMode="contain"
-                                    source={require("../../assets/images/onboarding/friend-check-icon.png")}
-                                    style={styles.friendCheckIcon}
-                                  />
-                                ) : null}
-                              </View>
-                              <Text
-                                maxFontSizeMultiplier={1.1}
-                                style={styles.friendName}
-                              >
-                                {friend.name}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
+                                <View style={styles.friendAvatarBox}>
+                                  <View style={styles.friendAvatarCircle}>
+                                    <Image
+                                      fadeDuration={0}
+                                      resizeMode="contain"
+                                      source={friend.inactiveIcon}
+                                      style={[
+                                        styles.friendAvatarImage,
+                                        isSelected && styles.friendAvatarHidden,
+                                      ]}
+                                    />
+                                    <Image
+                                      fadeDuration={0}
+                                      resizeMode="contain"
+                                      source={friend.activeIcon}
+                                      style={[
+                                        styles.friendAvatarImage,
+                                        styles.friendAvatarLayer,
+                                        !isSelected && styles.friendAvatarHidden,
+                                      ]}
+                                    />
+                                  </View>
+                                  {isSelected ? (
+                                    <Image
+                                      resizeMode="contain"
+                                      source={require("../../assets/images/onboarding/friend-check-icon.png")}
+                                      style={styles.friendCheckIcon}
+                                    />
+                                  ) : null}
+                                </View>
+                                <Text
+                                  maxFontSizeMultiplier={1.1}
+                                  style={styles.friendName}
+                                >
+                                  {friend.name}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  ))}
               </View>
 
               <Pressable
@@ -1026,7 +1085,7 @@ const createStyles = (scale: number, fontScale: number) =>
     inlineFriendRow: {
       alignItems: "center",
       flexDirection: "row",
-      marginTop: scaled(14, scale),
+      marginTop: scaled(16, scale),
     },
     inlineFriendImage: {
       height: scaled(52, scale),
@@ -1082,7 +1141,7 @@ const createStyles = (scale: number, fontScale: number) =>
       backgroundColor: "#D9D9D9",
       borderRadius: scaled(2, scale),
       height: scaled(4, scale),
-      marginBottom: scaled(25, scale),
+      marginBottom: scaled(30, scale),
       width: scaled(95, scale),
     },
     confirmTitle: {
@@ -1137,13 +1196,13 @@ const createStyles = (scale: number, fontScale: number) =>
     sheetTitle: {
       color: "#222222",
       fontFamily: "PretendardBold",
-      fontSize: fontScaled(18, fontScale),
+      fontSize: fontScaled(22, fontScale),
     },
     sheetDescription: {
       color: "#9F9F9F",
       fontFamily: "PretendardMedium",
-      fontSize: fontScaled(14, fontScale),
-      marginTop: scaled(9, scale),
+      fontSize: fontScaled(18, fontScale),
+      marginTop: scaled(6, scale),
     },
     friendGrid: {
       gap: scaled(16, scale),
@@ -1183,17 +1242,29 @@ const createStyles = (scale: number, fontScale: number) =>
       width: scaled(58, scale),
     },
     friendAvatarBox: {
-      borderRadius: scaled(26, scale),
+      alignItems: "center",
       height: scaled(52, scale),
+      justifyContent: "center",
+      position: "relative",
       width: scaled(52, scale),
     },
-    friendAvatarSelected: {
-      borderColor: "#22CB88",
-      borderWidth: scaled(2.5, scale),
+    friendAvatarCircle: {
+      borderRadius: scaled(26, scale),
+      height: scaled(52, scale),
+      overflow: "hidden",
+      width: scaled(52, scale),
     },
     friendAvatarImage: {
       height: "100%",
       width: "100%",
+    },
+    friendAvatarLayer: {
+      left: 0,
+      position: "absolute",
+      top: 0,
+    },
+    friendAvatarHidden: {
+      opacity: 0,
     },
     friendCheckIcon: {
       height: scaled(22, scale),

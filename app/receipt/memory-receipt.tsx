@@ -887,7 +887,7 @@ const createStyles = (
       zIndex: 3,
     },
     safeArea: {
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#FFFFFF",
       flex: 1,
     },
     saveModalButton: {
@@ -966,7 +966,7 @@ const createStyles = (
       lineHeight: font(28),
     },
     screen: {
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#FFFFFF",
       flex: 1,
       overflow: "visible",
       paddingTop: vertical(30),
@@ -992,7 +992,7 @@ const createStyles = (
     },
     shareBar: {
       alignItems: "center",
-      backgroundColor: "#F7F7F7",
+      backgroundColor: "#FFFFFF",
       bottom: 0,
       height: shareBarHeight,
       left: 0,

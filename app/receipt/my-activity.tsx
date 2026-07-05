@@ -20,6 +20,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 
@@ -45,6 +46,16 @@ const activityTicks: { bucketStart?: number; label: string; period?: string }[] 
 // 카테고리별 소비 막대 색(금액 내림차순으로 순환). 마지막 회색은 미사용 시 inline으로 덮어쓴다.
 const SEGMENT_COLORS = ["#13BB78", "#23CC89", "#54DFA7", "#9BEED0", "#E5E5E5"];
 const uncategorizedIcon = require("../../assets/images/my-activity/consumption_activity_uncategorized.png");
+const categoryIconMap: Record<string, ImageSourcePropType> = {
+  "카페간식": require("../../assets/images/my-activity/consumption_activity_cafe_snack.png"),
+  "의료건강피트니스": require("../../assets/images/my-activity/consumption_activity_health_fitness.png"),
+  "건강운동": require("../../assets/images/my-activity/consumption_activity_health_fitness.png"),
+  "편의점마트잡화": require("../../assets/images/my-activity/consumption_activity_convenience_mart.png"),
+  "편의점마트": require("../../assets/images/my-activity/consumption_activity_convenience_mart.png"),
+  "교통자동차": require("../../assets/images/my-activity/consumption_activity_transport_vehicle.png"),
+  "교통차량": require("../../assets/images/my-activity/consumption_activity_transport_vehicle.png"),
+  "카테고리없음": uncategorizedIcon,
+};
 
 function formatKRW(amount: number): string {
   return `${amount.toLocaleString("ko-KR")}원`;
@@ -52,6 +63,14 @@ function formatKRW(amount: number): string {
 
 function formatPercent(part: number, total: number): string {
   return total > 0 ? `${((part / total) * 100).toFixed(1)}%` : "0%";
+}
+
+function normalizeCategory(category: string | null): string {
+  return (category ?? "카테고리 없음").replace(/[\s/·ㆍ・.]/g, "");
+}
+
+function categoryIconFor(category: string | null): ImageSourcePropType {
+  return categoryIconMap[normalizeCategory(category)] ?? uncategorizedIcon;
 }
 
 // 가장 활발한 시간(0–23)을 한국어 라벨로. 활동이 없으면 호출하지 않는다.
@@ -206,6 +225,11 @@ export default function MyActivityScreen() {
 
   const isSelectedCurrentMonth =
     selectedYear === currentYear && selectedMonth === currentMonth;
+  const currentDayTime = new Date(
+    currentYear,
+    currentMonth,
+    currentDate
+  ).getTime();
   // 과거 이동 한계: 1년 전(같은 달)에 도달하면 더 이상 왼쪽으로 못 간다.
   const isSelectedEarliestMonth =
     selectedYear === currentYear - 1 && selectedMonth === currentMonth;
@@ -578,10 +602,18 @@ export default function MyActivityScreen() {
                           isSelectedCurrentMonth &&
                           calendarDate.monthOffset === 0 &&
                           calendarDate.date === currentDate;
+                        const isFutureDate =
+                          !isOutsideMonth &&
+                          new Date(
+                            selectedYear,
+                            selectedMonth,
+                            calendarDate.date
+                          ).getTime() > currentDayTime;
                         const isCompleted =
                           participatedSelected.has(calendarDate.date) &&
                           !isOutsideMonth &&
-                          !isToday;
+                          !isToday &&
+                          !isFutureDate;
                         return (
                           <View
                             key={`${rowIndex}-${index}`}
@@ -904,7 +936,7 @@ function ConsumptionHistoryContent({
               <View key={`cat-${index}`} style={styles.categoryRow}>
                 <Image
                   resizeMode="contain"
-                  source={uncategorizedIcon}
+                  source={categoryIconFor(category.category)}
                   style={styles.categoryIcon}
                 />
                 <View style={styles.categoryTextBox}>

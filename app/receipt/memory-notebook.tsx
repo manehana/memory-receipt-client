@@ -11,6 +11,7 @@ import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image as ExpoImage } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -24,7 +25,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
@@ -36,7 +40,14 @@ const sortOptions: { label: string; value: SortOption }[] = [
   { label: "오래된순", value: "oldest" },
 ];
 
-const WEEK_LABELS = ["첫째주", "둘째주", "셋째주", "넷째주", "다섯째주"];
+const WEEK_LABELS = [
+  "첫째주",
+  "둘째주",
+  "셋째주",
+  "넷째주",
+  "다섯째주",
+  "여섯째주",
+];
 
 type MemoryNotebookWeek = {
   hasImage: boolean;
@@ -65,15 +76,15 @@ function getValidSessionDate(session: RecallSessionListItem): Date | null {
 
 function createWeek(
   session: RecallSessionListItem,
-  date: Date,
+  date: Date
 ): MemoryNotebookWeek {
   const year = date.getFullYear();
   const monthIndex = date.getMonth();
   const month = monthIndex + 1;
   const lastDay = new Date(year, monthIndex + 1, 0).getDate();
-  const weekIndex = Math.floor((date.getDate() - 1) / 8);
-  const startDay = weekIndex * 8 + 1;
-  const endDay = Math.min(startDay + 7, lastDay);
+  const weekIndex = Math.min(Math.floor((date.getDate() - 1) / 5), 5);
+  const startDay = weekIndex === 5 ? 26 : weekIndex * 5 + 1;
+  const endDay = weekIndex === 5 ? lastDay : Math.min(startDay + 4, lastDay);
   const weekLabel = WEEK_LABELS[weekIndex] ?? `${weekIndex + 1}주`;
 
   return {
@@ -100,7 +111,7 @@ function createEmptyCurrentMonth(): MemoryNotebookMonth {
 }
 
 function toMemoryNotebookMonths(
-  sessions: RecallSessionListItem[],
+  sessions: RecallSessionListItem[]
 ): MemoryNotebookMonth[] {
   const monthMap = new Map<string, MemoryNotebookMonth>();
 
@@ -123,7 +134,7 @@ function toMemoryNotebookMonths(
       } satisfies MemoryNotebookMonth);
     const week = createWeek(session, date);
     const existingWeekIndex = monthSection.weeks.findIndex(
-      (item) => item.id === week.id,
+      (item) => item.id === week.id
     );
 
     if (existingWeekIndex === -1) {
@@ -156,29 +167,24 @@ export default function MemoryNotebookScreen() {
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(scale, fontScale, width, height, insets.bottom),
-    [fontScale, height, insets.bottom, scale, width],
+    [fontScale, height, insets.bottom, scale, width]
   );
   const selectedSortLabel =
     sortOptions.find((option) => option.value === selectedSort)?.label ??
     sortOptions[0].label;
   const memoryNotebookMonths = useMemo(
     () => toMemoryNotebookMonths(user?.recall_sessions ?? []),
-    [user?.recall_sessions],
+    [user?.recall_sessions]
   );
-  const sortedMemoryNotebookMonths = useMemo(
-    () => {
-      const sortedMonths = [...memoryNotebookMonths].sort((a, b) =>
-        selectedSort === "latest"
-          ? b.sortTime - a.sortTime
-          : a.sortTime - b.sortTime,
-      );
+  const sortedMemoryNotebookMonths = useMemo(() => {
+    const sortedMonths = [...memoryNotebookMonths].sort((a, b) =>
+      selectedSort === "latest"
+        ? b.sortTime - a.sortTime
+        : a.sortTime - b.sortTime
+    );
 
-      return sortedMonths.length > 0
-        ? sortedMonths
-        : [createEmptyCurrentMonth()];
-    },
-    [memoryNotebookMonths, selectedSort],
-  );
+    return sortedMonths.length > 0 ? sortedMonths : [createEmptyCurrentMonth()];
+  }, [memoryNotebookMonths, selectedSort]);
 
   const openSortSheet = () => {
     sortSheetProgress.setValue(1);
@@ -295,7 +301,16 @@ export default function MemoryNotebookScreen() {
                           style={styles.cardImage}
                         />
                       )}
-                      <View style={styles.cardOverlay} />
+                      <LinearGradient
+                        colors={[
+                          "rgba(0, 0, 0, 0.02)",
+                          "rgba(0, 0, 0, 0.4)",
+                          "rgba(0, 0, 0, 0.6)",
+                        ]}
+                        locations={[0, 0.45, 1]}
+                        pointerEvents="none"
+                        style={styles.cardOverlay}
+                      />
                       <Text
                         maxFontSizeMultiplier={1.1}
                         style={styles.cardPeriodText}
@@ -361,39 +376,42 @@ export default function MemoryNotebookScreen() {
               },
             ]}
           >
-            <Pressable onPress={(event) => event.stopPropagation()} style={styles.sortSheetContent}>
-            <View style={styles.sortSheetHandle} />
-            <View style={styles.sortOptionArea}>
-              {sortOptions.map((option, index) => {
-                const isSelected = option.value === selectedSort;
+            <Pressable
+              onPress={(event) => event.stopPropagation()}
+              style={styles.sortSheetContent}
+            >
+              <View style={styles.sortSheetHandle} />
+              <View style={styles.sortOptionArea}>
+                {sortOptions.map((option, index) => {
+                  const isSelected = option.value === selectedSort;
 
-                return (
-                  <View key={option.value}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      onPress={() => handleSelectSort(option.value)}
-                      style={styles.sortOptionButton}
-                    >
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        style={[
-                          styles.sortOptionText,
-                          isSelected
-                            ? styles.sortOptionTextSelected
-                            : styles.sortOptionTextUnselected,
-                        ]}
+                  return (
+                    <View key={option.value}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        onPress={() => handleSelectSort(option.value)}
+                        style={styles.sortOptionButton}
                       >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                    {index < sortOptions.length - 1 ? (
-                      <View style={styles.sortOptionDivider} />
-                    ) : null}
-                  </View>
-                );
-              })}
-            </View>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={[
+                            styles.sortOptionText,
+                            isSelected
+                              ? styles.sortOptionTextSelected
+                              : styles.sortOptionTextUnselected,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                      {index < sortOptions.length - 1 ? (
+                        <View style={styles.sortOptionDivider} />
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
             </Pressable>
           </Animated.View>
         </Pressable>
@@ -407,14 +425,14 @@ const createStyles = (
   fontScale: number,
   screenWidth: number,
   screenHeight: number,
-  bottomInset: number,
+  bottomInset: number
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = screenHeight / BASE_HEIGHT;
   const layoutScale = Math.min(widthScale, heightScale, 1.04);
   const sheetScale = Math.max(Math.min(widthScale, heightScale, 1), 0.92);
   const horizontalPadding = Math.round(
-    (screenWidth < 380 ? 20 : 24) * Math.min(widthScale, 1.08),
+    (screenWidth < 380 ? 20 : 24) * Math.min(widthScale, 1.08)
   );
   const fixed = (value: number) => Math.round(value * layoutScale);
   const sheetFixed = (value: number) => Math.round(value * sheetScale);
@@ -443,7 +461,6 @@ const createStyles = (
       paddingTop: fixed(16),
     },
     cardOverlay: {
-      backgroundColor: "rgba(0, 0, 0, 0.36)",
       bottom: 0,
       height: fixed(52),
       left: 0,
