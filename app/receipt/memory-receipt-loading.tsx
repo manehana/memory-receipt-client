@@ -50,7 +50,7 @@ function getStageText(progress: number) {
   }
   if (progress >= 75) {
     return {
-      title: "거의다 만들었어요!",
+      title: "거의 다 만들었어요!",
       description: "기억 수첩에 자동 저장돼요.\n언제든 기억 수첩에서 모아서 볼 수 있어요.",
     };
   }
@@ -117,21 +117,35 @@ export default function MemoryReceiptLoading() {
     setProgress(0);
     progressAnim.value = 0;
 
+    // 시간 기반으로 0→100을 반복 채운다. 선형 대신, 한 사이클 안에서 속도가
+    // 여러 번 빨라졌다 느려지도록(가감속을 반복) 한다. 항상 전진은 유지한다.
+    const CYCLE_DURATION = 9000; // 한 바퀴(0→100)에 걸리는 시간
+    const TICK = 40;
+    const PULSES = 3; // 한 사이클당 가감속 반복 횟수
+    const AMP = 0.9; // 가감속 강도(0~1, 1에 가까울수록 멈칫→쭉 차오름)
+    const startTime = Date.now();
+    let lastValue = 0;
+
     intervalRef.current = setInterval(() => {
-      setProgress((prev) => {
-        // 인디케이터: 100%에 도달하면 다시 0부터 반복한다.
-        if (prev >= 100) {
-          progressAnim.value = 0;
-          return 0;
-        }
-        const next = prev + 1;
-        progressAnim.value = withTiming(next, {
-          duration: 200,
-          easing: Easing.out(Easing.quad),
+      const t = ((Date.now() - startTime) % CYCLE_DURATION) / CYCLE_DURATION;
+      // 기본 진행(t)에 사인파를 더해 속도를 PULSES번 가감속시킨다.
+      // 도함수 = 1 + AMP*cos(...) 이라 AMP<1이면 항상 단조 증가한다.
+      const eased =
+        t + (AMP / (2 * Math.PI * PULSES)) * Math.sin(2 * Math.PI * PULSES * t);
+      const value = Math.min(100, Math.max(0, Math.round(eased * 100)));
+
+      if (value < lastValue) {
+        // 다음 사이클로 넘어가며 0으로 되감길 때는 애니메이션 없이 스냅한다.
+        progressAnim.value = value;
+      } else {
+        progressAnim.value = withTiming(value, {
+          duration: TICK,
+          easing: Easing.linear,
         });
-        return next;
-      });
-    }, 120);
+      }
+      if (value !== lastValue) setProgress(value);
+      lastValue = value;
+    }, TICK);
   }, [progressAnim]);
 
   useEffect(() => {
