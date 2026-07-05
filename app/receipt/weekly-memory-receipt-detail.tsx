@@ -678,11 +678,11 @@ const createStyles = (
       flex: 1,
     },
     scrollArea: {
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#FFFFFF",
       flex: 1,
     },
     screen: {
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#FFFFFF",
       flex: 1,
     },
     sectionDash: {
@@ -706,7 +706,7 @@ const createStyles = (
     },
     shareBar: {
       alignItems: "center",
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#FFFFFF",
       bottom: 0,
       height: shareBarHeight,
       left: 0,

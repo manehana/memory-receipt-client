@@ -5,6 +5,10 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { ApiError, apiPost } from "@/lib/api";
+import { setToken } from "@/lib/auth";
+import type { LoginResponse } from "@/lib/types";
+import { useMutation } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -19,12 +23,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMutation } from "@tanstack/react-query";
-import { ApiError, apiPost } from "@/lib/api";
-import { setToken } from "@/lib/auth";
-import type { LoginResponse } from "@/lib/types";
 
-async function login(username: string, password: string): Promise<LoginResponse> {
+async function login(
+  username: string,
+  password: string
+): Promise<LoginResponse> {
   const body = { username, password };
 
   return apiPost<LoginResponse>("/auth/login", body);
@@ -200,10 +203,7 @@ export default function LoginScreen() {
             style={styles.signUpLink}
             onPress={() => router.push("/receipt/signup")}
           >
-            <Text
-              maxFontSizeMultiplier={1.1}
-              style={styles.signUpLinkText}
-            >
+            <Text maxFontSizeMultiplier={1.1} style={styles.signUpLinkText}>
               회원가입
             </Text>
           </Pressable>
@@ -298,9 +298,9 @@ function createStyles(scale: number, fontScale: number, screenWidth: number) {
       paddingVertical: scaled(6, scale),
     },
     signUpLinkText: {
-      color: "#7A7A7A",
-      fontSize: fontScaled(17, fontScale),
-      fontFamily: "PretendardSemiBold",
+      color: "#9F9F9F",
+      fontSize: fontScaled(20, fontScale),
+      fontFamily: "PretendardMedium",
     },
   });
 }

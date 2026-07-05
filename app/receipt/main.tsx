@@ -57,15 +57,7 @@ type RecentReceipt = {
   sortTime: number;
   title: string;
   hasImage: boolean;
-  weekKey: string;
 };
-
-function getNotebookWeekKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const weekIndex = Math.floor((date.getDate() - 1) / 8);
-  return `${year}-${month}-${weekIndex + 1}`;
-}
 
 // 완료되어 제목이 생성된 세션만 최근 기억 영수증으로 노출한다.
 function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
@@ -83,7 +75,6 @@ function toRecentReceipt(session: RecallSessionListItem): RecentReceipt | null {
     sortTime: sessionDate.getTime(),
     title: session.title,
     hasImage: session.image_url != null,
-    weekKey: getNotebookWeekKey(sessionDate),
   };
 }
 
@@ -110,26 +101,8 @@ export default function MainScreen() {
     [fontScale, height, scale, width]
   );
   const goToRecentReceiptMore = useCallback(() => {
-    if (recentReceipts.length === 0) {
-      router.push("/receipt/memory-notebook");
-      return;
-    }
-
-    const currentWeekKey = getNotebookWeekKey(new Date());
-    const currentWeekLatestReceipt = recentReceipts
-      .filter((receipt) => receipt.weekKey === currentWeekKey)
-      .sort((a, b) => b.sortTime - a.sortTime)[0];
-
-    if (!currentWeekLatestReceipt) {
-      router.push("/receipt/memory-notebook");
-      return;
-    }
-
-    router.push({
-      params: { date: currentWeekLatestReceipt.date },
-      pathname: "/receipt/weekly-memory-receipt-detail",
-    });
-  }, [recentReceipts]);
+    router.push("/receipt/memory-notebook");
+  }, []);
   const dismissSafetyReport = useCallback(() => {
     if (isDismissingSafetyReport.current) {
       return;
@@ -228,9 +201,27 @@ export default function MainScreen() {
           >
             <Image
               resizeMode="stretch"
-              source={require("../../assets/images/main/main-chat.png")}
+              source={require("../../assets/images/main/main_today_card.png")}
               style={styles.squareCardImage}
             />
+            <View pointerEvents="none" style={styles.squareCardContent}>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardTitle}
+              >
+                오늘의 대화
+              </Text>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardDescription}
+              >
+                소비 이력 기반 음성 대화
+              </Text>
+            </View>
           </Pressable>
 
           <Pressable
@@ -239,9 +230,27 @@ export default function MainScreen() {
           >
             <Image
               resizeMode="stretch"
-              source={require("../../assets/images/main/main-memory-book.png")}
+              source={require("../../assets/images/main/main_diary_card.png")}
               style={styles.squareCardImage}
             />
+            <View pointerEvents="none" style={styles.squareCardContent}>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardTitle}
+              >
+                기억 수첩
+              </Text>
+              <Text
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.1}
+                numberOfLines={1}
+                style={styles.squareCardDescription}
+              >
+                기억 영수증 모음
+              </Text>
+            </View>
           </Pressable>
         </View>
 
@@ -546,11 +555,31 @@ const createStyles = (
     },
     squareCard: {
       height: cardHeight,
+      overflow: "hidden",
       width: cardWidth,
     },
     squareCardImage: {
       height: "100%",
       width: "100%",
+    },
+    squareCardContent: {
+      left: Math.round(cardWidth * 0.08),
+      position: "absolute",
+      right: Math.round(cardWidth * 0.08),
+      top: Math.round(cardHeight * 0.08),
+    },
+    squareCardTitle: {
+      color: "#444444",
+      fontFamily: "PretendardBold",
+      fontSize: fontScaled(22, fontScale),
+      lineHeight: fontScaled(30, fontScale),
+    },
+    squareCardDescription: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, fontScale),
+      lineHeight: fontScaled(21, fontScale),
+      marginTop: Math.round(cardHeight * 0.02),
     },
     reportCard: {
       alignItems: "center",
@@ -576,7 +605,7 @@ const createStyles = (
     reportTitle: {
       color: "#FFFFFF",
       fontFamily: "PretendardBold",
-      fontSize: fontScaled(28, fontScale),
+      fontSize: fontScaled(26, fontScale),
       lineHeight: fontScaled(36, fontScale),
     },
     reportDescription: {
@@ -614,8 +643,8 @@ const createStyles = (
     },
     makeText: {
       color: "#A1A1A1",
-      fontFamily: "PretendardSemiBold",
-      fontSize: fontScaled(16, fontScale),
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(20, fontScale),
     },
     receiptList: {
       gap: receiptScaled(12),

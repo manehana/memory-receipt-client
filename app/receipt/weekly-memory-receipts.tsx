@@ -90,11 +90,11 @@ export default function WeeklyMemoryReceiptsScreen() {
   const heightScale = height / BASE_HEIGHT;
   const layoutScale = Math.min(widthScale, heightScale, 1.04);
   const fixed = (value: number) => Math.round(value * layoutScale);
-  const scrollbarTrackHeight = Math.max(fixed(220), height - fixed(244));
+  const scrollbarTrackHeight = Math.max(fixed(300), height - fixed(204));
   const scrollbarThumbHeight =
     scrollContentHeight > scrollViewportHeight
       ? Math.max(
-          fixed(42),
+          fixed(46),
           scrollbarTrackHeight * (scrollViewportHeight / scrollContentHeight)
         )
       : scrollbarTrackHeight;
@@ -350,7 +350,12 @@ function WeeklyReceiptCard({
         >
           {receipt.title}
         </Text>
-        <Text maxFontSizeMultiplier={1.1} style={styles.cardMeta}>
+        <Text
+          ellipsizeMode="tail"
+          maxFontSizeMultiplier={1.1}
+          numberOfLines={1}
+          style={styles.cardMeta}
+        >
           {receipt.meta}
         </Text>
       </Animated.View>
@@ -451,8 +456,7 @@ const createStyles = (
     },
     header: {
       alignItems: "center",
-      backgroundColor: "#F8F8F8",
-      elevation: 12,
+      backgroundColor: "#FFFFFF",
       flexDirection: "row",
       height: fixed(48),
       width: "100%",
@@ -477,7 +481,7 @@ const createStyles = (
     listWrap: {
       flex: 1,
       marginTop: Math.round(8 * Math.min(heightScale, 1.04)),
-      overflow: "visible",
+      overflow: "hidden",
       zIndex: 0,
     },
     moreButton: {
@@ -495,17 +499,16 @@ const createStyles = (
       paddingTop: fixed(28),
     },
     receiptScroller: {
-      overflow: "visible",
+      overflow: "hidden",
       zIndex: 0,
     },
     safeArea: {
-      backgroundColor: "#F8F8F8",
+      backgroundColor: "#FFFFFF",
       flex: 1,
     },
     screen: {
       backgroundColor: "#F8F8F8",
       flex: 1,
-      paddingTop: Math.round(18 * Math.min(heightScale, 1.04)),
     },
     scrollbarThumb: {
       backgroundColor: "#5D5D5D",
