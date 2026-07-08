@@ -1,13 +1,14 @@
 import { fontScaled, scaled } from "@/constants/responsive";
-import { ApiError, apiMultipart, apiPost } from "@/lib/api";
+import { ApiError, apiGet, apiMultipart, apiPost } from "@/lib/api";
 import { playBase64Wav, stopCurrent } from "@/lib/audio";
 import type {
   AnswerResponse,
   RecallQuestion,
   SessionStartResponse,
+  VoiceResponse,
 } from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   ExpoSpeechRecognitionModule,
@@ -113,58 +114,83 @@ function computeLineBreaks(words: string[], maxBytes: number): boolean[] {
   });
   return breaks;
 }
-const voiceIdleCircleImage = require("../../assets/images/voice/voice-idle-circle.png");
-const voiceIdleSmallCircleImage = require("../../assets/images/voice/voice-idle-small-circle.png");
 const voiceListeningCircleImage = require("../../assets/images/voice/voice-listening-circle.png");
+const voiceMicrophoneImage = require("../../assets/images/voice/voice-microphone.png");
 const voiceListeningMicroCircleImage = require("../../assets/images/voice/voice-listening-micro-circle.png");
 const voiceListeningSmallCircleBlurImage = require("../../assets/images/voice/voice-listening-small-circle-blur.png");
-const voiceListeningSmallCircleImage = require("../../assets/images/voice/voice-listening-small-circle.png");
+const voiceSmallCircleBgImage = require("../../assets/images/voice/voice-small-circle-bg.png");
 
 type CompleteStatus = "ready" | "pressed" | "done";
 
 type ConversationFriend = {
   id: string;
+  name: string;
   icon: ImageSourcePropType;
 };
 
 const friends: ConversationFriend[] = [
   {
     id: "hanaboy",
-    icon: require("../../assets/images/onboarding/friend-hanaboy-inactive-icon.png"),
+    name: "별봄이",
+    icon: require("../../assets/images/onboarding/friend-hanaboy-active-icon.png"),
   },
   {
     id: "hanagirl",
-    icon: require("../../assets/images/onboarding/friend-hanagirl-inactive-icon.png"),
+    name: "별송이",
+    icon: require("../../assets/images/onboarding/friend-hanagirl-active-icon.png"),
   },
   {
     id: "son",
-    icon: require("../../assets/images/onboarding/friend-son-inactive-icon.png"),
+    name: "아들",
+    icon: require("../../assets/images/onboarding/friend-son-active-icon.png"),
   },
   {
     id: "daughter",
-    icon: require("../../assets/images/onboarding/friend-daughter-inactive-icon.png"),
+    name: "딸",
+    icon: require("../../assets/images/onboarding/friend-daughter-active-icon.png"),
   },
   {
     id: "hodong",
-    icon: require("../../assets/images/onboarding/friend-hodong-inactive-icon.png"),
+    name: "강호동",
+    icon: require("../../assets/images/onboarding/friend-hodong-active-icon.png"),
   },
   {
     id: "heungmin",
-    icon: require("../../assets/images/onboarding/friend-heungmin-inactive-icon.png"),
+    name: "손흥민",
+    icon: require("../../assets/images/onboarding/friend-heungmin-active-icon.png"),
   },
   {
     id: "yeongung",
-    icon: require("../../assets/images/onboarding/friend-yeongung-inactive-icon.png"),
+    name: "임영웅",
+    icon: require("../../assets/images/onboarding/friend-yeongung-active-icon.png"),
   },
   {
     id: "gdragon",
-    icon: require("../../assets/images/onboarding/friend-gdragon-inactive-icon.png"),
+    name: "지드래곤",
+    icon: require("../../assets/images/onboarding/friend-gdragon-active-icon.png"),
   },
   {
     id: "yujin",
-    icon: require("../../assets/images/onboarding/friend-yujin-inactive-icon.png"),
+    name: "안유진",
+    icon: require("../../assets/images/onboarding/friend-yujin-active-icon.png"),
   },
 ];
+
+function getFriendForVoice(
+  voices: VoiceResponse[],
+  voiceId: string | undefined
+): ConversationFriend {
+  const numericVoiceId = voiceId ? Number(voiceId) : null;
+  const selectedVoice =
+    numericVoiceId != null && !Number.isNaN(numericVoiceId)
+      ? voices.find((voice) => voice.id === numericVoiceId)
+      : voices.find((voice) => voice.is_default);
+  const voiceName = selectedVoice?.name.trim() ?? "";
+
+  return (
+    friends.find((friend) => voiceName.startsWith(friend.name)) ?? friends[0]
+  );
+}
 
 type TranscriptWord = { key: string; text: string };
 
@@ -323,9 +349,14 @@ export default function VoiceWaitingScreen() {
   const actionPillRef = useRef<View>(null);
   const answerScrollRef = useRef<ScrollView>(null);
   const [isExitModalVisible, setIsExitModalVisible] = useState(false);
-
-  // 음성별 전용 아이콘이 없어 기본 캐릭터 아이콘을 사용한다.
-  const selectedFriend = friends[0];
+  const { data: voices = [] } = useQuery({
+    queryKey: ["voices"],
+    queryFn: () => apiGet<VoiceResponse[]>("/voices"),
+  });
+  const selectedFriend = useMemo(
+    () => getFriendForVoice(voices, voiceId),
+    [voiceId, voices]
+  );
   // 응답 완료를 누르면(completeStatus가 ready를 벗어나면) 음성 입력 원(애니메이션)을 idle로 되돌린다
   const isVoiceActive =
     (isListening || hasResponse) && completeStatus === "ready";
@@ -916,7 +947,7 @@ export default function VoiceWaitingScreen() {
             >
               <Animated.Image
                 resizeMode="stretch"
-                source={voiceIdleCircleImage}
+                source={voiceListeningCircleImage}
                 style={[
                   styles.voiceCircleImage,
                   {
@@ -938,7 +969,7 @@ export default function VoiceWaitingScreen() {
               <View pointerEvents="none" style={styles.voiceSmallCircleLayer}>
                 <Animated.Image
                   resizeMode="contain"
-                  source={voiceIdleSmallCircleImage}
+                  source={voiceSmallCircleBgImage}
                   style={[
                     styles.voiceSmallCircle,
                     {
@@ -969,10 +1000,23 @@ export default function VoiceWaitingScreen() {
                 />
                 <Animated.Image
                   resizeMode="contain"
-                  source={voiceListeningSmallCircleImage}
+                  source={voiceSmallCircleBgImage}
                   style={[
-                    styles.voiceSmallCircle,
+                    styles.voiceListeningSmallCircle,
                     { opacity: listeningCircleOpacity },
+                  ]}
+                />
+                <Animated.Image
+                  resizeMode="contain"
+                  source={voiceMicrophoneImage}
+                  style={[
+                    styles.voiceMicrophone,
+                    {
+                      opacity: listeningCircleOpacity.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0],
+                      }),
+                    },
                   ]}
                 />
                 <Animated.View
@@ -1002,97 +1046,48 @@ export default function VoiceWaitingScreen() {
                 </Animated.View>
               </View>
             </Pressable>
-            <View
-              onLayout={updateAnswerAvailableHeight}
-              pointerEvents="box-none"
-              ref={actionPillRef}
-              style={styles.circleActionPillLayer}
-            >
-              {isListening && !hasResponse ? (
-                <View style={styles.floatingListeningBadge}>
-                  <View style={styles.listeningBadgeDotFrame}>
-                    <Animated.View
-                      style={[
-                        styles.listeningBadgeDotOuter,
-                        {
-                          transform: [
-                            {
-                              scale: listeningBadgePulse.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [1, 1.08],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    />
-                    <View style={styles.listeningBadgeDotInner} />
-                  </View>
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.listeningBadgeText}
-                  >
-                    듣고 있어요..
-                  </Text>
-                </View>
-              ) : null}
-              {hasResponse && hasTranscript ? (
-                <Pressable
-                  disabled={completeStatus !== "ready"}
-                  onPress={handleCompletePress}
-                  style={[
-                    styles.floatingCompleteButton,
-                    completeStatus === "pressed" &&
-                      styles.completeButtonPressed,
-                  ]}
-                >
-                  {completeStatus === "ready" ? (
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      style={styles.completeButtonText}
-                    >
-                      응답 완료
-                    </Text>
-                  ) : null}
-                  {completeStatus === "done" ? (
-                    <Ionicons
-                      color="#FFFFFF"
-                      name="checkmark-outline"
-                      size={scaled(33, pillScale)}
-                    />
-                  ) : null}
-                </Pressable>
-              ) : null}
-            </View>
           </View>
         </View>
 
-        <View pointerEvents="box-none" style={styles.actionPillLayer}>
+        <View
+          onLayout={updateAnswerAvailableHeight}
+          pointerEvents="box-none"
+          ref={actionPillRef}
+          style={styles.actionPillLayer}
+        >
           {isListening ? (
-            <View style={styles.floatingListeningBadge}>
-              <View style={styles.listeningBadgeDotFrame}>
-                <Animated.View
-                  style={[
-                    styles.listeningBadgeDotOuter,
-                    {
-                      transform: [
-                        {
-                          scale: listeningBadgePulse.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [1, 1.08],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-                <View style={styles.listeningBadgeDotInner} />
+            <View style={styles.listeningNoticeWrap}>
+              <View style={styles.floatingListeningBadge}>
+                <View style={styles.listeningBadgeDotFrame}>
+                  <Animated.View
+                    style={[
+                      styles.listeningBadgeDotOuter,
+                      {
+                        transform: [
+                          {
+                            scale: listeningBadgePulse.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [1, 1.08],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                  <View style={styles.listeningBadgeDotInner} />
+                </View>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.listeningBadgeText}
+                >
+                  듣고 있어요..
+                </Text>
               </View>
               <Text
                 maxFontSizeMultiplier={1.1}
-                style={styles.listeningBadgeText}
+                style={styles.aiVoiceNoticeText}
               >
-                듣고 있어요..
+                지금 나오는 음성은{"\n"}실제 사람이 아닌 AI 음성이에요.
               </Text>
             </View>
           ) : null}
@@ -1190,7 +1185,7 @@ const createStyles = (
 ) => {
   const actionPillWidth = scaled(146, pillScale);
   const actionPillHeight = scaled(49, pillScale);
-  const actionPillBottom = scaled(304, pillScale);
+  const actionPillBottom = scaled(250, pillScale);
   const largePhonePillLift = Math.round(Math.max(pillScale - 1, 0) * 220);
   const exitModalHorizontalInset = scaled(26, scale);
   const exitModalWidth = Math.min(
@@ -1394,7 +1389,6 @@ const createStyles = (
     actionPillLayer: {
       alignItems: "center",
       bottom: actionPillBottom,
-      display: "none",
       left: 0,
       pointerEvents: "box-none",
       position: "absolute",
@@ -1445,6 +1439,17 @@ const createStyles = (
       shadowRadius: 6,
       width: actionPillWidth,
       zIndex: 0,
+    },
+    listeningNoticeWrap: {
+      alignItems: "center",
+    },
+    aiVoiceNoticeText: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(16, pillScale),
+      lineHeight: fontScaled(21, pillScale),
+      marginTop: scaled(12, pillScale),
+      textAlign: "center",
     },
     listeningBadgeDotFrame: {
       alignItems: "center",
@@ -1540,7 +1545,7 @@ const createStyles = (
     },
     micArea: {
       alignItems: "center",
-      bottom: scaled(-118, scale),
+      bottom: scaled(-165, scale),
       height: scaled(375, scale),
       justifyContent: "center",
       left: 0,
@@ -1583,10 +1588,22 @@ const createStyles = (
       position: "absolute",
       width: scaled(288, circleScale),
     },
+    voiceListeningSmallCircle: {
+      height: scaled(288, circleScale),
+      position: "absolute",
+      width: scaled(288, circleScale),
+    },
+    voiceMicrophone: {
+      height: scaled(80, circleScale),
+      position: "absolute",
+      transform: [{ translateY: scaled(-40, circleScale) }],
+      width: scaled(70, circleScale),
+    },
     voiceMicroCircleRow: {
       alignItems: "center",
       flexDirection: "row",
-      gap: scaled(10, circleScale),
+      gap: scaled(15, circleScale),
+      transform: [{ translateY: scaled(-35, circleScale) }],
       justifyContent: "center",
       position: "absolute",
     },

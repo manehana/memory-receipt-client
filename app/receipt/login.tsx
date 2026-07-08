@@ -59,7 +59,7 @@ export default function LoginScreen() {
     mutationFn: () => login(trimmedId, password),
     onSuccess: async (data) => {
       await setToken(data.access_token);
-      router.replace("/receipt/main");
+      router.replace("/receipt/terms-agreement");
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 401) {
