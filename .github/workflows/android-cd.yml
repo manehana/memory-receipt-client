@@ -55,7 +55,7 @@ jobs:
 
       - name: Assemble release APK
         working-directory: android
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 
       - name: Stage APK with descriptive name
         id: apk
