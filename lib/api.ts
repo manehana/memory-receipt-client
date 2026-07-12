@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getToken } from "./auth";
+import { presentationPath } from "./presentation";
 
 export class ApiError extends Error {
   status: number;
@@ -19,7 +20,8 @@ function buildUrl(path: string): string {
   if (/^https?:\/\//.test(path)) {
     return path;
   }
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const prefixed = presentationPath(path);
+  return `${API_BASE_URL}${prefixed.startsWith("/") ? prefixed : `/${prefixed}`}`;
 }
 
 async function authHeader(): Promise<Record<string, string>> {
@@ -80,7 +82,7 @@ async function request<T>(
 // 서버가 내려주는 image_url은 호스트가 localhost로 박혀 올 수 있어 신뢰하지 않고,
 // 세션 ID로 우리 API base 기준 이미지 엔드포인트 URL을 직접 만든다.
 export function sessionImageUrl(sessionId: number): string {
-  return `${API_BASE_URL}/recall/sessions/${sessionId}/image`;
+  return `${API_BASE_URL}${presentationPath(`/recall/sessions/${sessionId}/image`)}`;
 }
 
 export function apiGet<T>(path: string): Promise<T> {

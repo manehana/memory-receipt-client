@@ -5,12 +5,13 @@ import {
   scaled,
 } from "@/constants/responsive";
 import { clearToken } from "@/lib/auth";
+import { isPresentationMode, setPresentationMode } from "@/lib/presentation";
 import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -63,6 +64,32 @@ export default function MoreScreen() {
     () => createStyles(scale, fontScale, width, height),
     [fontScale, height, scale, width],
   );
+
+  // '고객센터' 10회 연속 터치(3초 무입력 시 리셋) → 발표(presentation) 모드 토글.
+  const supportTapCount = useRef(0);
+  const supportTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSupportPress = () => {
+    if (supportTapTimer.current) {
+      clearTimeout(supportTapTimer.current);
+    }
+    supportTapTimer.current = setTimeout(() => {
+      supportTapCount.current = 0;
+    }, 3000);
+    supportTapCount.current += 1;
+    if (supportTapCount.current < 10) {
+      return;
+    }
+    supportTapCount.current = 0;
+    const next = !isPresentationMode();
+    void setPresentationMode(next).then(() => {
+      // 실제/데모 응답이 캐시에 섞이지 않게 전부 비운다.
+      queryClient.clear();
+      Alert.alert(
+        "발표 모드",
+        next ? "발표 모드가 켜졌어요." : "발표 모드가 꺼졌어요.",
+      );
+    });
+  };
 
   const handleLogout = () => {
     Alert.alert("로그아웃", "로그아웃 하시겠어요?", [
@@ -160,7 +187,12 @@ export default function MoreScreen() {
               알림・고객지원
             </Text>
             {supportItems.map((item) => (
-              <MenuRow key={item.label} item={item} styles={styles} />
+              <MenuRow
+                key={item.label}
+                item={item}
+                onPress={item.label === "고객센터" ? handleSupportPress : undefined}
+                styles={styles}
+              />
             ))}
           </View>
 
@@ -192,16 +224,19 @@ type MoreStyles = ReturnType<typeof createStyles>;
 function MenuRow({
   isToggleOn,
   item,
+  onPress,
   onToggle,
   styles,
 }: {
   isToggleOn?: boolean;
   item: MenuItem;
+  onPress?: () => void;
   onToggle?: () => void;
   styles: MoreStyles;
 }) {
   return (
     <Pressable
+      onPress={onPress}
       style={[
         styles.menuRow,
         { marginTop: styles.itemGapScale.height * item.gapTop },
