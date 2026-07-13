@@ -4,7 +4,7 @@
     "slug": "memory-receipt-client",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/manehana_logo_low.png",
     "scheme": "memoryreceiptclient",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
