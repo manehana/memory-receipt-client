@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/adaptive-icon.png"
+        "foregroundImage": "./assets/images/manehana_logo_low.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
