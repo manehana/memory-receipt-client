@@ -22,7 +22,7 @@ export async function setPresentationMode(on: boolean): Promise<void> {
 }
 
 // 발표 시나리오가 서버에 구현된 경로들. 여기 없는 경로는 기존 API 사용.
-const SCENARIO_PREFIXES = ["/recall", "/stats", "/auth/me"];
+const SCENARIO_PREFIXES = ["/recall", "/stats", "/auth/me", "/report"];
 
 export function presentationPath(path: string): string {
   if (!presentationMode) {

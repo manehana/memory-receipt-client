@@ -7,6 +7,8 @@ import {
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
+import { apiGet } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -26,26 +28,35 @@ const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
 const BOTTOM_SHEET_ANIMATION_MS = 220;
 
-const detailScores = [
-  { label: "언어 내용", max: "50점", score: 42, total: 50 },
-  { label: "말 시작 흐름", max: "30점", score: 20, total: 30 },
-  { label: "운율 · 음향", max: "20점", score: 16, total: 20 },
-];
+// GET /report 응답. 서버(발표 시나리오 포함)가 내려주는 리포트 데이터 형태.
+type SafetyReport = {
+  round: number;
+  name: string;
+  period_start: string;
+  period_end: string;
+  total_score: number;
+  level_label: string;
+  level_short: string;
+  description: string;
+  detail_scores: { label: string; score: number; total: number }[];
+  score_flows: { label: string; score?: number; current?: boolean }[];
+  conversation_count: number;
+  condition_bad_count: number;
+  delta_text: string;
+  top_places: { rank: number; name: string; count: string }[];
+  spending_alert: { strong: string; text: string };
+  spending_note: string;
+  recommended_services: RecommendedService[];
+};
 
-const reportFlows = [
-  { barHeight: 82, label: "1회차", score: 76 },
-  { barHeight: 68, label: "2회차", score: 75 },
-  { barHeight: 94, current: true, label: "3회차", score: 78 },
-  { barHeight: 82, label: "4회차" },
-];
+type RecommendedService = {
+  category: string;
+  name: string;
+  description: string;
+  action?: string;
+};
 
-const topPlaces = [
-  { count: "12번 갔어요.", name: "이마트 강남점", rank: 1 },
-  { count: "10번 갔어요.", name: "투썸플레이스 역삼점", rank: 2 },
-  { count: "7번 갔어요.", name: "서울내과의원", rank: 3 },
-];
-
-const recommendedServices = [
+const recommendedServices: RecommendedService[] = [
   {
     category: "하나은행 · 마이데이터 서비스",
     description: "개인 맞춤형 디지털 마이데이터(자산관리) 서비스",
@@ -71,6 +82,74 @@ const recommendedServices = [
   },
 ];
 
+// 서버 리포트를 아직 못 받았거나(비발표 모드 404 등) 로딩 중일 때의 기본값.
+const fallbackReport: SafetyReport = {
+  round: 3,
+  name: "김하나",
+  period_start: "2026-07-01",
+  period_end: "2026-07-15",
+  total_score: 78,
+  level_label: "ㅇ 정상 · 1단계(85~100점)",
+  level_short: "ㅇ 1단계",
+  description: "인지 건강 우수 · 예방 중심의 자산 기반 구축 시기",
+  detail_scores: [
+    { label: "언어 내용", score: 42, total: 50 },
+    { label: "말 시작 흐름", score: 20, total: 30 },
+    { label: "운율 · 음향", score: 16, total: 20 },
+  ],
+  score_flows: [
+    { label: "1회차", score: 76 },
+    { label: "2회차", score: 75 },
+    { label: "3회차", score: 78, current: true },
+    { label: "4회차" },
+  ],
+  conversation_count: 24,
+  condition_bad_count: 2,
+  delta_text: "지난 회차보다 3점 올랐어요.",
+  top_places: [
+    { rank: 1, name: "이마트 강남점", count: "12번 갔어요." },
+    { rank: 2, name: "투썸플레이스 역삼점", count: "10번 갔어요." },
+    { rank: 3, name: "서울내과의원", count: "7번 갔어요." },
+  ],
+  spending_alert: {
+    strong: "5월 12일 심야 마트 결제",
+    text: "가 있었으나, 대화 결과 손주 선물을 사기 위해 가셨던 것으로 확인했어요.",
+  },
+  spending_note: "이번 달은 평소와 비슷한 소비 행태를 보이고 있어요.",
+  recommended_services: recommendedServices,
+};
+
+const WEEKDAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
+
+function formatReportDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00+09:00`);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일(${
+    WEEKDAYS_KO[date.getDay()]
+  })`;
+}
+
+// 점수 흐름 막대 높이(%): 점수 범위를 55~95%로 펼쳐 차이가 눈에 보이게 한다.
+function flowBarHeight(
+  flows: SafetyReport["score_flows"],
+  score: number | undefined
+): number {
+  if (score === undefined) {
+    return 82;
+  }
+  const scores = flows
+    .map((flow) => flow.score)
+    .filter((value): value is number => typeof value === "number");
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  if (max === min) {
+    return 82;
+  }
+  return 55 + ((score - min) / (max - min)) * 40;
+}
+
 export default function SafetyReportScreen() {
   const { width, height } = useWindowDimensions();
   const scale = getScreenScale(width, height);
@@ -81,9 +160,19 @@ export default function SafetyReportScreen() {
   );
   const [isShareEnabled, setIsShareEnabled] = useState(false);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
-  const [selectedService, setSelectedService] = useState<
-    (typeof recommendedServices)[number] | null
-  >(null);
+  const [selectedService, setSelectedService] =
+    useState<RecommendedService | null>(null);
+  // 발표 모드에선 /presentation/report, 그 외엔 /report — 실패 시 기본값 유지.
+  const { data: reportData } = useQuery({
+    queryKey: ["safety-report"],
+    queryFn: () => apiGet<SafetyReport>("/report"),
+    retry: false,
+  });
+  const report = reportData ?? fallbackReport;
+  const detailScores = report.detail_scores;
+  const reportFlows = report.score_flows;
+  const topPlaces = report.top_places;
+  const services = report.recommended_services;
   const shareToggleProgress = useRef(new Animated.Value(0)).current;
   const detailScoreProgress = useRef(new Animated.Value(0)).current;
   const flowBarProgress = useRef(new Animated.Value(0)).current;
@@ -164,7 +253,7 @@ export default function SafetyReportScreen() {
       startFlowBarAnimation();
     }
   };
-  const openProductSheet = (service: (typeof recommendedServices)[number]) => {
+  const openProductSheet = (service: RecommendedService) => {
     productSheetProgress.setValue(1);
     setSelectedService(service);
     requestAnimationFrame(() => {
@@ -216,14 +305,15 @@ export default function SafetyReportScreen() {
           <View style={styles.reportCard}>
             <View style={styles.roundBadge}>
               <Text maxFontSizeMultiplier={1.1} style={styles.roundBadgeText}>
-                3회차 리포트
+                {report.round}회차 리포트
               </Text>
             </View>
             <Text maxFontSizeMultiplier={1.1} style={styles.reportTitle}>
-              김하나 고객님의 안심 리포트
+              {report.name} 고객님의 안심 리포트
             </Text>
             <Text maxFontSizeMultiplier={1.1} style={styles.reportDate}>
-              2026년 7월 1일(수) ~ 7월 15일(수)
+              {formatReportDate(report.period_start)} ~{" "}
+              {formatReportDate(report.period_end)}
             </Text>
             <View style={styles.shareBox}>
               <View style={styles.shareLeft}>
@@ -277,19 +367,19 @@ export default function SafetyReportScreen() {
           <View style={styles.totalScoreCard}>
             <View style={styles.statusBadge}>
               <Text maxFontSizeMultiplier={1.1} style={styles.statusBadgeText}>
-                ㅇ 정상 · 1단계(85~100점)
+                {report.level_label}
               </Text>
             </View>
             <View style={styles.scoreRow}>
               <Text maxFontSizeMultiplier={1.1} style={styles.totalScore}>
-                78
+                {report.total_score}
               </Text>
               <Text maxFontSizeMultiplier={1.1} style={styles.totalScoreUnit}>
                 / 100점
               </Text>
             </View>
             <Text maxFontSizeMultiplier={1.1} style={styles.totalDescription}>
-              인지 건강 우수 · 예방 중심의 자산 기반 구축 시기
+              {report.description}
             </Text>
           </View>
 
@@ -323,7 +413,7 @@ export default function SafetyReportScreen() {
                   style={styles.detailScoreText}
                 >
                   {item.score}
-                  <Text style={styles.detailScoreMuted}>/ {item.max}</Text>
+                  <Text style={styles.detailScoreMuted}>/ {item.total}점</Text>
                 </Text>
                 {index < detailScores.length - 1 ? (
                   <View style={styles.detailDivider} />
@@ -382,7 +472,10 @@ export default function SafetyReportScreen() {
                         {
                           height: flowBarProgress.interpolate({
                             inputRange: [0, 1],
-                            outputRange: ["0%", `${item.barHeight}%`],
+                            outputRange: [
+                              "0%",
+                              `${flowBarHeight(reportFlows, item.score)}%`,
+                            ],
                           }),
                         },
                       ]}
@@ -429,7 +522,7 @@ export default function SafetyReportScreen() {
                   style={styles.statIcon}
                 />
                 <Text maxFontSizeMultiplier={1.1} style={styles.statNumber}>
-                  24
+                  {report.conversation_count}
                 </Text>
                 <Text maxFontSizeMultiplier={1.1} style={styles.statUnit}>
                   회
@@ -448,7 +541,7 @@ export default function SafetyReportScreen() {
                   style={styles.statIcon}
                 />
                 <Text maxFontSizeMultiplier={1.1} style={styles.statNumber}>
-                  2
+                  {report.condition_bad_count}
                 </Text>
                 <Text maxFontSizeMultiplier={1.1} style={styles.statUnit}>
                   회
@@ -460,7 +553,7 @@ export default function SafetyReportScreen() {
           <InfoBox
             icon={require("../../assets/images/safety-report/safety-report-check.png")}
             styles={styles}
-            text="지난 회차보다 3점 올랐어요."
+            text={report.delta_text}
             type="success"
           />
           <View style={styles.noteRow}>
@@ -483,7 +576,8 @@ export default function SafetyReportScreen() {
               자주 간 곳 TOP3
             </Text>
             <Text maxFontSizeMultiplier={1.1} style={styles.monthReferenceText}>
-              7월 기준
+              {new Date(`${report.period_end}T00:00:00+09:00`).getMonth() + 1}월
+              기준
             </Text>
           </View>
           <View style={styles.topPlaceCard}>
@@ -516,16 +610,15 @@ export default function SafetyReportScreen() {
             />
             <Text maxFontSizeMultiplier={1.1} style={styles.infoText}>
               <Text style={styles.warningStrongText}>
-                5월 12일 심야 마트 결제
+                {report.spending_alert.strong}
               </Text>
-              가 있었으나, 대화 결과 손주 선물을 사기 위해 가셨던 것으로
-              확인했어요.
+              {report.spending_alert.text}
             </Text>
           </View>
           <InfoBox
             icon={require("../../assets/images/safety-report/safety-report-check.png")}
             styles={styles}
-            text="이번 달은 평소와 비슷한 소비 행태를 보이고 있어요."
+            text={report.spending_note}
             type="success"
             variant="consumption"
           />
@@ -549,13 +642,13 @@ export default function SafetyReportScreen() {
             </View>
             <View style={styles.levelBadge}>
               <Text maxFontSizeMultiplier={1.1} style={styles.levelBadgeText}>
-                ㅇ 1단계
+                {report.level_short}
               </Text>
             </View>
           </View>
 
           <View style={styles.serviceList}>
-            {recommendedServices.map((service) => (
+            {services.map((service) => (
               <Pressable
                 key={service.name}
                 onPress={() => openProductSheet(service)}
@@ -740,9 +833,8 @@ export default function SafetyReportScreen() {
                   maxFontSizeMultiplier={1.1}
                   style={styles.productSheetDescription}
                 >
-                  전 금융기관 자산을 하나원큐 앱 하나로 통합 조회하고 실시간
-                  소비·자산 변화를 AI가 분석해요. 기억 HANA의 이상 패턴 탐지
-                  기준선이 되는 핵심 데이터 소스예요.
+                  {selectedService?.description ??
+                    "전 금융기관 자산을 하나원큐 앱 하나로 통합 조회하고 실시간 소비·자산 변화를 AI가 분석해요. 기억 HANA의 이상 패턴 탐지 기준선이 되는 핵심 데이터 소스예요."}
                 </Text>
 
                 <View style={styles.productTagRow}>
@@ -840,7 +932,7 @@ export default function SafetyReportScreen() {
                     maxFontSizeMultiplier={1.1}
                     style={styles.productMainButtonText}
                   >
-                    하나원큐에서 하나 합 열기
+                    {selectedService?.action ?? "하나원큐에서 하나 합 열기"}
                   </Text>
                 </Pressable>
                 <Pressable onPress={closeProductSheet}>
