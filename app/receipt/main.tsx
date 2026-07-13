@@ -308,7 +308,11 @@ export default function MainScreen() {
                   key={receipt.id}
                   onPress={() => {
                     router.push({
-                      params: { date: receipt.date },
+                      params: {
+                        date: receipt.date,
+                        hasImage: receipt.hasImage ? "1" : "0",
+                        sessionId: String(receipt.id),
+                      },
                       pathname: "/receipt/weekly-memory-receipt-detail",
                     });
                   }}

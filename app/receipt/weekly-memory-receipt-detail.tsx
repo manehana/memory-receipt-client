@@ -4,8 +4,11 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
+import { sessionImageUrl } from "@/lib/api";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image as ExpoImage } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -74,8 +77,15 @@ const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
 };
 
 export default function WeeklyMemoryReceiptDetail() {
-  const { date } = useLocalSearchParams<{ date?: string }>();
+  const { date, hasImage, sessionId } = useLocalSearchParams<{
+    date?: string;
+    hasImage?: string;
+    sessionId?: string;
+  }>();
   const headerTitle = (date ?? "5월 1일").replace(/\s*\([^)]*\)\s*$/, "");
+  const imageHeaders = useImageAuthHeaders();
+  const heroSessionId =
+    hasImage === "1" && sessionId ? Number(sessionId) : null;
   const { width, height } = useWindowDimensions();
   const [isShareSheetVisible, setIsShareSheetVisible] = useState(false);
   const shareSheetProgress = useRef(new Animated.Value(1)).current;
@@ -206,11 +216,22 @@ export default function WeeklyMemoryReceiptDetail() {
                   <View style={styles.titleDash} />
                 </View>
 
-                <Image
-                  resizeMode="cover"
-                  source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
-                  style={styles.heroImage}
-                />
+                {heroSessionId != null ? (
+                  <ExpoImage
+                    contentFit="cover"
+                    source={{
+                      uri: sessionImageUrl(heroSessionId),
+                      headers: imageHeaders,
+                    }}
+                    style={styles.heroImage}
+                  />
+                ) : (
+                  <Image
+                    resizeMode="cover"
+                    source={require("../../assets/images/memory-notebook/weekly-memory-receipt-thumbnail.png")}
+                    style={styles.heroImage}
+                  />
+                )}
 
                 <SectionTitle label="오늘의 한줄" styles={styles} />
                 <View style={styles.summaryBox}>
