@@ -5,10 +5,11 @@ name: Android CD
 # the self-hosted runner's upload bandwidth is the bottleneck, and uploading the
 # same APK twice roughly doubled the total time.)
 #
-# NOTE: the android/ folder is gitignored (Expo prebuild output). This workflow
-# deliberately reuses the copy that already lives on the self-hosted runner,
-# so checkout runs with clean: false (the default clean:true would `git clean
-# -ffdx` and delete the generated android/ and node_modules/ folders).
+# NOTE: checkout runs with clean: false so the persisted node_modules/ on the
+# self-hosted runner survives between builds (the default clean:true would
+# `git clean -ffdx` it away). The gitignored android/ folder is regenerated
+# every build via `expo prebuild --clean` — reusing it caused stale native
+# resources (e.g. old app icons) to ship in the APK.
 
 on:
   push:
@@ -39,19 +40,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate android/ if missing (Expo prebuild)
-        run: |
-          if [ ! -d android ]; then
-            npx expo prebuild -p android --no-install
-          fi
-
-      - name: Clean stale native build artifacts
-        working-directory: android
-        run: rm -rf app/.cxx app/build build
-
-      - name: Gradle clean
-        working-directory: android
-        run: ./gradlew clean
+      # Always re-run prebuild so app.json changes (icon, permissions, etc.)
+      # are synced into the persisted android/ folder. --clean regenerates it
+      # from scratch — android/ is pure prebuild output (gitignored), and the
+      # Gradle caches that matter live in ~/.gradle, so this is cheap and
+      # guarantees no stale native resources leak into the APK.
+      - name: Sync Expo config to android/ (Expo prebuild)
+        run: npx expo prebuild -p android --no-install --clean
 
       - name: Assemble release APK
         working-directory: android
