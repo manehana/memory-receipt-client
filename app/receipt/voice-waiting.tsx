@@ -867,7 +867,7 @@ export default function VoiceWaitingScreen() {
                 )}
               </View>
             ) : null}
-            {isListening ? (
+            {isListening && !(hasResponse && hasTranscript) ? (
               <>
                 {!hasTranscript ? (
                   <Text maxFontSizeMultiplier={1.1} style={styles.answerPrompt}>
@@ -1055,7 +1055,7 @@ export default function VoiceWaitingScreen() {
           ref={actionPillRef}
           style={styles.actionPillLayer}
         >
-          {isListening ? (
+          {isListening && !(hasResponse && hasTranscript) ? (
             <View style={styles.listeningNoticeWrap}>
               <View style={styles.floatingListeningBadge}>
                 <View style={styles.listeningBadgeDotFrame}>
