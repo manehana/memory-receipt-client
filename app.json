@@ -4,7 +4,7 @@
     "slug": "memory-receipt-client",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/manehana_logo_low.png",
+    "icon": "./assets/images/manehana_logo_v2_low.png",
     "scheme": "memoryreceiptclient",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/manehana_logo_low.png"
+        "foregroundImage": "./assets/images/manehana_logo_v2_low.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
