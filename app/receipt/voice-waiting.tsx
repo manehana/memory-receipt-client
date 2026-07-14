@@ -45,6 +45,7 @@ import Reanimated, {
   Easing as REasing,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -62,10 +63,11 @@ const REFLOW_MS = 360;
 // 글자 자체에 거는 흐림 반경(시작값) — BlurView 같은 사각형 패널이 아니라
 // 글리프 모양을 따라가는 그림자라 영역이 네모로 잘리지 않는다.
 const MAX_BLUR_RADIUS = 9;
-const WORD_SHADOW = {
-  textShadowColor: "#3B3B3B",
-  textShadowOffset: { width: 0, height: 0 },
-} as const;
+const WORD_SHADOW_OFFSET = { width: 0, height: 0 } as const;
+const ANSWER_SHADOW_COLOR = "#3B3B3B";
+const QUESTION_SHADOW_COLOR = "#2ABD83";
+// 질문 전체가 한 번에 도착하므로 단어별 등장 시차를 준다
+const QUESTION_STAGGER_MS = 90;
 // 한 줄당 UTF-8 바이트 수를 기준으로 줄바꿈 위치를 직접 계산해
 // 폰트/화면 크기와 무관하게 동일한 기준으로 폰트 축소·스크롤을 전환한다
 const ANSWER_LINE_MAX_BYTES = 44;
@@ -192,25 +194,32 @@ function getFriendForVoice(
   );
 }
 
-type TranscriptWord = { key: string; text: string };
+type TranscriptWord = { key: string; text: string; delayMs?: number };
 
 function AnimatedWord({
   text,
   textStyle,
   wrapStyle,
+  shadowColor = ANSWER_SHADOW_COLOR,
+  delayMs = 0,
 }: {
   text: string;
   textStyle: StyleProp<TextStyle>;
   wrapStyle: StyleProp<ViewStyle>;
+  shadowColor?: string;
+  delayMs?: number;
 }) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withTiming(1, {
-      duration: WORD_FADE_MS,
-      easing: SIGMOID_EASING,
-    });
-  }, [progress]);
+    progress.value = withDelay(
+      delayMs,
+      withTiming(1, {
+        duration: WORD_FADE_MS,
+        easing: SIGMOID_EASING,
+      })
+    );
+  }, [delayMs, progress]);
 
   // opacity fade + 글리프 모양을 따라가는 흐림(textShadowRadius)을 함께 진행해
   // 흐릿한 글자가 선명해지는 효과. BlurView 사각형 패널이 아니라 네모로 잘리지 않음.
@@ -226,7 +235,14 @@ function AnimatedWord({
     >
       <Reanimated.Text
         maxFontSizeMultiplier={1.1}
-        style={[textStyle, WORD_SHADOW, animatedTextStyle]}
+        style={[
+          textStyle,
+          {
+            textShadowColor: shadowColor,
+            textShadowOffset: WORD_SHADOW_OFFSET,
+          },
+          animatedTextStyle,
+        ]}
       >
         {text}
       </Reanimated.Text>
@@ -240,12 +256,16 @@ function AnimatedTranscript({
   containerStyle,
   wrapStyle,
   onLineCountChange,
+  shadowColor,
+  staggerMs = 0,
 }: {
   transcript: string;
   textStyle: StyleProp<TextStyle>;
   containerStyle: StyleProp<ViewStyle>;
   wrapStyle: StyleProp<ViewStyle>;
-  onLineCountChange: (lineCount: number) => void;
+  onLineCountChange?: (lineCount: number) => void;
+  shadowColor?: string;
+  staggerMs?: number;
 }) {
   // 신규 단어만 등장 애니메이션이 돌도록 직전 단어 배열과 접두 비교
   const prevRef = useRef<TranscriptWord[]>([]);
@@ -256,15 +276,21 @@ function AnimatedTranscript({
       ? transcript.trim().split(/\s+/)
       : [];
     const prev = prevRef.current;
+    // 이번 렌더에서 새로 등장한 단어들끼리만 시차(stagger)를 계산한다
+    let newWordOrder = 0;
     const next = tokens.map((text, index) => {
       if (prev[index] && prev[index].text === text) {
         return prev[index];
       }
-      return { key: `w${seqRef.current++}`, text };
+      return {
+        key: `w${seqRef.current++}`,
+        text,
+        delayMs: staggerMs * newWordOrder++,
+      };
     });
     prevRef.current = next;
     return next;
-  }, [transcript]);
+  }, [staggerMs, transcript]);
 
   // 줄바꿈 위치는 화면 렌더링이 아니라 단어별 UTF-8 바이트 합산으로 직접 계산한다
   const lineBreaks = useMemo(
@@ -279,7 +305,7 @@ function AnimatedTranscript({
     words.length === 0 ? 0 : 1 + lineBreaks.filter(Boolean).length;
 
   useEffect(() => {
-    onLineCountChange(lineCount);
+    onLineCountChange?.(lineCount);
   }, [lineCount, onLineCountChange]);
 
   return (
@@ -291,6 +317,8 @@ function AnimatedTranscript({
             text={word.text}
             textStyle={textStyle}
             wrapStyle={wrapStyle}
+            shadowColor={shadowColor}
+            delayMs={word.delayMs}
           />
         </Fragment>
       ))}
@@ -822,9 +850,15 @@ export default function VoiceWaitingScreen() {
                 style={styles.friendAvatarImage}
               />
             </View>
-            <Text maxFontSizeMultiplier={1.1} style={styles.questionText}>
-              {currentQuestion?.text ?? ""}
-            </Text>
+            <AnimatedTranscript
+              key={currentQuestion?.text ?? ""}
+              transcript={currentQuestion?.text ?? ""}
+              textStyle={styles.questionText}
+              containerStyle={styles.questionWords}
+              wrapStyle={styles.questionWordWrap}
+              shadowColor={QUESTION_SHADOW_COLOR}
+              staggerMs={QUESTION_STAGGER_MS}
+            />
             {hasTranscript ? (
               <View
                 onLayout={updateAnswerAvailableHeight}
@@ -1347,7 +1381,17 @@ const createStyles = (
       fontFamily: "PretendardBold",
       fontSize: fontScaled(28, fontScale),
       lineHeight: fontScaled(37, fontScale),
+    },
+    questionWords: {
+      alignItems: "flex-end",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "flex-start",
       marginTop: scaled(14, scale),
+    },
+    questionWordWrap: {
+      marginRight: scaled(7, scale),
+      position: "relative",
     },
     answerPrompt: {
       color: "#A0A0A0",
