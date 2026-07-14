@@ -258,6 +258,7 @@ function AnimatedTranscript({
   onLineCountChange,
   shadowColor,
   staggerMs = 0,
+  manualLineBreaks = true,
 }: {
   transcript: string;
   textStyle: StyleProp<TextStyle>;
@@ -266,6 +267,7 @@ function AnimatedTranscript({
   onLineCountChange?: (lineCount: number) => void;
   shadowColor?: string;
   staggerMs?: number;
+  manualLineBreaks?: boolean;
 }) {
   // 신규 단어만 등장 애니메이션이 돌도록 직전 단어 배열과 접두 비교
   const prevRef = useRef<TranscriptWord[]>([]);
@@ -295,11 +297,13 @@ function AnimatedTranscript({
   // 줄바꿈 위치는 화면 렌더링이 아니라 단어별 UTF-8 바이트 합산으로 직접 계산한다
   const lineBreaks = useMemo(
     () =>
-      computeLineBreaks(
-        words.map((word) => word.text),
-        ANSWER_LINE_MAX_BYTES
-      ),
-    [words]
+      manualLineBreaks
+        ? computeLineBreaks(
+            words.map((word) => word.text),
+            ANSWER_LINE_MAX_BYTES
+          )
+        : words.map(() => false),
+    [manualLineBreaks, words]
   );
   const lineCount =
     words.length === 0 ? 0 : 1 + lineBreaks.filter(Boolean).length;
@@ -858,6 +862,7 @@ export default function VoiceWaitingScreen() {
               wrapStyle={styles.questionWordWrap}
               shadowColor={QUESTION_SHADOW_COLOR}
               staggerMs={QUESTION_STAGGER_MS}
+              manualLineBreaks={false}
             />
             {hasTranscript ? (
               <View
