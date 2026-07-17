@@ -22,7 +22,9 @@ type VoiceCircleProps = {
   innerSize: number;
   active: boolean;
   // 실제 녹음 음량 0..1 (화면에서 volumechange 이벤트로 갱신)
+  // volume: 즉각 반응하는 값, volumeSlow: 느린 포락선
   volume: SharedValue<number>;
+  volumeSlow: SharedValue<number>;
   micIcon: ImageSourcePropType;
   circleScale: number;
 };
@@ -50,6 +52,8 @@ function Ring({
   phase,
   activeProgress,
   volume,
+  volumeSlow,
+  band,
   baseOpacity,
   idleOpacity,
 }: {
@@ -60,20 +64,32 @@ function Ring({
   phase: number;
   activeProgress: SharedValue<number>;
   volume: SharedValue<number>;
+  volumeSlow: SharedValue<number>;
+  // 0 = 바깥 링(고음 성분에 민감) .. 1 = 안쪽 링(저음/포락선에 민감)
+  band: number;
   baseOpacity: number;
   idleOpacity: number;
 }) {
   const ringStyle = useAnimatedStyle(() => {
     const wave = Math.sin(TWO_PI * (clock.value + phase));
-    // idle: 아주 미세한 숨쉬기 / active: 음량이 물결 진폭을 키운다
-    const amplitude =
-      0.006 + activeProgress.value * (0.012 + volume.value * 0.045);
+    // 빠른 변화(고음 성분 근사): fast가 slow보다 얼마나 앞서는지
+    const hi = Math.min(
+      Math.max(volume.value - volumeSlow.value, 0) * 2.5 + volume.value * 0.25,
+      1
+    );
+    // 저음/전체 에너지: 느린 포락선
+    const lo = volumeSlow.value;
+    // 바깥 링일수록 hi, 안쪽 링일수록 lo 비중이 크다
+    const level = hi * (1 - band) + lo * band;
+    // 소리가 없으면 움츠러들고(0.94) 소리가 크면 커진다(최대 ~1.06)
+    const grow = activeProgress.value * (-0.06 + level * 0.12);
+    const amplitude = 0.006 + activeProgress.value * 0.008;
     return {
       opacity:
         idleOpacity +
         (baseOpacity - idleOpacity) * activeProgress.value +
-        wave * 0.12 * activeProgress.value * (0.3 + volume.value * 0.7),
-      transform: [{ scale: 1 + wave * amplitude }],
+        wave * 0.1 * activeProgress.value * (0.3 + level * 0.7),
+      transform: [{ scale: 1 + grow + wave * amplitude }],
     };
   });
 
@@ -126,6 +142,7 @@ export default function VoiceCircle({
   innerSize: _innerSize,
   active,
   volume,
+  volumeSlow,
   micIcon,
   circleScale,
 }: VoiceCircleProps) {
@@ -217,6 +234,7 @@ export default function VoiceCircle({
       {INNER_RINGS.map((ring, index) => (
         <Ring
           activeProgress={activeProgress}
+          band={index / (INNER_RINGS.length - 1)}
           baseOpacity={1}
           clock={clock}
           color={mint(ring.alpha)}
@@ -225,6 +243,7 @@ export default function VoiceCircle({
           key={`inner-${index}`}
           phase={-index * phaseStep}
           volume={volume}
+          volumeSlow={volumeSlow}
         />
       ))}
       <Reanimated.Image

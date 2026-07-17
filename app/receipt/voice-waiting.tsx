@@ -47,7 +47,6 @@ import Reanimated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -346,7 +345,9 @@ export default function VoiceWaitingScreen() {
   );
   const listeningBadgePulse = useRef(new Animated.Value(0)).current;
   // 실제 마이크 음량(0..1) — volumechange 이벤트로 갱신, VoiceCircle 애니메이션 구동
+  // fast: 즉각 반응(빠른 변화 = 고음 성분 근사), slow: 느린 포락선(저음/전체 에너지)
   const voiceVolume = useSharedValue(0);
+  const voiceVolumeSlow = useSharedValue(0);
   const completeTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [totalTurns, setTotalTurns] = useState(0);
@@ -459,6 +460,7 @@ export default function VoiceWaitingScreen() {
   useEffect(() => {
     if (!isVoiceActive) {
       voiceVolume.value = withTiming(0, { duration: 300 });
+      voiceVolumeSlow.value = withTiming(0, { duration: 300 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVoiceActive]);
@@ -539,10 +541,10 @@ export default function VoiceWaitingScreen() {
   useSpeechRecognitionEvent("volumechange", (event) => {
     const norm = Math.min(Math.max((event.value + 2) / 12, 0), 1);
     // iOS는 낮은 값에 몰려 있어 감마 보정으로 반응성을 키운다
-    voiceVolume.value = withSpring(Math.pow(norm, 0.7), {
-      damping: 14,
-      stiffness: 160,
-    });
+    const level = Math.pow(norm, 0.7);
+    // fast는 빠릿하게 따라가고, slow는 포락선처럼 천천히 따라간다
+    voiceVolume.value = withTiming(level, { duration: 90 });
+    voiceVolumeSlow.value = withTiming(level, { duration: 480 });
   });
 
   useSpeechRecognitionEvent("end", () => {
@@ -737,7 +739,7 @@ export default function VoiceWaitingScreen() {
       interimResults: true,
       continuous: true,
       recordingOptions: { persist: true },
-      volumeChangeEventOptions: { enabled: true, intervalMillis: 100 },
+      volumeChangeEventOptions: { enabled: true, intervalMillis: 50 },
     });
   };
 
@@ -942,6 +944,7 @@ export default function VoiceWaitingScreen() {
                 micIcon={voiceMicrophoneImage}
                 size={scaled(480, circleScale)}
                 volume={voiceVolume}
+                volumeSlow={voiceVolumeSlow}
               />
             </Pressable>
           </View>
