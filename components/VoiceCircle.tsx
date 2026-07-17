@@ -27,26 +27,18 @@ type VoiceCircleProps = {
   circleScale: number;
 };
 
-const GREEN_TOP = "#41DCA0";
 const GREEN_BOTTOM = "#2ABD83";
 const mint = (alpha: number) => `rgba(42, 189, 131, ${alpha})`;
 
-// 그린 링 바깥으로 퍼지는 은은한 glow 링들 (바깥 → 안)
-const OUTER_RINGS = [
-  { ratio: 1.34, alpha: 0.035 },
-  { ratio: 1.26, alpha: 0.05 },
-  { ratio: 1.18, alpha: 0.07 },
-  { ratio: 1.1, alpha: 0.09 },
-];
-
 // 흰 원 안쪽의 촘촘한 동심원들 (바깥 → 안). 중심으로 갈수록 살짝 짙어진다.
 const INNER_RINGS = [
-  { ratio: 0.84, alpha: 0.04 },
-  { ratio: 0.76, alpha: 0.05 },
-  { ratio: 0.68, alpha: 0.06 },
-  { ratio: 0.6, alpha: 0.07 },
-  { ratio: 0.52, alpha: 0.08 },
-  { ratio: 0.44, alpha: 0.09 },
+  { ratio: 0.92, alpha: 0.04 },
+  { ratio: 0.84, alpha: 0.05 },
+  { ratio: 0.76, alpha: 0.06 },
+  { ratio: 0.68, alpha: 0.07 },
+  { ratio: 0.6, alpha: 0.08 },
+  { ratio: 0.52, alpha: 0.09 },
+  { ratio: 0.44, alpha: 0.1 },
 ];
 
 const TWO_PI = Math.PI * 2;
@@ -210,39 +202,17 @@ export default function VoiceCircle({
 
   const styles = createStyles(size, circleScale);
   // 물결이 중심 → 바깥으로 퍼지도록 안쪽 링일수록 위상이 앞선다
-  const ringCount = OUTER_RINGS.length + INNER_RINGS.length;
-  const phaseStep = 0.55 / ringCount;
+  const phaseStep = 0.55 / INNER_RINGS.length;
 
   return (
     <View pointerEvents="none" style={styles.frame}>
-      {OUTER_RINGS.map((ring, index) => (
-        <Ring
-          activeProgress={activeProgress}
-          baseOpacity={1}
-          clock={clock}
-          color={mint(ring.alpha)}
-          diameter={size * ring.ratio}
-          idleOpacity={0.45}
-          key={`outer-${index}`}
-          phase={-(ringCount - 1 - index) * phaseStep}
-          volume={volume}
-        />
-      ))}
       <Reanimated.View style={[styles.disc, discStyle]}>
         <LinearGradient
-          colors={[GREEN_TOP, GREEN_BOTTOM]}
+          colors={["#FFFFFF", "#F7FBF9"]}
           end={{ x: 0.5, y: 1 }}
           start={{ x: 0.5, y: 0 }}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.innerDisc}>
-          <LinearGradient
-            colors={["#FFFFFF", "#F7FBF9"]}
-            end={{ x: 0.5, y: 1 }}
-            start={{ x: 0.5, y: 0 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
       </Reanimated.View>
       {INNER_RINGS.map((ring, index) => (
         <Ring
@@ -253,7 +223,7 @@ export default function VoiceCircle({
           diameter={size * ring.ratio}
           idleOpacity={0.3}
           key={`inner-${index}`}
-          phase={-(OUTER_RINGS.length + index) * phaseStep}
+          phase={-index * phaseStep}
           volume={volume}
         />
       ))}
@@ -278,7 +248,6 @@ export default function VoiceCircle({
 }
 
 const createStyles = (size: number, circleScale: number) => {
-  const innerDiscSize = size * 0.9;
   return StyleSheet.create({
     frame: {
       alignItems: "center",
@@ -292,15 +261,6 @@ const createStyles = (size: number, circleScale: number) => {
       overflow: "hidden",
       position: "absolute",
       width: size,
-    },
-    innerDisc: {
-      borderRadius: innerDiscSize / 2,
-      height: innerDiscSize,
-      left: (size - innerDiscSize) / 2,
-      overflow: "hidden",
-      position: "absolute",
-      top: size * 0.05,
-      width: innerDiscSize,
     },
     mic: {
       height: scaled(80, circleScale),
