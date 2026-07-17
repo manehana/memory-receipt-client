@@ -36,6 +36,7 @@ const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
 const SLOT_BASE_WIDTH = 370;
 const SLOT_BASE_HEIGHT = 44.25;
+const SLOT_OPENING_TOP_RATIO = 72 / 177;
 const RECEIPT_BASE_WIDTH = 331;
 const PHOTO_BASE_WIDTH = 296;
 const PHOTO_BASE_HEIGHT = 154;
@@ -153,7 +154,7 @@ export default function MemoryReceipt() {
         duration: 170,
         easing: Easing.out(Easing.quad),
         toValue: stop,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       ...(index < feedStops.length - 1 ? [Animated.delay(75)] : []),
     ]);
@@ -314,31 +315,29 @@ export default function MemoryReceipt() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.receiptStage}>
-            <View
+            <Image
+              resizeMode="contain"
+              source={require("../../assets/images/memory-receipt/receipt-slot.png")}
+              style={styles.receiptSlot}
+            />
+
+            <Animated.View
               style={[
                 styles.receiptReveal,
+                {
+                  height: receiptReveal.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, receiptContentHeight],
+                  }),
+                },
                 isReceiptRevealed ? styles.receiptRevealVisible : null,
               ]}
             >
-              <Animated.View
+              <View
                 onLayout={(event) =>
                   setReceiptContentHeight(event.nativeEvent.layout.height)
                 }
-                style={[
-                  styles.receiptWrap,
-                  receiptContentHeight === 0
-                    ? styles.receiptWrapHidden
-                    : {
-                        transform: [
-                          {
-                            translateY: receiptReveal.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [-receiptContentHeight, 0],
-                            }),
-                          },
-                        ],
-                      },
-                ]}
+                style={styles.receiptWrap}
               >
                 <View collapsable={false} ref={receiptPaperRef} style={styles.receiptPaper}>
                   <View style={styles.receiptInner}>
@@ -472,16 +471,8 @@ export default function MemoryReceipt() {
                   source={require("../../assets/images/memory-receipt/memory-receipt-tear-line.png")}
                   style={styles.tearLine}
                 />
-              </Animated.View>
-            </View>
-
-            <View pointerEvents="none" style={styles.receiptSlotWrap}>
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/images/memory-receipt/receipt-slot.png")}
-                style={styles.receiptSlot}
-              />
-            </View>
+              </View>
+            </Animated.View>
           </View>
         </ScrollView>
 
@@ -743,6 +734,7 @@ const createStyles = (
     Math.round(screenWidth * 0.92),
   );
   const slotHeight = Math.round(slotWidth * (SLOT_BASE_HEIGHT / SLOT_BASE_WIDTH));
+  const slotOpeningTop = Math.round(slotHeight * SLOT_OPENING_TOP_RATIO);
   const heroWidth = Math.min(
     receiptFixed(PHOTO_BASE_WIDTH),
     receiptWidth - receiptFixed(36),
@@ -881,14 +873,11 @@ const createStyles = (
       width: receiptWidth,
     },
     receiptReveal: {
-      // 슬롯 높이만큼 확보한 뒤, 슬롯 하단(출력구) 쪽으로 끌어올려 겹친다.
-      marginTop: -(slotHeight - receiptFixed(8)),
+      alignItems: "center",
+      marginTop: -(slotHeight - slotOpeningTop),
       overflow: "hidden",
-      paddingBottom: receiptFixed(20),
-      paddingHorizontal: receiptFixed(20),
-      paddingTop: receiptFixed(8),
       width: receiptWidth + receiptFixed(40),
-      zIndex: 1,
+      zIndex: 4,
     },
     receiptRevealVisible: {
       overflow: "visible",
@@ -896,23 +885,12 @@ const createStyles = (
     receiptSlot: {
       height: slotHeight,
       width: slotWidth,
-    },
-    receiptSlotWrap: {
-      alignItems: "center",
-      elevation: 10,
-      left: 0,
-      position: "absolute",
-      right: 0,
-      top: 0,
-      zIndex: 10,
+      zIndex: 1,
     },
     receiptStage: {
       alignItems: "center",
       marginTop: vertical(8),
       overflow: "visible",
-      // 절대 배치 슬롯 자리 확보 (기존 in-flow 슬롯 높이와 동일)
-      paddingTop: slotHeight,
-      position: "relative",
       width: "100%",
     },
     receiptTitle: {
@@ -934,9 +912,6 @@ const createStyles = (
       overflow: "visible",
       width: receiptWidth,
       zIndex: 3,
-    },
-    receiptWrapHidden: {
-      opacity: 0,
     },
     safeArea: {
       backgroundColor: "#FFFFFF",
