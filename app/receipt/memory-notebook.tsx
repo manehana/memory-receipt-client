@@ -6,6 +6,7 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
+import { filterPresentationSessions } from "@/lib/presentation";
 import type { RecallSessionListItem } from "@/lib/types";
 import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
@@ -173,7 +174,10 @@ export default function MemoryNotebookScreen() {
     sortOptions.find((option) => option.value === selectedSort)?.label ??
     sortOptions[0].label;
   const memoryNotebookMonths = useMemo(
-    () => toMemoryNotebookMonths(user?.recall_sessions ?? []),
+    () =>
+      toMemoryNotebookMonths(
+        filterPresentationSessions(user?.recall_sessions ?? [])
+      ),
     [user?.recall_sessions]
   );
   const sortedMemoryNotebookMonths = useMemo(() => {

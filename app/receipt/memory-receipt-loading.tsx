@@ -5,6 +5,7 @@ import {
   scaled,
 } from "@/constants/responsive";
 import { apiGet, apiPost } from "@/lib/api";
+import { revealPresentationTodaySession } from "@/lib/presentation";
 import type { RecallSessionResponse } from "@/lib/types";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import { Ionicons } from "@expo/vector-icons";
@@ -157,8 +158,36 @@ export default function MemoryReceiptLoading() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [startProgress, isFailed]);
 
+  // 완료 응답을 받으면 반복 채움을 멈추고 진행률을 100%까지 빠르게 채운다.
   useEffect(() => {
-    if (status !== "completed" || id == null) return;
+    if (status !== "completed") return;
+    // 발표 모드: 오늘 세션을 목록에 공개하고, ["me"] 캐시를 갱신해 반영한다.
+    revealPresentationTodaySession();
+    queryClient.invalidateQueries({ queryKey: ["me"] });
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    const TICK = 40;
+    intervalRef.current = setInterval(() => {
+      setProgress((prev) => {
+        const next = Math.min(100, prev + 4);
+        progressAnim.value = withTiming(next, {
+          duration: TICK,
+          easing: Easing.linear,
+        });
+        if (next >= 100 && intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        return next;
+      });
+    }, TICK);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [status, progressAnim]);
+
+  // 진행률이 100%가 된 뒤에만 결과 화면으로 전환한다.
+  useEffect(() => {
+    if (status !== "completed" || id == null || progress < 100) return;
     const timer = setTimeout(() => {
       router.replace({
         pathname: "/receipt/memory-receipt",
@@ -166,7 +195,7 @@ export default function MemoryReceiptLoading() {
       });
     }, 350);
     return () => clearTimeout(timer);
-  }, [status, id]);
+  }, [status, id, progress]);
 
   return (
     <View style={styles.root}>

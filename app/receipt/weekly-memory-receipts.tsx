@@ -6,6 +6,7 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
+import { filterPresentationSessions } from "@/lib/presentation";
 import type { RecallSessionListItem } from "@/lib/types";
 import { useCurrentUser } from "@/lib/user";
 import { goBackToPreviousScreen } from "@/utils/navigation";
@@ -72,7 +73,7 @@ export default function WeeklyMemoryReceiptsScreen() {
   const imageHeaders = useImageAuthHeaders();
   const receipts = useMemo(
     () =>
-      (user?.recall_sessions ?? [])
+      filterPresentationSessions(user?.recall_sessions ?? [])
         .map(toWeeklyReceipt)
         .filter((receipt): receipt is WeeklyReceipt => receipt !== null),
     [user?.recall_sessions]

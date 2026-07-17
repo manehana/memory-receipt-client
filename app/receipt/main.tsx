@@ -6,6 +6,7 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
+import { filterPresentationSessions } from "@/lib/presentation";
 import type { RecallSessionListItem } from "@/lib/types";
 import { useCurrentUser } from "@/lib/user";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -83,7 +84,7 @@ export default function MainScreen() {
   const userName = user?.username ?? "";
   const recentReceipts = useMemo(
     () =>
-      (user?.recall_sessions ?? [])
+      filterPresentationSessions(user?.recall_sessions ?? [])
         .map(toRecentReceipt)
         .filter((receipt): receipt is RecentReceipt => receipt !== null),
     [user?.recall_sessions]

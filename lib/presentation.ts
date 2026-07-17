@@ -18,7 +18,34 @@ export function isPresentationMode(): boolean {
 
 export async function setPresentationMode(on: boolean): Promise<void> {
   presentationMode = on;
+  todaySessionRevealed = false;
   await SecureStore.setItemAsync(MODE_KEY, on ? "1" : "0");
+}
+
+// 발표 시나리오 데이터에는 오늘 세션이 처음부터 completed로 들어있다.
+// 시연 흐름상 오늘의 대화를 끝내기 전에는 목록에서 숨긴다.
+// 인메모리 전용이라 앱을 재시작하면 다시 숨김 상태로 돌아간다.
+let todaySessionRevealed = false;
+
+export function revealPresentationTodaySession(): void {
+  todaySessionRevealed = true;
+}
+
+function localTodayString(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+export function filterPresentationSessions<T extends { session_date: string }>(
+  sessions: T[],
+): T[] {
+  if (!presentationMode || todaySessionRevealed) {
+    return sessions;
+  }
+  const today = localTodayString();
+  return sessions.filter((session) => session.session_date !== today);
 }
 
 // 발표 시나리오가 서버에 구현된 경로들. 여기 없는 경로는 기존 API 사용.
