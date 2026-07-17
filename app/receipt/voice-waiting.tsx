@@ -990,12 +990,6 @@ export default function VoiceWaitingScreen() {
                   ) : null}
                 </>
               ) : null}
-              {isAwaitingNext ? (
-                <TypingDots
-                  containerStyle={styles.typingDots}
-                  dotStyle={styles.typingDot}
-                />
-              ) : null}
             </Reanimated.View>
           </View>
         )}
@@ -1061,11 +1055,20 @@ export default function VoiceWaitingScreen() {
                   </Text>
                 ) : null}
                 {completeStatus === "done" ? (
-                  <Ionicons
-                    color="#FFFFFF"
-                    name="checkmark-outline"
-                    size={scaled(33, pillScale)}
-                  />
+                  isAwaitingNext ? (
+                    <TypingDots
+                      containerStyle={styles.typingDots}
+                      dotStyle={styles.typingDot}
+                    />
+                  ) : (
+                    <Reanimated.View exiting={FadeOut.duration(180)}>
+                      <Ionicons
+                        color="#FFFFFF"
+                        name="checkmark-outline"
+                        size={scaled(33, pillScale)}
+                      />
+                    </Reanimated.View>
+                  )
                 ) : null}
               </Pressable>
             </Reanimated.View>
@@ -1348,14 +1351,13 @@ const createStyles = (
     typingDots: {
       alignItems: "center",
       flexDirection: "row",
-      gap: scaled(7, scale),
-      marginTop: scaled(28, scale),
+      gap: scaled(6, pillScale),
     },
     typingDot: {
-      backgroundColor: "#2ABD83",
-      borderRadius: scaled(5.5, scale),
-      height: scaled(11, scale),
-      width: scaled(11, scale),
+      backgroundColor: "#D9D9D9",
+      borderRadius: scaled(4.5, pillScale),
+      height: scaled(9, pillScale),
+      width: scaled(9, pillScale),
     },
     answerWordWrap: {
       marginLeft: scaled(7, scale),

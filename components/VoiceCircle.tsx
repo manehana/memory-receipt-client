@@ -315,7 +315,7 @@ const createStyles = (size: number, circleScale: number) => {
     mic: {
       height: scaled(80, circleScale),
       position: "absolute",
-      transform: [{ translateY: scaled(-58, circleScale) }],
+      transform: [{ translateY: scaled(-92, circleScale) }],
       width: scaled(70, circleScale),
     },
     microRow: {
