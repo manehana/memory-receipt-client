@@ -5,8 +5,6 @@ import { StyleSheet, View, type ImageSourcePropType } from "react-native";
 import Reanimated, {
   cancelAnimation,
   Easing,
-  interpolate,
-  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -32,11 +30,10 @@ type VoiceCircleProps = {
 };
 
 const microCircleImage = require("../assets/images/voice/voice-listening-micro-circle.png");
-// 점 파도 한 사이클(위+아래) 길이 — 스프링 정착 시간과 맞물려 멈춤 없이 이어진다
-const MICRO_WAVE_CYCLE_MS = 800;
-// 점 사이 위상차(사이클 비율) — 세 점이 연속된 파도로 겹친다
-const MICRO_WAVE_PHASE_STEP = 0.18;
-const MICRO_WAVE_SPRING = { damping: 40, stiffness: 300 };
+// 점 파도 한 사이클(위+아래) 길이
+const MICRO_WAVE_CYCLE_MS = 1600;
+// 점 사이 위상차 1/4 사이클 — 첫 점이 최하단일 때 마지막 점이 최상단, 가운데 점은 정중앙
+const MICRO_WAVE_PHASE_STEP = 0.25;
 const mint = (alpha: number) => `rgba(42, 189, 131, ${alpha})`;
 
 // 흰 원 안쪽의 촘촘한 동심원들 (바깥 → 안). 중심으로 갈수록 살짝 짙어진다.
@@ -128,16 +125,15 @@ function Ring({
 }
 
 function MicroDot({
-  active,
+  activeProgress,
   microClock,
   phase,
   volume,
   circleScale,
   style,
 }: {
-  active: boolean;
-  // 파도 박자를 만드는 공유 클럭(0..1 반복). 스프링 정착을 기다리지 않고
-  // 반 사이클마다 목표(위/아래)를 토글해 점이 멈춤 없이 연속으로 움직인다.
+  activeProgress: SharedValue<number>;
+  // 파도 박자를 만드는 공유 클럭(0..1 반복). sin에 위상을 더해 그대로 위치로 쓴다.
   microClock: SharedValue<number>;
   // 점마다 어긋난 위상 → 세 점이 이어지는 파도
   phase: number;
@@ -145,40 +141,24 @@ function MicroDot({
   circleScale: number;
   style: object;
 }) {
-  const wave = useSharedValue(0);
   // worklet 안에서는 미리 계산한 숫자만 캡처한다
   const baseAmplitude = scaled(6, circleScale);
 
-  useAnimatedReaction(
-    () =>
-      active ? Math.sin(TWO_PI * (microClock.value + phase)) >= 0 : null,
-    (isUp, previous) => {
-      if (isUp !== null && isUp !== previous) {
-        wave.value = withSpring(isUp ? 1 : 0, MICRO_WAVE_SPRING);
-      }
-    },
-    [active, phase],
-  );
-
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(wave);
-      wave.value = withTiming(0, { duration: 240 });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
-
-  const dotStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: interpolate(
-          wave.value,
-          [0, 1],
-          [0, -baseAmplitude * (0.6 + volume.value * 1.6)]
-        ),
-      },
-    ],
-  }));
+  const dotStyle = useAnimatedStyle(() => {
+    // 0(최하단)..1(최상단)의 완전한 사인 파형
+    const wave = (Math.sin(TWO_PI * (microClock.value + phase)) + 1) / 2;
+    return {
+      transform: [
+        {
+          translateY:
+            -wave *
+            baseAmplitude *
+            (0.6 + volume.value * 1.6) *
+            activeProgress.value,
+        },
+      ],
+    };
+  });
   return (
     <Reanimated.Image
       resizeMode="contain"
@@ -308,7 +288,7 @@ export default function VoiceCircle({
       <Reanimated.View style={[styles.microRow, microRowStyle]}>
         {[0, 1, 2].map((index) => (
           <MicroDot
-            active={active}
+            activeProgress={activeProgress}
             circleScale={circleScale}
             key={index}
             microClock={microClock}
@@ -340,7 +320,7 @@ const createStyles = (size: number, circleScale: number) => {
     mic: {
       height: scaled(80, circleScale),
       position: "absolute",
-      transform: [{ translateY: scaled(-92, circleScale) }],
+      transform: [{ translateY: scaled(-138, circleScale) }],
       width: scaled(70, circleScale),
     },
     microRow: {
