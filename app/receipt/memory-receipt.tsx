@@ -14,7 +14,6 @@ import { Image as ExpoImage } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { captureRef } from "react-native-view-shot";
 import {
   Animated,
   Easing,
@@ -31,12 +30,12 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { captureRef } from "react-native-view-shot";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
 const SLOT_BASE_WIDTH = 370;
 const SLOT_BASE_HEIGHT = 44.25;
-const SLOT_OPENING_TOP_RATIO = 72 / 177;
 const RECEIPT_BASE_WIDTH = 331;
 const PHOTO_BASE_WIDTH = 296;
 const PHOTO_BASE_HEIGHT = 154;
@@ -154,7 +153,7 @@ export default function MemoryReceipt() {
         duration: 170,
         easing: Easing.out(Easing.quad),
         toValue: stop,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
       ...(index < feedStops.length - 1 ? [Animated.delay(75)] : []),
     ]);
@@ -321,23 +320,31 @@ export default function MemoryReceipt() {
               style={styles.receiptSlot}
             />
 
-            <Animated.View
+            <View
               style={[
                 styles.receiptReveal,
-                {
-                  height: receiptReveal.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, receiptContentHeight],
-                  }),
-                },
                 isReceiptRevealed ? styles.receiptRevealVisible : null,
               ]}
             >
-              <View
+              <Animated.View
                 onLayout={(event) =>
                   setReceiptContentHeight(event.nativeEvent.layout.height)
                 }
-                style={styles.receiptWrap}
+                style={[
+                  styles.receiptWrap,
+                  receiptContentHeight === 0
+                    ? styles.receiptWrapHidden
+                    : {
+                        transform: [
+                          {
+                            translateY: receiptReveal.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-receiptContentHeight, 0],
+                            }),
+                          },
+                        ],
+                      },
+                ]}
               >
                 <View collapsable={false} ref={receiptPaperRef} style={styles.receiptPaper}>
                   <View style={styles.receiptInner}>
@@ -471,8 +478,8 @@ export default function MemoryReceipt() {
                   source={require("../../assets/images/memory-receipt/memory-receipt-tear-line.png")}
                   style={styles.tearLine}
                 />
-              </View>
-            </Animated.View>
+              </Animated.View>
+            </View>
           </View>
         </ScrollView>
 
@@ -734,7 +741,6 @@ const createStyles = (
     Math.round(screenWidth * 0.92),
   );
   const slotHeight = Math.round(slotWidth * (SLOT_BASE_HEIGHT / SLOT_BASE_WIDTH));
-  const slotOpeningTop = Math.round(slotHeight * SLOT_OPENING_TOP_RATIO);
   const heroWidth = Math.min(
     receiptFixed(PHOTO_BASE_WIDTH),
     receiptWidth - receiptFixed(36),
@@ -873,9 +879,11 @@ const createStyles = (
       width: receiptWidth,
     },
     receiptReveal: {
-      alignItems: "center",
-      marginTop: -(slotHeight - slotOpeningTop),
+      marginTop: -receiptFixed(25),
       overflow: "hidden",
+      paddingBottom: receiptFixed(20),
+      paddingHorizontal: receiptFixed(20),
+      paddingTop: 0,
       width: receiptWidth + receiptFixed(40),
       zIndex: 4,
     },
@@ -884,6 +892,7 @@ const createStyles = (
     },
     receiptSlot: {
       height: slotHeight,
+      position: "relative",
       width: slotWidth,
       zIndex: 1,
     },
@@ -912,6 +921,9 @@ const createStyles = (
       overflow: "visible",
       width: receiptWidth,
       zIndex: 3,
+    },
+    receiptWrapHidden: {
+      opacity: 0,
     },
     safeArea: {
       backgroundColor: "#FFFFFF",
