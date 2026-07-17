@@ -1,3 +1,4 @@
+import AnimatedTranscript from "@/components/AnimatedTranscript";
 import {
   fontScaled,
   getFontScale,
@@ -204,9 +205,27 @@ export default function MemoryReceiptLoading() {
           <Ionicons name="chevron-back" size={30} color="#9F9F9F" />
         </Pressable>
 
+        {/* 제목/설명은 voice-waiting의 질문·응답과 동일한 blur→sharp 단어 등장 연출을 쓴다.
+            단계(getStageText)가 바뀌면 새 문구의 단어들이 시차를 두고 흐림→선명으로 떠오른다. */}
         <View style={styles.textBox}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.description}>{description}</Text>
+          <AnimatedTranscript
+            transcript={title}
+            textStyle={styles.title}
+            containerStyle={styles.titleWords}
+            wrapStyle={styles.titleWordWrap}
+            shadowColor="#2ABD83"
+            staggerMs={80}
+            manualLineBreaks={false}
+          />
+          <AnimatedTranscript
+            transcript={description}
+            textStyle={styles.description}
+            containerStyle={styles.descriptionWords}
+            wrapStyle={styles.descriptionWordWrap}
+            shadowColor="#9F9F9F"
+            staggerMs={55}
+            manualLineBreaks={false}
+          />
         </View>
 
         {/* 텍스트~원: 98px (402 기준) → scaled(104) */}
@@ -306,12 +325,30 @@ const createStyles = (scale: number, fontScale: number) => StyleSheet.create({
     fontFamily: "PretendardBold",
     lineHeight: fontScaled(40, fontScale),
   },
+  titleWords: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+  },
+  titleWordWrap: {
+    marginRight: scaled(8, scale),
+    position: "relative",
+  },
   description: {
-    marginTop: scaled(12, scale),
     color: "#9F9F9F",
     fontSize: fontScaled(20, fontScale),
     fontFamily: "PretendardMedium",
     lineHeight: fontScaled(26, fontScale),
+  },
+  descriptionWords: {
+    marginTop: scaled(12, scale),
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+  },
+  descriptionWordWrap: {
+    marginRight: scaled(6, scale),
+    position: "relative",
   },
   circleArea: {
     marginTop: scaled(104, scale),
