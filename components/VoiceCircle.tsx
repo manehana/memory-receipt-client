@@ -6,11 +6,10 @@ import Reanimated, {
   cancelAnimation,
   Easing,
   interpolate,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withRepeat,
-  withSequence,
   withSpring,
   withTiming,
   type SharedValue,
@@ -33,8 +32,10 @@ type VoiceCircleProps = {
 };
 
 const microCircleImage = require("../assets/images/voice/voice-listening-micro-circle.png");
-// 세 점이 연속된 파도로 겹치도록 하는 위상 간격
-const MICRO_WAVE_STEP_MS = 140;
+// 점 파도 한 사이클(위+아래) 길이 — 스프링 정착 시간과 맞물려 멈춤 없이 이어진다
+const MICRO_WAVE_CYCLE_MS = 800;
+// 점 사이 위상차(사이클 비율) — 세 점이 연속된 파도로 겹친다
+const MICRO_WAVE_PHASE_STEP = 0.18;
 const MICRO_WAVE_SPRING = { damping: 40, stiffness: 300 };
 const mint = (alpha: number) => `rgba(42, 189, 131, ${alpha})`;
 
@@ -127,18 +128,46 @@ function Ring({
 }
 
 function MicroDot({
-  wave,
+  active,
+  microClock,
+  phase,
   volume,
   circleScale,
   style,
 }: {
-  wave: SharedValue<number>;
+  active: boolean;
+  // 파도 박자를 만드는 공유 클럭(0..1 반복). 스프링 정착을 기다리지 않고
+  // 반 사이클마다 목표(위/아래)를 토글해 점이 멈춤 없이 연속으로 움직인다.
+  microClock: SharedValue<number>;
+  // 점마다 어긋난 위상 → 세 점이 이어지는 파도
+  phase: number;
   volume: SharedValue<number>;
   circleScale: number;
   style: object;
 }) {
+  const wave = useSharedValue(0);
   // worklet 안에서는 미리 계산한 숫자만 캡처한다
   const baseAmplitude = scaled(6, circleScale);
+
+  useAnimatedReaction(
+    () =>
+      active ? Math.sin(TWO_PI * (microClock.value + phase)) >= 0 : null,
+    (isUp, previous) => {
+      if (isUp !== null && isUp !== previous) {
+        wave.value = withSpring(isUp ? 1 : 0, MICRO_WAVE_SPRING);
+      }
+    },
+    [active, phase],
+  );
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(wave);
+      wave.value = withTiming(0, { duration: 240 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
   const dotStyle = useAnimatedStyle(() => ({
     transform: [
       {
@@ -173,7 +202,8 @@ export default function VoiceCircle({
   const activeProgress = useSharedValue(0);
   // 모든 링이 공유하는 시계 (0..1 반복, sin으로 물결 위상 계산)
   const clock = useSharedValue(0);
-  const microWaves = [useSharedValue(0), useSharedValue(0), useSharedValue(0)];
+  // 점 파도 전용 박자 (0..1 반복) — 듣는 중에만 돈다
+  const microClock = useSharedValue(0);
   // 응답 완료 버튼 등장 시 바깥 링 수축 (버튼과 같은 spring 질감)
   const condenseProgress = useSharedValue(0);
 
@@ -189,29 +219,18 @@ export default function VoiceCircle({
   useEffect(() => {
     activeProgress.value = withTiming(active ? 1 : 0, { duration: 420 });
     if (active) {
-      microWaves.forEach((wave, index) => {
-        wave.value = withDelay(
-          index * MICRO_WAVE_STEP_MS,
-          withRepeat(
-            withSequence(
-              withSpring(1, MICRO_WAVE_SPRING),
-              withSpring(0, MICRO_WAVE_SPRING)
-            ),
-            -1
-          )
-        );
-      });
+      microClock.value = 0;
+      microClock.value = withRepeat(
+        withTiming(1, { duration: MICRO_WAVE_CYCLE_MS, easing: Easing.linear }),
+        -1
+      );
     } else {
-      microWaves.forEach((wave) => {
-        cancelAnimation(wave);
-        wave.value = withTiming(0, { duration: 240 });
-      });
+      cancelAnimation(microClock);
     }
     return () => {
       cancelAnimation(activeProgress);
-      microWaves.forEach((wave) => cancelAnimation(wave));
+      cancelAnimation(microClock);
     };
-    // microWaves 배열 항목은 마운트 동안 동일 객체
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -287,13 +306,15 @@ export default function VoiceCircle({
         style={[styles.mic, micStyle]}
       />
       <Reanimated.View style={[styles.microRow, microRowStyle]}>
-        {microWaves.map((wave, index) => (
+        {[0, 1, 2].map((index) => (
           <MicroDot
+            active={active}
             circleScale={circleScale}
             key={index}
+            microClock={microClock}
+            phase={-index * MICRO_WAVE_PHASE_STEP}
             style={styles.microDot}
             volume={volume}
-            wave={wave}
           />
         ))}
       </Reanimated.View>
@@ -325,14 +346,14 @@ const createStyles = (size: number, circleScale: number) => {
     microRow: {
       alignItems: "center",
       flexDirection: "row",
-      gap: scaled(15, circleScale),
+      gap: scaled(9, circleScale),
       justifyContent: "center",
       position: "absolute",
       transform: [{ translateY: scaled(-35, circleScale) }],
     },
     microDot: {
-      height: scaled(15, circleScale),
-      width: scaled(15, circleScale),
+      height: scaled(21, circleScale),
+      width: scaled(21, circleScale),
     },
   });
 };
