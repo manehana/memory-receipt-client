@@ -314,12 +314,6 @@ export default function MemoryReceipt() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.receiptStage}>
-            <Image
-              resizeMode="contain"
-              source={require("../../assets/images/memory-receipt/receipt-slot.png")}
-              style={styles.receiptSlot}
-            />
-
             <View
               style={[
                 styles.receiptReveal,
@@ -479,6 +473,14 @@ export default function MemoryReceipt() {
                   style={styles.tearLine}
                 />
               </Animated.View>
+            </View>
+
+            <View pointerEvents="none" style={styles.receiptSlotWrap}>
+              <Image
+                resizeMode="contain"
+                source={require("../../assets/images/memory-receipt/receipt-slot.png")}
+                style={styles.receiptSlot}
+              />
             </View>
           </View>
         </ScrollView>
@@ -879,27 +881,38 @@ const createStyles = (
       width: receiptWidth,
     },
     receiptReveal: {
-      marginTop: -receiptFixed(45),
+      // 슬롯 높이만큼 확보한 뒤, 슬롯 하단(출력구) 쪽으로 끌어올려 겹친다.
+      marginTop: -(slotHeight - receiptFixed(8)),
       overflow: "hidden",
       paddingBottom: receiptFixed(20),
       paddingHorizontal: receiptFixed(20),
-      paddingTop: receiptFixed(20),
+      paddingTop: receiptFixed(8),
       width: receiptWidth + receiptFixed(40),
-      zIndex: 4,
+      zIndex: 1,
     },
     receiptRevealVisible: {
       overflow: "visible",
     },
     receiptSlot: {
       height: slotHeight,
-      position: "relative",
       width: slotWidth,
-      zIndex: 1,
+    },
+    receiptSlotWrap: {
+      alignItems: "center",
+      elevation: 10,
+      left: 0,
+      position: "absolute",
+      right: 0,
+      top: 0,
+      zIndex: 10,
     },
     receiptStage: {
       alignItems: "center",
       marginTop: vertical(8),
       overflow: "visible",
+      // 절대 배치 슬롯 자리 확보 (기존 in-flow 슬롯 높이와 동일)
+      paddingTop: slotHeight,
+      position: "relative",
       width: "100%",
     },
     receiptTitle: {
