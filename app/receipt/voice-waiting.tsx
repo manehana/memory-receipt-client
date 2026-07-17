@@ -101,7 +101,7 @@ const turnExiting = () => {
 // 그 에너지를 이어받듯 spring으로 떠오른다
 const completeButtonEntering = () => {
   "worklet";
-  const spring = { damping: 14, stiffness: 130 };
+  const spring = { damping: 40, stiffness: 300 };
   return {
     initialValues: {
       opacity: 0,
