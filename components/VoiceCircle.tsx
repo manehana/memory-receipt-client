@@ -241,9 +241,14 @@ export default function VoiceCircle({
     };
   });
 
+  // 애니메이션 transform이 정적 transform을 통째로 대체하므로 translateY도 여기서 함께 적용한다
+  const micOffsetY = scaled(-92, circleScale);
   const micStyle = useAnimatedStyle(() => ({
     opacity: 1 - activeProgress.value,
-    transform: [{ scale: 1 - activeProgress.value * 0.2 }],
+    transform: [
+      { translateY: micOffsetY },
+      { scale: 1 - activeProgress.value * 0.2 },
+    ],
   }));
 
   const microRowStyle = useAnimatedStyle(() => ({
@@ -320,7 +325,6 @@ const createStyles = (size: number, circleScale: number) => {
     mic: {
       height: scaled(80, circleScale),
       position: "absolute",
-      transform: [{ translateY: scaled(-138, circleScale) }],
       width: scaled(70, circleScale),
     },
     microRow: {
