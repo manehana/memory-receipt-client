@@ -1,3 +1,4 @@
+import VoiceCircle from "@/components/VoiceCircle";
 import { fontScaled, scaled } from "@/constants/responsive";
 import { ApiError, apiGet, apiMultipart, apiPost } from "@/lib/api";
 import { playBase64Wav, stopCurrent } from "@/lib/audio";
@@ -49,7 +50,6 @@ import Reanimated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import VoiceCircle from "@/components/VoiceCircle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BASE_WIDTH = 402;
@@ -793,11 +793,11 @@ export default function VoiceWaitingScreen() {
           </View>
         ) : (
           <View style={styles.questionBox}>
-            <Text maxFontSizeMultiplier={1.1} style={styles.questionCount}>
+            {/* <Text maxFontSizeMultiplier={1.1} style={styles.questionCount}>
               질문{" "}
               <Text style={styles.questionCountCurrent}>{questionNumber}</Text>/
               {totalTurns}
-            </Text>
+            </Text> */}
             <View style={styles.friendAvatar}>
               <Image
                 resizeMode="contain"
@@ -940,7 +940,7 @@ export default function VoiceWaitingScreen() {
                 circleScale={circleScale}
                 innerSize={scaled(380, circleScale)}
                 micIcon={voiceMicrophoneImage}
-                size={scaled(525, circleScale)}
+                size={scaled(480, circleScale)}
                 volume={voiceVolume}
               />
             </Pressable>
@@ -1453,7 +1453,7 @@ const createStyles = (
     },
     micArea: {
       alignItems: "center",
-      bottom: scaled(-165, scale),
+      bottom: scaled(-195, scale),
       height: scaled(375, scale),
       justifyContent: "center",
       left: 0,
@@ -1462,11 +1462,11 @@ const createStyles = (
     },
     voiceCircleFrame: {
       alignItems: "center",
-      height: scaled(525, circleScale),
+      height: scaled(480, circleScale),
       justifyContent: "center",
       overflow: "visible",
       position: "absolute",
-      width: scaled(525, circleScale),
+      width: scaled(480, circleScale),
     },
     voiceCirclePressLayer: {
       alignItems: "center",

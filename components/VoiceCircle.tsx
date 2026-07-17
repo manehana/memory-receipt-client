@@ -16,9 +16,9 @@ import Reanimated, {
 } from "react-native-reanimated";
 
 type VoiceCircleProps = {
-  // 큰 원 지름 (기존 voice-listening-circle.png 프레임과 동일)
+  // 큰 원(그린 링) 지름
   size: number;
-  // 민트 halo 지름 (기존 blur PNG 레이어와 동일)
+  // 안쪽 halo 기준 지름 (레이아웃 호환용, 내부 링 스케일에 사용)
   innerSize: number;
   active: boolean;
   // 실제 녹음 음량 0..1 (화면에서 volumechange 이벤트로 갱신)
@@ -27,13 +27,111 @@ type VoiceCircleProps = {
   circleScale: number;
 };
 
-const GREEN_TOP = "#3ED598";
+const GREEN_TOP = "#41DCA0";
 const GREEN_BOTTOM = "#2ABD83";
-const MICRO_DOT_COUNT = 3;
+const mint = (alpha: number) => `rgba(42, 189, 131, ${alpha})`;
+
+// 그린 링 바깥으로 퍼지는 은은한 glow 링들 (바깥 → 안)
+const OUTER_RINGS = [
+  { ratio: 1.34, alpha: 0.035 },
+  { ratio: 1.26, alpha: 0.05 },
+  { ratio: 1.18, alpha: 0.07 },
+  { ratio: 1.1, alpha: 0.09 },
+];
+
+// 흰 원 안쪽의 촘촘한 동심원들 (바깥 → 안). 중심으로 갈수록 살짝 짙어진다.
+const INNER_RINGS = [
+  { ratio: 0.84, alpha: 0.04 },
+  { ratio: 0.76, alpha: 0.05 },
+  { ratio: 0.68, alpha: 0.06 },
+  { ratio: 0.6, alpha: 0.07 },
+  { ratio: 0.52, alpha: 0.08 },
+  { ratio: 0.44, alpha: 0.09 },
+];
+
+const TWO_PI = Math.PI * 2;
+
+function Ring({
+  diameter,
+  color,
+  clock,
+  phase,
+  activeProgress,
+  volume,
+  baseOpacity,
+  idleOpacity,
+}: {
+  diameter: number;
+  color: string;
+  clock: SharedValue<number>;
+  // 링마다 어긋난 위상 → 중심에서 바깥으로 퍼지는 물결
+  phase: number;
+  activeProgress: SharedValue<number>;
+  volume: SharedValue<number>;
+  baseOpacity: number;
+  idleOpacity: number;
+}) {
+  const ringStyle = useAnimatedStyle(() => {
+    const wave = Math.sin(TWO_PI * (clock.value + phase));
+    // idle: 아주 미세한 숨쉬기 / active: 음량이 물결 진폭을 키운다
+    const amplitude =
+      0.006 + activeProgress.value * (0.012 + volume.value * 0.045);
+    return {
+      opacity:
+        idleOpacity +
+        (baseOpacity - idleOpacity) * activeProgress.value +
+        wave * 0.12 * activeProgress.value * (0.3 + volume.value * 0.7),
+      transform: [{ scale: 1 + wave * amplitude }],
+    };
+  });
+
+  return (
+    <Reanimated.View
+      style={[
+        {
+          backgroundColor: color,
+          borderRadius: diameter / 2,
+          height: diameter,
+          position: "absolute",
+          width: diameter,
+        },
+        ringStyle,
+      ]}
+    />
+  );
+}
+
+function MicroDot({
+  wave,
+  volume,
+  circleScale,
+  style,
+}: {
+  wave: SharedValue<number>;
+  volume: SharedValue<number>;
+  circleScale: number;
+  style: object;
+}) {
+  // worklet 안에서는 미리 계산한 숫자만 캡처한다
+  const baseAmplitude = scaled(6, circleScale);
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateY: interpolate(
+          wave.value,
+          [0, 1],
+          [0, -baseAmplitude * (0.6 + volume.value * 1.6)]
+        ),
+      },
+      { scale: 1 + wave.value * 0.25 },
+    ],
+  }));
+  return <Reanimated.View style={[style, dotStyle]} />;
+}
 
 export default function VoiceCircle({
   size,
-  innerSize,
+  innerSize: _innerSize,
   active,
   volume,
   micIcon,
@@ -41,38 +139,30 @@ export default function VoiceCircle({
 }: VoiceCircleProps) {
   // idle↔listening 전환(기존 PNG 크로스페이드 대체)
   const activeProgress = useSharedValue(0);
-  // idle 상태에서 천천히 숨쉬는 스케일
-  const breath = useSharedValue(0);
-  // listening 상태의 기본 맥동 (음량과 섞어서 사용)
-  const pulse = useSharedValue(0);
+  // 모든 링이 공유하는 시계 (0..1 반복, sin으로 물결 위상 계산)
+  const clock = useSharedValue(0);
   const microWaves = [useSharedValue(0), useSharedValue(0), useSharedValue(0)];
 
   useEffect(() => {
-    activeProgress.value = withTiming(active ? 1 : 0, { duration: 360 });
+    activeProgress.value = withTiming(active ? 1 : 0, { duration: 420 });
     if (active) {
-      pulse.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 800, easing: Easing.out(Easing.quad) }),
-          withTiming(0, { duration: 800, easing: Easing.in(Easing.quad) })
-        ),
-        -1
-      );
       microWaves.forEach((wave, index) => {
         wave.value = withDelay(
           index * 150,
           withRepeat(
             withSequence(
-              withTiming(1, { duration: 320 }),
-              withTiming(0, { duration: 320 }),
-              withTiming(0, { duration: 120 + (MICRO_DOT_COUNT - 1) * 150 })
+              withTiming(1, {
+                duration: 340,
+                easing: Easing.out(Easing.quad),
+              }),
+              withTiming(0, { duration: 340, easing: Easing.in(Easing.quad) }),
+              withTiming(0, { duration: 420 })
             ),
             -1
           )
         );
       });
     } else {
-      cancelAnimation(pulse);
-      pulse.value = withTiming(0, { duration: 240 });
       microWaves.forEach((wave) => {
         cancelAnimation(wave);
         wave.value = withTiming(0, { duration: 240 });
@@ -80,7 +170,6 @@ export default function VoiceCircle({
     }
     return () => {
       cancelAnimation(activeProgress);
-      cancelAnimation(pulse);
       microWaves.forEach((wave) => cancelAnimation(wave));
     };
     // microWaves 배열 항목은 마운트 동안 동일 객체
@@ -88,69 +177,57 @@ export default function VoiceCircle({
   }, [active]);
 
   useEffect(() => {
-    breath.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0, { duration: 2400, easing: Easing.inOut(Easing.quad) })
-      ),
+    clock.value = withRepeat(
+      withTiming(1, { duration: 2600, easing: Easing.linear }),
       -1
     );
-    return () => cancelAnimation(breath);
+    return () => cancelAnimation(clock);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const glowStyle = useAnimatedStyle(() => {
-    const energy = activeProgress.value * (0.3 + volume.value * 0.7);
+  const discStyle = useAnimatedStyle(() => {
+    const wave = Math.sin(TWO_PI * clock.value);
     return {
-      opacity: 0.35 + energy * 0.65,
-      transform: [{ scale: 1 + breath.value * 0.015 + energy * 0.08 }],
+      transform: [
+        {
+          scale:
+            1 +
+            wave *
+              (0.006 + activeProgress.value * (0.008 + volume.value * 0.03)),
+        },
+      ],
     };
   });
-
-  const discStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        scale:
-          1 +
-          breath.value * 0.015 * (1 - activeProgress.value) +
-          volume.value * 0.03 * activeProgress.value,
-      },
-    ],
-  }));
-
-  const haloOuterStyle = useAnimatedStyle(() => {
-    const level = 0.35 * pulse.value + 0.65 * volume.value;
-    return {
-      opacity: activeProgress.value * (0.35 + level * 0.4),
-      transform: [{ scale: 0.92 + 0.24 * level }],
-    };
-  });
-
-  const haloStyle = useAnimatedStyle(() => {
-    const level = 0.35 * pulse.value + 0.65 * volume.value;
-    return {
-      opacity: activeProgress.value,
-      transform: [{ scale: 0.92 + 0.16 * level }],
-    };
-  });
-
-  const smallDiscStyle = useAnimatedStyle(() => ({
-    opacity: activeProgress.value,
-  }));
 
   const micStyle = useAnimatedStyle(() => ({
     opacity: 1 - activeProgress.value,
+    transform: [{ scale: 1 - activeProgress.value * 0.2 }],
   }));
 
   const microRowStyle = useAnimatedStyle(() => ({
     opacity: activeProgress.value,
   }));
 
-  const styles = createStyles(size, innerSize, circleScale);
+  const styles = createStyles(size, circleScale);
+  // 물결이 중심 → 바깥으로 퍼지도록 안쪽 링일수록 위상이 앞선다
+  const ringCount = OUTER_RINGS.length + INNER_RINGS.length;
+  const phaseStep = 0.55 / ringCount;
 
   return (
     <View pointerEvents="none" style={styles.frame}>
-      <Reanimated.View style={[styles.glow, glowStyle]} />
+      {OUTER_RINGS.map((ring, index) => (
+        <Ring
+          activeProgress={activeProgress}
+          baseOpacity={1}
+          clock={clock}
+          color={mint(ring.alpha)}
+          diameter={size * ring.ratio}
+          idleOpacity={0.45}
+          key={`outer-${index}`}
+          phase={-(ringCount - 1 - index) * phaseStep}
+          volume={volume}
+        />
+      ))}
       <Reanimated.View style={[styles.disc, discStyle]}>
         <LinearGradient
           colors={[GREEN_TOP, GREEN_BOTTOM]}
@@ -160,16 +237,26 @@ export default function VoiceCircle({
         />
         <View style={styles.innerDisc}>
           <LinearGradient
-            colors={["#FFFFFF", "#F5F5F5"]}
+            colors={["#FFFFFF", "#F7FBF9"]}
             end={{ x: 0.5, y: 1 }}
             start={{ x: 0.5, y: 0 }}
             style={StyleSheet.absoluteFill}
           />
         </View>
       </Reanimated.View>
-      <Reanimated.View style={[styles.haloOuter, haloOuterStyle]} />
-      <Reanimated.View style={[styles.halo, haloStyle]} />
-      <Reanimated.View style={[styles.smallDisc, smallDiscStyle]} />
+      {INNER_RINGS.map((ring, index) => (
+        <Ring
+          activeProgress={activeProgress}
+          baseOpacity={1}
+          clock={clock}
+          color={mint(ring.alpha)}
+          diameter={size * ring.ratio}
+          idleOpacity={0.3}
+          key={`inner-${index}`}
+          phase={-(OUTER_RINGS.length + index) * phaseStep}
+          volume={volume}
+        />
+      ))}
       <Reanimated.Image
         resizeMode="contain"
         source={micIcon}
@@ -190,49 +277,14 @@ export default function VoiceCircle({
   );
 }
 
-function MicroDot({
-  wave,
-  volume,
-  circleScale,
-  style,
-}: {
-  wave: SharedValue<number>;
-  volume: SharedValue<number>;
-  circleScale: number;
-  style: object;
-}) {
-  // worklet 안에서는 미리 계산한 숫자만 캡처한다
-  const baseAmplitude = scaled(5, circleScale);
-  const dotStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: interpolate(
-          wave.value,
-          [0, 1],
-          [0, -baseAmplitude * (0.6 + volume.value * 1.6)]
-        ),
-      },
-    ],
-  }));
-  return <Reanimated.View style={[style, dotStyle]} />;
-}
-
-const createStyles = (size: number, innerSize: number, circleScale: number) => {
-  const innerDiscSize = size * 0.86;
-  const smallDiscSize = size * 0.55;
+const createStyles = (size: number, circleScale: number) => {
+  const innerDiscSize = size * 0.9;
   return StyleSheet.create({
     frame: {
       alignItems: "center",
       height: size,
       justifyContent: "center",
       width: size,
-    },
-    glow: {
-      backgroundColor: "rgba(42, 189, 131, 0.12)",
-      borderRadius: (size * 1.12) / 2,
-      height: size * 1.12,
-      position: "absolute",
-      width: size * 1.12,
     },
     disc: {
       borderRadius: size / 2,
@@ -247,29 +299,8 @@ const createStyles = (size: number, innerSize: number, circleScale: number) => {
       left: (size - innerDiscSize) / 2,
       overflow: "hidden",
       position: "absolute",
-      top: size * 0.055,
+      top: size * 0.05,
       width: innerDiscSize,
-    },
-    haloOuter: {
-      backgroundColor: "rgba(205, 237, 225, 0.28)",
-      borderRadius: (innerSize * 1.08) / 2,
-      height: innerSize * 1.08,
-      position: "absolute",
-      width: innerSize * 1.08,
-    },
-    halo: {
-      backgroundColor: "rgba(205, 237, 225, 0.55)",
-      borderRadius: innerSize / 2,
-      height: innerSize,
-      position: "absolute",
-      width: innerSize,
-    },
-    smallDisc: {
-      backgroundColor: "#F8F8F8",
-      borderRadius: smallDiscSize / 2,
-      height: smallDiscSize,
-      position: "absolute",
-      width: smallDiscSize,
     },
     mic: {
       height: scaled(80, circleScale),
