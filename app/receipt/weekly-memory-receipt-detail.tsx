@@ -59,11 +59,6 @@ const footprints = [
 
 const shareGuardians = [
   {
-    id: "son",
-    avatar: require("../../assets/images/memory-receipt/share_friend_son.png"),
-    name: "아들",
-  },
-  {
     id: "daughter",
     avatar: require("../../assets/images/memory-receipt/share_friend_daughter.png"),
     name: "딸",

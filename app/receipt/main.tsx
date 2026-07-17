@@ -6,12 +6,15 @@ import {
 } from "@/constants/responsive";
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { sessionImageUrl } from "@/lib/api";
-import { filterPresentationSessions } from "@/lib/presentation";
+import {
+  filterPresentationSessions,
+  isPresentationTodaySessionRevealed,
+} from "@/lib/presentation";
 import type { RecallSessionListItem } from "@/lib/types";
 import { useCurrentUser } from "@/lib/user";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image as ExpoImage } from "expo-image";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -90,7 +93,14 @@ export default function MainScreen() {
     [user?.recall_sessions]
   );
   const imageHeaders = useImageAuthHeaders();
-  const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(true);
+  const [isSafetyReportVisible, setIsSafetyReportVisible] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (isPresentationTodaySessionRevealed()) {
+        setIsSafetyReportVisible(true);
+      }
+    }, [])
+  );
   const safetyBackdropProgress = useRef(new Animated.Value(0)).current;
   const safetySheetTranslateY = useRef(new Animated.Value(0)).current;
   const isDismissingSafetyReport = useRef(false);

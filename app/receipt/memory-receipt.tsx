@@ -86,11 +86,6 @@ function paymentToFootprint(payment: PaymentResponse, index: number): Footprint 
 
 const shareGuardians = [
   {
-    id: "son",
-    avatar: require("../../assets/images/memory-receipt/share_friend_son.png"),
-    name: "아들",
-  },
-  {
     id: "daughter",
     avatar: require("../../assets/images/memory-receipt/share_friend_daughter.png"),
     name: "딸",
@@ -276,12 +271,12 @@ export default function MemoryReceipt() {
           </Pressable>
 
           <Pressable
-            accessibilityLabel="저장"
+            accessibilityLabel="저장하고 나가기"
             hitSlop={scaled(12, scale)}
             onPress={() => setIsSaveModalVisible(true)}
           >
             <Text maxFontSizeMultiplier={1.1} style={styles.saveText}>
-              저장
+              저장하고 나가기
             </Text>
           </Pressable>
         </View>
@@ -593,11 +588,11 @@ export default function MemoryReceipt() {
       >
         <View style={styles.saveModalOverlay}>
           <View style={styles.saveModalCard}>
-            <Image
+            {/* <Image
               resizeMode="contain"
               source={require("../../assets/images/memory-receipt/memory-receipt-save-alert.png")}
               style={styles.saveModalIcon}
-            />
+            /> */}
             <Text maxFontSizeMultiplier={1.1} style={styles.saveModalTitle}>
               기억 영수증을 저장할까요?
             </Text>

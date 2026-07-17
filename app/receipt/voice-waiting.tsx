@@ -46,8 +46,10 @@ import Reanimated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withSpring,
   withTiming,
 } from "react-native-reanimated";
+import VoiceCircle from "@/components/VoiceCircle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BASE_WIDTH = 402;
@@ -116,11 +118,7 @@ function computeLineBreaks(words: string[], maxBytes: number): boolean[] {
   });
   return breaks;
 }
-const voiceListeningCircleImage = require("../../assets/images/voice/voice-listening-circle.png");
 const voiceMicrophoneImage = require("../../assets/images/voice/voice-microphone.png");
-const voiceListeningMicroCircleImage = require("../../assets/images/voice/voice-listening-micro-circle.png");
-const voiceListeningSmallCircleBlurImage = require("../../assets/images/voice/voice-listening-small-circle-blur.png");
-const voiceSmallCircleBgImage = require("../../assets/images/voice/voice-small-circle-bg.png");
 
 type CompleteStatus = "ready" | "pressed" | "done";
 
@@ -346,14 +344,9 @@ export default function VoiceWaitingScreen() {
     () => createStyles(scale, fontScale, circleScale, pillScale, width, height),
     [circleScale, fontScale, height, pillScale, scale, width]
   );
-  const listeningCircleOpacity = useRef(new Animated.Value(0)).current;
   const listeningBadgePulse = useRef(new Animated.Value(0)).current;
-  const listeningBlurPulse = useRef(new Animated.Value(0)).current;
-  const listeningMicroOffsets = useRef([
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-  ]).current;
+  // 실제 마이크 음량(0..1) — volumechange 이벤트로 갱신, VoiceCircle 애니메이션 구동
+  const voiceVolume = useSharedValue(0);
   const completeTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [totalTurns, setTotalTurns] = useState(0);
@@ -462,24 +455,18 @@ export default function VoiceWaitingScreen() {
     return () => subscription.remove();
   }, []);
 
+  // 청취가 끝나면 음량 값을 0으로 되돌린다
   useEffect(() => {
-    Animated.timing(listeningCircleOpacity, {
-      duration: 360,
-      toValue: isVoiceActive ? 1 : 0,
-      useNativeDriver: true,
-    }).start();
-  }, [isVoiceActive, listeningCircleOpacity]);
+    if (!isVoiceActive) {
+      voiceVolume.value = withTiming(0, { duration: 300 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVoiceActive]);
 
   useEffect(() => {
     if (!isVoiceActive) {
       listeningBadgePulse.stopAnimation();
       listeningBadgePulse.setValue(0);
-      listeningBlurPulse.stopAnimation();
-      listeningBlurPulse.setValue(0);
-      listeningMicroOffsets.forEach((offset) => {
-        offset.stopAnimation();
-        offset.setValue(0);
-      });
       return;
     }
 
@@ -499,59 +486,12 @@ export default function VoiceWaitingScreen() {
         }),
       ])
     );
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(listeningBlurPulse, {
-          duration: 800,
-          easing: Easing.out(Easing.quad),
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(listeningBlurPulse, {
-          duration: 800,
-          easing: Easing.in(Easing.quad),
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
     badgeAnimation.start();
-    pulseAnimation.start();
-    const makeWave = (offset: Animated.Value) =>
-      Animated.sequence([
-        Animated.timing(offset, {
-          duration: 320,
-          toValue: -5,
-          useNativeDriver: true,
-        }),
-        Animated.timing(offset, {
-          duration: 320,
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ]);
-
-    const microAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.stagger(150, listeningMicroOffsets.map(makeWave)),
-        Animated.delay(120),
-      ])
-    );
-
-    microAnimation.start();
 
     return () => {
       badgeAnimation.stop();
-      pulseAnimation.stop();
-      microAnimation.stop();
     };
-  }, [
-    isVoiceActive,
-    listeningBadgePulse,
-    listeningBlurPulse,
-    listeningMicroOffsets,
-  ]);
+  }, [isVoiceActive, listeningBadgePulse]);
 
   // STT가 확정한 문장 누적분과 현재 transcript(중간결과 포함) 최신값
   const finalizedRef = useRef("");
@@ -593,6 +533,16 @@ export default function VoiceWaitingScreen() {
         setCompleteStatus("ready");
       }, SPEECH_AUTO_COMPLETE_MS);
     }
+  });
+
+  // 실제 마이크 음량으로 VoiceCircle을 구동한다. 이벤트 값 범위는 -2..10.
+  useSpeechRecognitionEvent("volumechange", (event) => {
+    const norm = Math.min(Math.max((event.value + 2) / 12, 0), 1);
+    // iOS는 낮은 값에 몰려 있어 감마 보정으로 반응성을 키운다
+    voiceVolume.value = withSpring(Math.pow(norm, 0.7), {
+      damping: 14,
+      stiffness: 160,
+    });
   });
 
   useSpeechRecognitionEvent("end", () => {
@@ -787,6 +737,7 @@ export default function VoiceWaitingScreen() {
       interimResults: true,
       continuous: true,
       recordingOptions: { persist: true },
+      volumeChangeEventOptions: { enabled: true, intervalMillis: 100 },
     });
   };
 
@@ -984,106 +935,14 @@ export default function VoiceWaitingScreen() {
               onPress={handleMainAction}
               style={styles.voiceCirclePressLayer}
             >
-              <Animated.Image
-                resizeMode="stretch"
-                source={voiceListeningCircleImage}
-                style={[
-                  styles.voiceCircleImage,
-                  {
-                    opacity: listeningCircleOpacity.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 0],
-                    }),
-                  },
-                ]}
+              <VoiceCircle
+                active={isVoiceActive}
+                circleScale={circleScale}
+                innerSize={scaled(380, circleScale)}
+                micIcon={voiceMicrophoneImage}
+                size={scaled(525, circleScale)}
+                volume={voiceVolume}
               />
-              <Animated.Image
-                resizeMode="stretch"
-                source={voiceListeningCircleImage}
-                style={[
-                  styles.voiceCircleImage,
-                  { opacity: listeningCircleOpacity },
-                ]}
-              />
-              <View pointerEvents="none" style={styles.voiceSmallCircleLayer}>
-                <Animated.Image
-                  resizeMode="contain"
-                  source={voiceSmallCircleBgImage}
-                  style={[
-                    styles.voiceSmallCircle,
-                    {
-                      opacity: listeningCircleOpacity.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 0.2],
-                      }),
-                    },
-                  ]}
-                />
-                <Animated.Image
-                  resizeMode="contain"
-                  source={voiceListeningSmallCircleBlurImage}
-                  style={[
-                    styles.voiceListeningSmallCircleBlur,
-                    {
-                      opacity: listeningCircleOpacity,
-                      transform: [
-                        {
-                          scale: listeningBlurPulse.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.92, 1.08],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-                <Animated.Image
-                  resizeMode="contain"
-                  source={voiceSmallCircleBgImage}
-                  style={[
-                    styles.voiceListeningSmallCircle,
-                    { opacity: listeningCircleOpacity },
-                  ]}
-                />
-                <Animated.Image
-                  resizeMode="contain"
-                  source={voiceMicrophoneImage}
-                  style={[
-                    styles.voiceMicrophone,
-                    {
-                      opacity: listeningCircleOpacity.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1, 0],
-                      }),
-                    },
-                  ]}
-                />
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.voiceMicroCircleRow,
-                    { opacity: listeningCircleOpacity },
-                  ]}
-                >
-                  {listeningMicroOffsets.map((offset, index) => (
-                    <Animated.View
-                      key={index}
-                      style={[
-                        styles.voiceMicroCircleWrap,
-                        {
-                          transform: [{ translateY: offset }],
-                        },
-                      ]}
-                    >
-                      <Image
-                        resizeMode="contain"
-                        source={voiceListeningMicroCircleImage}
-                        style={styles.voiceMicroCircle}
-                      />
-                    </Animated.View>
-                  ))}
-                </Animated.View>
-              </View>
             </Pressable>
           </View>
         </View>
@@ -1613,55 +1472,6 @@ const createStyles = (
       alignItems: "center",
       height: "100%",
       justifyContent: "center",
-      width: "100%",
-    },
-    voiceCircleImage: {
-      height: "100%",
-      position: "absolute",
-      width: "100%",
-    },
-    voiceSmallCircleLayer: {
-      alignItems: "center",
-      height: scaled(380, circleScale),
-      justifyContent: "center",
-      position: "absolute",
-      width: scaled(380, circleScale),
-    },
-    voiceListeningSmallCircleBlur: {
-      height: "100%",
-      position: "absolute",
-      width: "100%",
-    },
-    voiceSmallCircle: {
-      height: scaled(288, circleScale),
-      position: "absolute",
-      width: scaled(288, circleScale),
-    },
-    voiceListeningSmallCircle: {
-      height: scaled(288, circleScale),
-      position: "absolute",
-      width: scaled(288, circleScale),
-    },
-    voiceMicrophone: {
-      height: scaled(80, circleScale),
-      position: "absolute",
-      transform: [{ translateY: scaled(-40, circleScale) }],
-      width: scaled(70, circleScale),
-    },
-    voiceMicroCircleRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: scaled(15, circleScale),
-      transform: [{ translateY: scaled(-35, circleScale) }],
-      justifyContent: "center",
-      position: "absolute",
-    },
-    voiceMicroCircleWrap: {
-      height: scaled(15, circleScale),
-      width: scaled(15, circleScale),
-    },
-    voiceMicroCircle: {
-      height: "100%",
       width: "100%",
     },
   });

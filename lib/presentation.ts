@@ -31,6 +31,10 @@ export function revealPresentationTodaySession(): void {
   todaySessionRevealed = true;
 }
 
+export function isPresentationTodaySessionRevealed(): boolean {
+  return presentationMode && todaySessionRevealed;
+}
+
 function localTodayString(): string {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, "0");
