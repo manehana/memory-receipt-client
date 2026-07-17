@@ -32,7 +32,10 @@ type VoiceCircleProps = {
   condensed?: boolean;
 };
 
-const GREEN_BOTTOM = "#2ABD83";
+const microCircleImage = require("../assets/images/voice/voice-listening-micro-circle.png");
+// 세 점이 연속된 파도로 겹치도록 하는 위상 간격
+const MICRO_WAVE_STEP_MS = 140;
+const MICRO_WAVE_SPRING = { damping: 40, stiffness: 300 };
 const mint = (alpha: number) => `rgba(42, 189, 131, ${alpha})`;
 
 // 흰 원 안쪽의 촘촘한 동심원들 (바깥 → 안). 중심으로 갈수록 살짝 짙어진다.
@@ -145,10 +148,15 @@ function MicroDot({
           [0, -baseAmplitude * (0.6 + volume.value * 1.6)]
         ),
       },
-      { scale: 1 + wave.value * 0.25 },
     ],
   }));
-  return <Reanimated.View style={[style, dotStyle]} />;
+  return (
+    <Reanimated.Image
+      resizeMode="contain"
+      source={microCircleImage}
+      style={[style, dotStyle]}
+    />
+  );
 }
 
 export default function VoiceCircle({
@@ -183,15 +191,11 @@ export default function VoiceCircle({
     if (active) {
       microWaves.forEach((wave, index) => {
         wave.value = withDelay(
-          index * 150,
+          index * MICRO_WAVE_STEP_MS,
           withRepeat(
             withSequence(
-              withTiming(1, {
-                duration: 340,
-                easing: Easing.out(Easing.quad),
-              }),
-              withTiming(0, { duration: 340, easing: Easing.in(Easing.quad) }),
-              withTiming(0, { duration: 420 })
+              withSpring(1, MICRO_WAVE_SPRING),
+              withSpring(0, MICRO_WAVE_SPRING)
             ),
             -1
           )
@@ -327,8 +331,6 @@ const createStyles = (size: number, circleScale: number) => {
       transform: [{ translateY: scaled(-35, circleScale) }],
     },
     microDot: {
-      backgroundColor: GREEN_BOTTOM,
-      borderRadius: scaled(7.5, circleScale),
       height: scaled(15, circleScale),
       width: scaled(15, circleScale),
     },
