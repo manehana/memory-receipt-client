@@ -25,9 +25,7 @@ import {
 } from "react";
 import {
   Alert,
-  Animated,
   BackHandler,
-  Easing,
   Image,
   ImageSourcePropType,
   Modal,
@@ -47,6 +45,7 @@ import Reanimated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -69,6 +68,25 @@ const ANSWER_SHADOW_COLOR = "#3B3B3B";
 const QUESTION_SHADOW_COLOR = "#2ABD83";
 // 질문 전체가 한 번에 도착하므로 단어별 등장 시차를 준다
 const QUESTION_STAGGER_MS = 90;
+// 응답 완료 버튼 등장: VoiceCircle 바깥 링 수축이 먼저 시작된 뒤
+// 그 에너지를 이어받듯 spring으로 떠오른다
+const completeButtonEntering = () => {
+  "worklet";
+  const spring = { damping: 14, stiffness: 130 };
+  return {
+    initialValues: {
+      opacity: 0,
+      transform: [{ translateY: 24 }, { scale: 0.85 }],
+    },
+    animations: {
+      opacity: withDelay(120, withSpring(1, spring)),
+      transform: [
+        { translateY: withDelay(120, withSpring(0, spring)) },
+        { scale: withDelay(120, withSpring(1, spring)) },
+      ],
+    },
+  };
+};
 // 한 줄당 UTF-8 바이트 수를 기준으로 줄바꿈 위치를 직접 계산해
 // 폰트/화면 크기와 무관하게 동일한 기준으로 폰트 축소·스크롤을 전환한다
 const ANSWER_LINE_MAX_BYTES = 44;
@@ -343,7 +361,6 @@ export default function VoiceWaitingScreen() {
     () => createStyles(scale, fontScale, circleScale, pillScale, width, height),
     [circleScale, fontScale, height, pillScale, scale, width]
   );
-  const listeningBadgePulse = useRef(new Animated.Value(0)).current;
   // 실제 마이크 음량(0..1) — volumechange 이벤트로 갱신, VoiceCircle 애니메이션 구동
   // fast: 즉각 반응(빠른 변화 = 고음 성분 근사), slow: 느린 포락선(저음/전체 에너지)
   const voiceVolume = useSharedValue(0);
@@ -464,36 +481,6 @@ export default function VoiceWaitingScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVoiceActive]);
-
-  useEffect(() => {
-    if (!isVoiceActive) {
-      listeningBadgePulse.stopAnimation();
-      listeningBadgePulse.setValue(0);
-      return;
-    }
-
-    const badgeAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(listeningBadgePulse, {
-          duration: 720,
-          easing: Easing.inOut(Easing.quad),
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(listeningBadgePulse, {
-          duration: 720,
-          easing: Easing.inOut(Easing.quad),
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    badgeAnimation.start();
-
-    return () => {
-      badgeAnimation.stop();
-    };
-  }, [isVoiceActive, listeningBadgePulse]);
 
   // STT가 확정한 문장 누적분과 현재 transcript(중간결과 포함) 최신값
   const finalizedRef = useRef("");
@@ -872,32 +859,6 @@ export default function VoiceWaitingScreen() {
                     지금 응답해주세요...|
                   </Text>
                 ) : null}
-                <View style={styles.listeningBadge}>
-                  <View style={styles.listeningBadgeDotFrame}>
-                    <Animated.View
-                      style={[
-                        styles.listeningBadgeDotOuter,
-                        {
-                          transform: [
-                            {
-                              scale: listeningBadgePulse.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [1, 1.08],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    />
-                    <View style={styles.listeningBadgeDotInner} />
-                  </View>
-                  <Text
-                    maxFontSizeMultiplier={1.1}
-                    style={styles.listeningBadgeText}
-                  >
-                    듣고 있어요..
-                  </Text>
-                </View>
               </>
             ) : null}
             {hasResponse ? (
@@ -946,6 +907,7 @@ export default function VoiceWaitingScreen() {
               <VoiceCircle
                 active={isVoiceActive}
                 circleScale={circleScale}
+                condensed={hasResponse && hasTranscript}
                 innerSize={scaled(380, circleScale)}
                 micIcon={voiceMicrophoneImage}
                 size={scaled(480, circleScale)}
@@ -964,32 +926,6 @@ export default function VoiceWaitingScreen() {
         >
           {isListening && !(hasResponse && hasTranscript) ? (
             <View style={styles.listeningNoticeWrap}>
-              <View style={styles.floatingListeningBadge}>
-                <View style={styles.listeningBadgeDotFrame}>
-                  <Animated.View
-                    style={[
-                      styles.listeningBadgeDotOuter,
-                      {
-                        transform: [
-                          {
-                            scale: listeningBadgePulse.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [1, 1.08],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                  <View style={styles.listeningBadgeDotInner} />
-                </View>
-                <Text
-                  maxFontSizeMultiplier={1.1}
-                  style={styles.listeningBadgeText}
-                >
-                  듣고 있어요..
-                </Text>
-              </View>
               <Text
                 maxFontSizeMultiplier={1.1}
                 style={styles.aiVoiceNoticeText}
@@ -999,30 +935,32 @@ export default function VoiceWaitingScreen() {
             </View>
           ) : null}
           {hasResponse && hasTranscript ? (
-            <Pressable
-              disabled={completeStatus !== "ready"}
-              onPress={handleCompletePress}
-              style={[
-                styles.floatingCompleteButton,
-                completeStatus === "pressed" && styles.completeButtonPressed,
-              ]}
-            >
-              {completeStatus === "ready" ? (
-                <Text
-                  maxFontSizeMultiplier={1.1}
-                  style={styles.completeButtonText}
-                >
-                  응답 완료
-                </Text>
-              ) : null}
-              {completeStatus === "done" ? (
-                <Ionicons
-                  color="#FFFFFF"
-                  name="checkmark-outline"
-                  size={scaled(33, pillScale)}
-                />
-              ) : null}
-            </Pressable>
+            <Reanimated.View entering={completeButtonEntering}>
+              <Pressable
+                disabled={completeStatus !== "ready"}
+                onPress={handleCompletePress}
+                style={[
+                  styles.floatingCompleteButton,
+                  completeStatus === "pressed" && styles.completeButtonPressed,
+                ]}
+              >
+                {completeStatus === "ready" ? (
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.completeButtonText}
+                  >
+                    응답 완료
+                  </Text>
+                ) : null}
+                {completeStatus === "done" ? (
+                  <Ionicons
+                    color="#FFFFFF"
+                    name="checkmark-outline"
+                    size={scaled(33, pillScale)}
+                  />
+                ) : null}
+              </Pressable>
+            </Reanimated.View>
           ) : null}
         </View>
       </View>
@@ -1321,42 +1259,6 @@ const createStyles = (
       top: scaled(-8, circleScale) - largePhonePillLift,
       zIndex: 30,
     },
-    listeningBadge: {
-      display: "none",
-      alignItems: "center",
-      alignSelf: "center",
-      backgroundColor: "#FFFFFF",
-      borderRadius: actionPillHeight / 2,
-      elevation: 6,
-      flexDirection: "row",
-      height: actionPillHeight,
-      justifyContent: "center",
-      gap: scaled(10, pillScale),
-      left: "50%",
-      position: "absolute",
-      shadowColor: "#13BB78",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.3,
-      shadowRadius: 10,
-      transform: [{ translateX: -actionPillWidth / 2 }],
-      width: actionPillWidth,
-    },
-    floatingListeningBadge: {
-      alignItems: "center",
-      backgroundColor: "#FFFFFF",
-      borderRadius: actionPillHeight / 2,
-      elevation: 10,
-      flexDirection: "row",
-      gap: scaled(10, pillScale),
-      height: actionPillHeight,
-      justifyContent: "center",
-      shadowColor: "#CDCDCD",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.3,
-      shadowRadius: 6,
-      width: actionPillWidth,
-      zIndex: 0,
-    },
     listeningNoticeWrap: {
       alignItems: "center",
     },
@@ -1367,31 +1269,6 @@ const createStyles = (
       lineHeight: fontScaled(21, pillScale),
       marginTop: scaled(12, pillScale),
       textAlign: "center",
-    },
-    listeningBadgeDotFrame: {
-      alignItems: "center",
-      height: scaled(26, pillScale),
-      justifyContent: "center",
-      width: scaled(26, pillScale),
-    },
-    listeningBadgeDotOuter: {
-      backgroundColor: "#9FF3D1",
-      borderRadius: scaled(10, pillScale),
-      height: scaled(18, pillScale),
-      position: "absolute",
-      width: scaled(18, pillScale),
-    },
-    listeningBadgeDotInner: {
-      backgroundColor: "#54E5AC",
-      borderRadius: scaled(6, pillScale),
-      height: scaled(10, pillScale),
-      width: scaled(10, pillScale),
-    },
-    listeningBadgeText: {
-      color: "#9A9A9A",
-      fontFamily: "PretendardSemiBold",
-      fontSize: fontScaled(17, pillScale),
-      lineHeight: fontScaled(24, pillScale),
     },
     completeButton: {
       display: "none",

@@ -11,6 +11,7 @@ import Reanimated, {
   withDelay,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
@@ -27,6 +28,8 @@ type VoiceCircleProps = {
   volumeSlow: SharedValue<number>;
   micIcon: ImageSourcePropType;
   circleScale: number;
+  // 응답 완료 버튼 등장과 함께 바깥 링이 수축하는 모핑
+  condensed?: boolean;
 };
 
 const GREEN_BOTTOM = "#2ABD83";
@@ -51,6 +54,7 @@ function Ring({
   clock,
   phase,
   activeProgress,
+  condenseProgress,
   volume,
   volumeSlow,
   band,
@@ -63,6 +67,8 @@ function Ring({
   // 링마다 어긋난 위상 → 중심에서 바깥으로 퍼지는 물결
   phase: number;
   activeProgress: SharedValue<number>;
+  // 0..1, 바깥 링일수록 크게 수축·페이드
+  condenseProgress: SharedValue<number>;
   volume: SharedValue<number>;
   volumeSlow: SharedValue<number>;
   // 0 = 바깥 링(고음 성분에 민감) .. 1 = 안쪽 링(저음/포락선에 민감)
@@ -84,12 +90,20 @@ function Ring({
     // 소리가 없으면 움츠러들고(0.93) 소리가 크면 커진다(최대 ~1.13)
     const grow = activeProgress.value * (-0.07 + level * 0.25);
     const amplitude = 0.006 + activeProgress.value * 0.008;
+    const condense = condenseProgress.value;
     return {
       opacity:
-        idleOpacity +
-        (baseOpacity - idleOpacity) * activeProgress.value +
-        wave * 0.1 * activeProgress.value * (0.3 + level * 0.7),
-      transform: [{ scale: 1 + grow + wave * amplitude }],
+        (idleOpacity +
+          (baseOpacity - idleOpacity) * activeProgress.value +
+          wave * 0.1 * activeProgress.value * (0.3 + level * 0.7)) *
+        (1 - condense * 0.75 * (1 - band)),
+      transform: [
+        {
+          scale:
+            (1 + grow + wave * amplitude) *
+            (1 - condense * (0.05 + 0.18 * (1 - band))),
+        },
+      ],
     };
   });
 
@@ -145,12 +159,24 @@ export default function VoiceCircle({
   volumeSlow,
   micIcon,
   circleScale,
+  condensed = false,
 }: VoiceCircleProps) {
   // idle↔listening 전환(기존 PNG 크로스페이드 대체)
   const activeProgress = useSharedValue(0);
   // 모든 링이 공유하는 시계 (0..1 반복, sin으로 물결 위상 계산)
   const clock = useSharedValue(0);
   const microWaves = [useSharedValue(0), useSharedValue(0), useSharedValue(0)];
+  // 응답 완료 버튼 등장 시 바깥 링 수축 (버튼과 같은 spring 질감)
+  const condenseProgress = useSharedValue(0);
+
+  useEffect(() => {
+    condenseProgress.value = withSpring(condensed ? 1 : 0, {
+      damping: 14,
+      stiffness: 130,
+    });
+    return () => cancelAnimation(condenseProgress);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [condensed]);
 
   useEffect(() => {
     activeProgress.value = withTiming(active ? 1 : 0, { duration: 420 });
@@ -203,9 +229,10 @@ export default function VoiceCircle({
       transform: [
         {
           scale:
-            1 +
-            grow +
-            wave * (0.006 + activeProgress.value * (0.004 + level * 0.015)),
+            (1 +
+              grow +
+              wave * (0.006 + activeProgress.value * (0.004 + level * 0.015))) *
+            (1 - condenseProgress.value * 0.08),
         },
       ],
     };
@@ -240,6 +267,7 @@ export default function VoiceCircle({
           band={index / (INNER_RINGS.length - 1)}
           baseOpacity={1}
           clock={clock}
+          condenseProgress={condenseProgress}
           color={mint(ring.alpha)}
           diameter={size * ring.ratio}
           idleOpacity={0.3}
