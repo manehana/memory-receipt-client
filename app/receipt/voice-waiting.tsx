@@ -542,9 +542,15 @@ export default function VoiceWaitingScreen() {
     const norm = Math.min(Math.max((event.value + 2) / 12, 0), 1);
     // iOS는 낮은 값에 몰려 있어 감마 보정으로 반응성을 키운다
     const level = Math.pow(norm, 0.7);
-    // fast는 빠릿하게 따라가고, slow는 포락선처럼 천천히 따라간다
-    voiceVolume.value = withTiming(level, { duration: 90 });
-    voiceVolumeSlow.value = withTiming(level, { duration: 480 });
+    // fast는 빠르게 따라가되 부드럽게, slow는 포락선처럼 천천히 따라간다
+    voiceVolume.value = withTiming(level, {
+      duration: 420,
+      easing: REasing.out(REasing.quad),
+    });
+    voiceVolumeSlow.value = withTiming(level, {
+      duration: 650,
+      easing: REasing.out(REasing.quad),
+    });
   });
 
   useSpeechRecognitionEvent("end", () => {

@@ -81,8 +81,8 @@ function Ring({
     const lo = volumeSlow.value;
     // 바깥 링일수록 hi, 안쪽 링일수록 lo 비중이 크다
     const level = hi * (1 - band) + lo * band;
-    // 소리가 없으면 움츠러들고(0.94) 소리가 크면 커진다(최대 ~1.06)
-    const grow = activeProgress.value * (-0.06 + level * 0.12);
+    // 소리가 없으면 움츠러들고(0.93) 소리가 크면 커진다(최대 ~1.13)
+    const grow = activeProgress.value * (-0.07 + level * 0.25);
     const amplitude = 0.006 + activeProgress.value * 0.008;
     return {
       opacity:
