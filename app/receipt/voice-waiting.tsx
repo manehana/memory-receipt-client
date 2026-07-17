@@ -950,12 +950,14 @@ export default function VoiceWaitingScreen() {
               {isListening && !(hasResponse && hasTranscript) ? (
                 <>
                   {!hasTranscript ? (
-                    <Text
+                    <Reanimated.Text
+                      entering={FadeIn.duration(280)}
+                      exiting={FadeOut.duration(200)}
                       maxFontSizeMultiplier={1.1}
                       style={styles.answerPrompt}
                     >
                       지금 응답해주세요...|
-                    </Text>
+                    </Reanimated.Text>
                   ) : null}
                 </>
               ) : null}
@@ -1024,14 +1026,18 @@ export default function VoiceWaitingScreen() {
           style={styles.actionPillLayer}
         >
           {isListening && !(hasResponse && hasTranscript) ? (
-            <View style={styles.listeningNoticeWrap}>
+            <Reanimated.View
+              entering={FadeIn.duration(280)}
+              exiting={FadeOut.duration(200)}
+              style={styles.listeningNoticeWrap}
+            >
               <Text
                 maxFontSizeMultiplier={1.1}
                 style={styles.aiVoiceNoticeText}
               >
                 지금 나오는 음성은{"\n"}실제 사람이 아닌 AI 음성이에요.
               </Text>
-            </View>
+            </Reanimated.View>
           ) : null}
           {hasResponse && hasTranscript ? (
             <Reanimated.View

@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { captureRef } from "react-native-view-shot";
 import {
   Animated,
+  Easing,
   Image,
   Modal,
   Pressable,
@@ -136,25 +137,36 @@ export default function MemoryReceipt() {
     [fontScale, height, insets.bottom, scale, width],
   );
   const shareBarHeight = getShareBarHeight(height, insets.bottom);
-  const receiptMaxRevealHeight = Math.max(height * 2, scaled(1200, scale));
+  const [receiptContentHeight, setReceiptContentHeight] = useState(0);
   useEffect(() => {
+    if (receiptContentHeight === 0) {
+      return;
+    }
+
     receiptReveal.setValue(0);
     setIsReceiptRevealed(false);
 
-    const timer = setTimeout(() => {
+    // 열 프린터가 종이를 끊어서 밀어내듯 불규칙한 구간으로 나눠 출력한다.
+    const feedStops = [0.1, 0.25, 0.32, 0.5, 0.62, 0.78, 0.9, 1];
+    const steps = feedStops.flatMap((stop, index) => [
       Animated.timing(receiptReveal, {
-        duration: 950,
-        toValue: 1,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          setIsReceiptRevealed(true);
-        }
-      });
-    }, 350);
+        duration: 170,
+        easing: Easing.out(Easing.quad),
+        toValue: stop,
+        useNativeDriver: true,
+      }),
+      ...(index < feedStops.length - 1 ? [Animated.delay(75)] : []),
+    ]);
 
-    return () => clearTimeout(timer);
-  }, [receiptReveal]);
+    const animation = Animated.sequence([Animated.delay(350), ...steps]);
+    animation.start(({ finished }) => {
+      if (finished) {
+        setIsReceiptRevealed(true);
+      }
+    });
+
+    return () => animation.stop();
+  }, [receiptContentHeight, receiptReveal]);
 
   const receiptPaperRef = useRef<View>(null);
 
@@ -308,19 +320,32 @@ export default function MemoryReceipt() {
               style={styles.receiptSlot}
             />
 
-            <Animated.View
+            <View
               style={[
                 styles.receiptReveal,
                 isReceiptRevealed ? styles.receiptRevealVisible : null,
-                {
-                  maxHeight: receiptReveal.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, receiptMaxRevealHeight],
-                  }),
-                },
               ]}
             >
-              <View style={styles.receiptWrap}>
+              <Animated.View
+                onLayout={(event) =>
+                  setReceiptContentHeight(event.nativeEvent.layout.height)
+                }
+                style={[
+                  styles.receiptWrap,
+                  receiptContentHeight === 0
+                    ? styles.receiptWrapHidden
+                    : {
+                        transform: [
+                          {
+                            translateY: receiptReveal.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-receiptContentHeight, 0],
+                            }),
+                          },
+                        ],
+                      },
+                ]}
+              >
                 <View collapsable={false} ref={receiptPaperRef} style={styles.receiptPaper}>
                   <View style={styles.receiptInner}>
                     <View style={styles.receiptTitleRow}>
@@ -453,8 +478,8 @@ export default function MemoryReceipt() {
                   source={require("../../assets/images/memory-receipt/memory-receipt-tear-line.png")}
                   style={styles.tearLine}
                 />
-              </View>
-            </Animated.View>
+              </Animated.View>
+            </View>
           </View>
         </ScrollView>
 
@@ -896,6 +921,9 @@ const createStyles = (
       overflow: "visible",
       width: receiptWidth,
       zIndex: 3,
+    },
+    receiptWrapHidden: {
+      opacity: 0,
     },
     safeArea: {
       backgroundColor: "#FFFFFF",
