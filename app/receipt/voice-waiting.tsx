@@ -40,11 +40,15 @@ import {
   type ViewStyle,
 } from "react-native";
 import Reanimated, {
+  FadeIn,
+  FadeOut,
   LinearTransition,
   Easing as REasing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
+  withSequence,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
@@ -68,6 +72,31 @@ const ANSWER_SHADOW_COLOR = "#3B3B3B";
 const QUESTION_SHADOW_COLOR = "#2ABD83";
 // 질문 전체가 한 번에 도착하므로 단어별 등장 시차를 준다
 const QUESTION_STAGGER_MS = 90;
+// 응답 완료 후 다음 질문을 기다리는 동안의 로딩(typing dots) 연출.
+// API가 너무 빨리 응답해도 로딩이 읽히도록 최소 표시 시간을 둔다.
+const NEXT_LOADING_MIN_MS = 700;
+const TYPING_DOTS_APPEAR_DELAY_MS = 250;
+const TYPING_DOT_STEP_MS = 160;
+const TYPING_DOT_BOUNCE_MS = 320;
+// 전송 애니메이션: 현재 질문+답변 블록이 위로 날아가며 사라진다
+const TURN_EXIT_MS = 380;
+const turnExiting = () => {
+  "worklet";
+  const timing = { duration: TURN_EXIT_MS, easing: SIGMOID_EASING };
+  return {
+    initialValues: {
+      opacity: 1,
+      transform: [{ translateY: 0 }, { scale: 1 }],
+    },
+    animations: {
+      opacity: withTiming(0, timing),
+      transform: [
+        { translateY: withTiming(-80, timing) },
+        { scale: withTiming(0.95, timing) },
+      ],
+    },
+  };
+};
 // 응답 완료 버튼 등장: VoiceCircle 바깥 링 수축이 먼저 시작된 뒤
 // 그 에너지를 이어받듯 spring으로 떠오른다
 const completeButtonEntering = () => {
@@ -195,7 +224,7 @@ const friends: ConversationFriend[] = [
 
 function getFriendForVoice(
   voices: VoiceResponse[],
-  voiceId: string | undefined
+  voiceId: string | undefined,
 ): ConversationFriend {
   const numericVoiceId = voiceId ? Number(voiceId) : null;
   const selectedVoice =
@@ -232,7 +261,7 @@ function AnimatedWord({
       withTiming(1, {
         duration: WORD_FADE_MS,
         easing: SIGMOID_EASING,
-      })
+      }),
     );
   }, [delayMs, progress]);
 
@@ -315,10 +344,10 @@ function AnimatedTranscript({
       manualLineBreaks
         ? computeLineBreaks(
             words.map((word) => word.text),
-            ANSWER_LINE_MAX_BYTES
+            ANSWER_LINE_MAX_BYTES,
           )
         : words.map(() => false),
-    [manualLineBreaks, words]
+    [manualLineBreaks, words],
   );
   const lineCount =
     words.length === 0 ? 0 : 1 + lineBreaks.filter(Boolean).length;
@@ -345,6 +374,63 @@ function AnimatedTranscript({
   );
 }
 
+function TypingDot({
+  index,
+  style,
+}: {
+  index: number;
+  style: StyleProp<ViewStyle>;
+}) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withDelay(
+      index * TYPING_DOT_STEP_MS,
+      withRepeat(
+        withSequence(
+          withTiming(1, {
+            duration: TYPING_DOT_BOUNCE_MS,
+            easing: SIGMOID_EASING,
+          }),
+          withTiming(0, {
+            duration: TYPING_DOT_BOUNCE_MS,
+            easing: SIGMOID_EASING,
+          }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [index, progress]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: 0.35 + progress.value * 0.65,
+    transform: [{ translateY: progress.value * -4 }],
+  }));
+
+  return <Reanimated.View style={[style, animatedStyle]} />;
+}
+
+function TypingDots({
+  containerStyle,
+  dotStyle,
+}: {
+  containerStyle: StyleProp<ViewStyle>;
+  dotStyle: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Reanimated.View
+      entering={FadeIn.delay(TYPING_DOTS_APPEAR_DELAY_MS).duration(260)}
+      exiting={FadeOut.duration(180)}
+      style={containerStyle}
+    >
+      {[0, 1, 2].map((index) => (
+        <TypingDot index={index} key={index} style={dotStyle} />
+      ))}
+    </Reanimated.View>
+  );
+}
+
 export default function VoiceWaitingScreen() {
   const insets = useSafeAreaInsets();
   const { voiceId } = useLocalSearchParams<{ voiceId?: string }>();
@@ -359,7 +445,7 @@ export default function VoiceWaitingScreen() {
   const fontScale = Math.max(scale, 0.76);
   const styles = useMemo(
     () => createStyles(scale, fontScale, circleScale, pillScale, width, height),
-    [circleScale, fontScale, height, pillScale, scale, width]
+    [circleScale, fontScale, height, pillScale, scale, width],
   );
   // 실제 마이크 음량(0..1) — volumechange 이벤트로 갱신, VoiceCircle 애니메이션 구동
   // fast: 즉각 반응(빠른 변화 = 고음 성분 근사), slow: 느린 포락선(저음/전체 에너지)
@@ -370,7 +456,7 @@ export default function VoiceWaitingScreen() {
   const [totalTurns, setTotalTurns] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState<RecallQuestion | null>(
-    null
+    null,
   );
   // 세션이 시작되어 질문 화면으로 진입했는지(준비 화면 종료) 여부
   const [started, setStarted] = useState(false);
@@ -382,6 +468,8 @@ export default function VoiceWaitingScreen() {
   const [hasResponse, setHasResponse] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [completeStatus, setCompleteStatus] = useState<CompleteStatus>("ready");
+  // 응답 완료 후 다음 질문을 기다리는 중(로딩 dots 표시) 여부
+  const [isAwaitingNext, setIsAwaitingNext] = useState(false);
   const [isAnswerCompact, setIsAnswerCompact] = useState(false);
   const [isAnswerScrollable, setIsAnswerScrollable] = useState(false);
   const [answerAvailableHeight, setAnswerAvailableHeight] = useState<
@@ -398,7 +486,7 @@ export default function VoiceWaitingScreen() {
   });
   const selectedFriend = useMemo(
     () => getFriendForVoice(voices, voiceId),
-    [voiceId, voices]
+    [voiceId, voices],
   );
   // 응답 완료를 누르면(completeStatus가 ready를 벗어나면) 음성 입력 원(애니메이션)을 idle로 되돌린다
   const isVoiceActive =
@@ -409,7 +497,7 @@ export default function VoiceWaitingScreen() {
       styles.answerText,
       isAnswerCompact ? styles.answerTextCompact : null,
     ],
-    [isAnswerCompact, styles]
+    [isAnswerCompact, styles],
   );
   const answerBottomGap = scaled(20, scale);
   // 스크롤 컨테이너가 6번째 줄까지는 그대로 보여주고 그 다음 줄부터만 스크롤되도록
@@ -467,7 +555,7 @@ export default function VoiceWaitingScreen() {
       () => {
         setIsExitModalVisible(true);
         return true;
-      }
+      },
     );
 
     return () => subscription.remove();
@@ -487,7 +575,7 @@ export default function VoiceWaitingScreen() {
   const transcriptRef = useRef("");
   // 말 시작 후 일정 시간이 지나면 녹음은 유지한 채 응답완료 버튼만 띄우는 타이머
   const autoCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
+    null,
   );
 
   const clearAutoCompleteTimer = () => {
@@ -591,6 +679,7 @@ export default function VoiceWaitingScreen() {
       resetTranscript();
       answerUriRef.current = null;
       voiceStartedRef.current = false;
+      setIsAwaitingNext(false);
       setCurrentQuestion(question);
       setCurrentIndex(index);
       setStarted(true);
@@ -607,7 +696,7 @@ export default function VoiceWaitingScreen() {
     },
     // resetTranscript/clearCompleteTimers는 매 렌더 재생성되지만 동작이 안정적이라 의존성에서 제외
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [],
   );
 
   const applySessionStart = useCallback(
@@ -626,7 +715,7 @@ export default function VoiceWaitingScreen() {
         enterTurn(data.question, data.current_index);
       }
     },
-    [enterTurn, goToLoading]
+    [enterTurn, goToLoading],
   );
 
   const startSessionMutation = useMutation({
@@ -658,11 +747,15 @@ export default function VoiceWaitingScreen() {
         } as unknown as Blob);
       }
       form.append("transcript", transcriptRef.current.trim());
-      return apiMultipart<AnswerResponse>(
-        "POST",
-        `/recall/sessions/${sessionId}/answer`,
-        form
-      );
+      // 로딩 dots가 읽히도록 최소 표시 시간과 함께 기다린다
+      return Promise.all([
+        apiMultipart<AnswerResponse>(
+          "POST",
+          `/recall/sessions/${sessionId}/answer`,
+          form,
+        ),
+        new Promise((resolve) => setTimeout(resolve, NEXT_LOADING_MIN_MS)),
+      ]).then(([data]) => data);
     },
     onSuccess: (data) => {
       if (data.is_last) {
@@ -673,6 +766,7 @@ export default function VoiceWaitingScreen() {
     },
     onError: () => {
       Alert.alert("답변 전송 실패", "다시 시도해주세요.");
+      setIsAwaitingNext(false);
       setCompleteStatus("ready");
     },
   });
@@ -706,6 +800,7 @@ export default function VoiceWaitingScreen() {
       setCompleteStatus("done");
 
       const doneTimer = setTimeout(() => {
+        setIsAwaitingNext(true);
         submitAnswerMutation.mutate();
       }, COMPLETE_DONE_MS);
 
@@ -800,39 +895,48 @@ export default function VoiceWaitingScreen() {
                 style={styles.friendAvatarImage}
               />
             </View>
-            <AnimatedTranscript
-              key={currentQuestion?.text ?? ""}
-              transcript={currentQuestion?.text ?? ""}
-              textStyle={styles.questionText}
-              containerStyle={styles.questionWords}
-              wrapStyle={styles.questionWordWrap}
-              shadowColor={QUESTION_SHADOW_COLOR}
-              staggerMs={QUESTION_STAGGER_MS}
-              manualLineBreaks={false}
-            />
-            {hasTranscript ? (
-              <View
-                onLayout={updateAnswerAvailableHeight}
-                ref={answerAreaRef}
-                style={styles.answerArea}
-              >
-                {isAnswerScrollable ? (
-                  <ScrollView
-                    ref={answerScrollRef}
-                    showsVerticalScrollIndicator={false}
-                    style={[
-                      styles.answerScroll,
-                      {
-                        maxHeight:
-                          answerAvailableHeight != null
-                            ? Math.min(
-                                answerAvailableHeight,
-                                answerScrollMaxHeight
-                              )
-                            : answerScrollMaxHeight,
-                      },
-                    ]}
-                  >
+            <Reanimated.View exiting={turnExiting} key={currentIndex}>
+              <AnimatedTranscript
+                transcript={currentQuestion?.text ?? ""}
+                textStyle={styles.questionText}
+                containerStyle={styles.questionWords}
+                wrapStyle={styles.questionWordWrap}
+                shadowColor={QUESTION_SHADOW_COLOR}
+                staggerMs={QUESTION_STAGGER_MS}
+                manualLineBreaks={false}
+              />
+              {hasTranscript ? (
+                <View
+                  onLayout={updateAnswerAvailableHeight}
+                  ref={answerAreaRef}
+                  style={styles.answerArea}
+                >
+                  {isAnswerScrollable ? (
+                    <ScrollView
+                      ref={answerScrollRef}
+                      showsVerticalScrollIndicator={false}
+                      style={[
+                        styles.answerScroll,
+                        {
+                          maxHeight:
+                            answerAvailableHeight != null
+                              ? Math.min(
+                                  answerAvailableHeight,
+                                  answerScrollMaxHeight,
+                                )
+                              : answerScrollMaxHeight,
+                        },
+                      ]}
+                    >
+                      <AnimatedTranscript
+                        transcript={transcript}
+                        textStyle={answerTextStyle}
+                        containerStyle={styles.answerWords}
+                        wrapStyle={styles.answerWordWrap}
+                        onLineCountChange={handleAnswerLineCountChange}
+                      />
+                    </ScrollView>
+                  ) : (
                     <AnimatedTranscript
                       transcript={transcript}
                       textStyle={answerTextStyle}
@@ -840,58 +944,59 @@ export default function VoiceWaitingScreen() {
                       wrapStyle={styles.answerWordWrap}
                       onLineCountChange={handleAnswerLineCountChange}
                     />
-                  </ScrollView>
-                ) : (
-                  <AnimatedTranscript
-                    transcript={transcript}
-                    textStyle={answerTextStyle}
-                    containerStyle={styles.answerWords}
-                    wrapStyle={styles.answerWordWrap}
-                    onLineCountChange={handleAnswerLineCountChange}
-                  />
-                )}
-              </View>
-            ) : null}
-            {isListening && !(hasResponse && hasTranscript) ? (
-              <>
-                {!hasTranscript ? (
-                  <Text maxFontSizeMultiplier={1.1} style={styles.answerPrompt}>
-                    지금 응답해주세요...|
-                  </Text>
-                ) : null}
-              </>
-            ) : null}
-            {hasResponse ? (
-              <>
-                {hasTranscript ? (
-                  <Pressable
-                    disabled={completeStatus !== "ready"}
-                    onPress={handleCompletePress}
-                    style={[
-                      styles.completeButton,
-                      completeStatus === "pressed" &&
-                        styles.completeButtonPressed,
-                    ]}
-                  >
-                    {completeStatus === "ready" ? (
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        style={styles.completeButtonText}
-                      >
-                        응답 완료
-                      </Text>
-                    ) : null}
-                    {completeStatus === "done" ? (
-                      <Ionicons
-                        color="#FFFFFF"
-                        name="checkmark-outline"
-                        size={scaled(33, pillScale)}
-                      />
-                    ) : null}
-                  </Pressable>
-                ) : null}
-              </>
-            ) : null}
+                  )}
+                </View>
+              ) : null}
+              {isListening && !(hasResponse && hasTranscript) ? (
+                <>
+                  {!hasTranscript ? (
+                    <Text
+                      maxFontSizeMultiplier={1.1}
+                      style={styles.answerPrompt}
+                    >
+                      지금 응답해주세요...|
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
+              {hasResponse ? (
+                <>
+                  {hasTranscript ? (
+                    <Pressable
+                      disabled={completeStatus !== "ready"}
+                      onPress={handleCompletePress}
+                      style={[
+                        styles.completeButton,
+                        completeStatus === "pressed" &&
+                          styles.completeButtonPressed,
+                      ]}
+                    >
+                      {completeStatus === "ready" ? (
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.completeButtonText}
+                        >
+                          응답 완료
+                        </Text>
+                      ) : null}
+                      {completeStatus === "done" ? (
+                        <Ionicons
+                          color="#FFFFFF"
+                          name="checkmark-outline"
+                          size={scaled(33, pillScale)}
+                        />
+                      ) : null}
+                    </Pressable>
+                  ) : null}
+                </>
+              ) : null}
+              {isAwaitingNext ? (
+                <TypingDots
+                  containerStyle={styles.typingDots}
+                  dotStyle={styles.typingDot}
+                />
+              ) : null}
+            </Reanimated.View>
           </View>
         )}
 
@@ -935,7 +1040,10 @@ export default function VoiceWaitingScreen() {
             </View>
           ) : null}
           {hasResponse && hasTranscript ? (
-            <Reanimated.View entering={completeButtonEntering}>
+            <Reanimated.View
+              entering={completeButtonEntering}
+              exiting={FadeOut.duration(200)}
+            >
               <Pressable
                 disabled={completeStatus !== "ready"}
                 onPress={handleCompletePress}
@@ -1026,7 +1134,7 @@ const createStyles = (
   circleScale: number,
   pillScale: number,
   width: number,
-  height: number
+  height: number,
 ) => {
   const actionPillWidth = scaled(146, pillScale);
   const actionPillHeight = scaled(49, pillScale);
@@ -1035,7 +1143,7 @@ const createStyles = (
   const exitModalHorizontalInset = scaled(26, scale);
   const exitModalWidth = Math.min(
     width - exitModalHorizontalInset * 2,
-    scaled(350, scale)
+    scaled(350, scale),
   );
 
   return StyleSheet.create({
@@ -1236,6 +1344,18 @@ const createStyles = (
       flexDirection: "row",
       flexWrap: "wrap",
       justifyContent: "flex-end",
+    },
+    typingDots: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: scaled(7, scale),
+      marginTop: scaled(28, scale),
+    },
+    typingDot: {
+      backgroundColor: "#2ABD83",
+      borderRadius: scaled(5.5, scale),
+      height: scaled(11, scale),
+      width: scaled(11, scale),
     },
     answerWordWrap: {
       marginLeft: scaled(7, scale),
