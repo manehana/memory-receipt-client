@@ -12,7 +12,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "@tanstack/react-query";
 import { Image as ExpoImage } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { captureRef } from "react-native-view-shot";
 import {
   Animated,
   Image,
@@ -153,6 +155,20 @@ export default function MemoryReceipt() {
 
     return () => clearTimeout(timer);
   }, [receiptReveal]);
+
+  const receiptPaperRef = useRef<View>(null);
+
+  const handleShare = async () => {
+    try {
+      const uri = await captureRef(receiptPaperRef, {
+        format: "png",
+        quality: 1,
+      });
+      await Sharing.shareAsync(uri, { mimeType: "image/png" });
+    } catch (error) {
+      console.warn("영수증 공유 실패", error);
+    }
+  };
 
   const openShareSheet = () => {
     shareSheetProgress.setValue(1);
@@ -305,7 +321,7 @@ export default function MemoryReceipt() {
               ]}
             >
               <View style={styles.receiptWrap}>
-                <View style={styles.receiptPaper}>
+                <View collapsable={false} ref={receiptPaperRef} style={styles.receiptPaper}>
                   <View style={styles.receiptInner}>
                     <View style={styles.receiptTitleRow}>
                       <View style={styles.titleDash} />
@@ -452,7 +468,7 @@ export default function MemoryReceipt() {
           </View>
           <Pressable
             accessibilityLabel="공유하기"
-            onPress={openShareSheet}
+            onPress={handleShare}
             style={styles.shareButton}
           >
             <Text maxFontSizeMultiplier={1.1} style={styles.shareButtonText}>
