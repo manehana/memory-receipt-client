@@ -194,15 +194,18 @@ export default function VoiceCircle({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 맨 바깥 흰 원판: idle에서는 은은한 숨쉬기, 듣는 중에는 음량을 따라 커지고 작아진다
   const discStyle = useAnimatedStyle(() => {
     const wave = Math.sin(TWO_PI * clock.value);
+    const level = volumeSlow.value * 0.6 + volume.value * 0.4;
+    const grow = activeProgress.value * (-0.05 + level * 0.18);
     return {
       transform: [
         {
           scale:
             1 +
-            wave *
-              (0.006 + activeProgress.value * (0.008 + volume.value * 0.03)),
+            grow +
+            wave * (0.006 + activeProgress.value * (0.004 + level * 0.015)),
         },
       ],
     };
