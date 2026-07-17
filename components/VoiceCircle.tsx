@@ -242,7 +242,7 @@ export default function VoiceCircle({
   });
 
   // 애니메이션 transform이 정적 transform을 통째로 대체하므로 translateY도 여기서 함께 적용한다
-  const micOffsetY = scaled(-70, circleScale);
+  const micOffsetY = scaled(-60, circleScale);
   const micStyle = useAnimatedStyle(() => ({
     opacity: 1 - activeProgress.value,
     transform: [
