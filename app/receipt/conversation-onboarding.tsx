@@ -53,14 +53,8 @@ type MockFriend = {
   inactiveIcon: ImageSourcePropType;
 };
 
-// 화면에 항상 보여야 하는 9명. 순서/그룹은 목업 기준.
+// 화면에 항상 보여야 하는 8명. 순서/그룹은 목업 기준. 기본 선택은 첫 번째(딸).
 const MOCK_FRIENDS: MockFriend[] = [
-  {
-    name: "아들",
-    group: "protector",
-    activeIcon: require("../../assets/images/onboarding/friend-son-active-icon.png"),
-    inactiveIcon: require("../../assets/images/onboarding/friend-son-inactive-icon.png"),
-  },
   {
     name: "딸",
     group: "protector",
