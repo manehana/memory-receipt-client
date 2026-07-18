@@ -7,6 +7,7 @@ import {
 import { apiGet } from "@/lib/api";
 import type { VoiceResponse } from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useAudioPlayer } from "expo-audio";
 import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -107,6 +108,8 @@ const MOCK_FRIENDS: MockFriend[] = [
 
 const FRIEND_DESCRIPTION = "원하는 목소리로\n편하게 대화해봐요!";
 
+const HODONG_PREVIEW_SOURCE = require("../../assets/voices.wav");
+
 const steps: OnboardingStep[] = [
   {
     mainImage: require("../../assets/images/onboarding/onboarding1-main-icon.png"),
@@ -186,6 +189,7 @@ export default function ConversationOnboardingScreen() {
       })),
     [voices]
   );
+  const hodongPreviewPlayer = useAudioPlayer(HODONG_PREVIEW_SOURCE);
   const friendBackdropProgress = useRef(new Animated.Value(1)).current;
   const friendSheetProgress = useRef(new Animated.Value(1)).current;
   const friendSheetTranslateX = useRef(new Animated.Value(0)).current;
@@ -762,7 +766,13 @@ export default function ConversationOnboardingScreen() {
                             return (
                               <Pressable
                                 key={friend.name}
-                                onPress={() => setSelectedName(friend.name)}
+                                onPress={() => {
+                                  setSelectedName(friend.name);
+                                  if (friend.name === "강호동") {
+                                    hodongPreviewPlayer.seekTo(0);
+                                    hodongPreviewPlayer.play();
+                                  }
+                                }}
                                 style={styles.friendItem}
                               >
                                 <View style={styles.friendAvatarBox}>
