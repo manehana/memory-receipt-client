@@ -7,6 +7,7 @@ import {
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as WebBrowser from "expo-web-browser";
 import { apiGet } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -927,7 +928,14 @@ export default function SafetyReportScreen() {
                   pointerEvents="none"
                   style={styles.productSheetFooterFade}
                 />
-                <Pressable style={styles.productMainButton}>
+                <Pressable
+                  style={styles.productMainButton}
+                  onPress={() =>
+                    WebBrowser.openBrowserAsync(
+                      "https://m.kebhana.com/cont/hidden/livingtrust/index.html",
+                    )
+                  }
+                >
                   <Text
                     maxFontSizeMultiplier={1.1}
                     style={styles.productMainButtonText}
