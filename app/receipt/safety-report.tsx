@@ -4,12 +4,11 @@ import {
   getScreenScale,
   scaled,
 } from "@/constants/responsive";
+import { apiGet } from "@/lib/api";
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { LinearGradient } from "expo-linear-gradient";
-import { WebView } from "react-native-webview";
-import { apiGet } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -24,6 +23,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Line } from "react-native-svg";
+import { WebView } from "react-native-webview";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
@@ -135,7 +135,7 @@ function formatReportDate(iso: string): string {
 // 점수 흐름 막대 높이(%): 점수 범위를 55~95%로 펼쳐 차이가 눈에 보이게 한다.
 function flowBarHeight(
   flows: SafetyReport["score_flows"],
-  score: number | undefined
+  score: number | undefined,
 ): number {
   if (score === undefined) {
     return 82;
@@ -157,7 +157,7 @@ export default function SafetyReportScreen() {
   const fontScale = getFontScale(width, height);
   const styles = useMemo(
     () => createStyles(scale, fontScale, width, height),
-    [fontScale, height, scale, width]
+    [fontScale, height, scale, width],
   );
   const [isShareEnabled, setIsShareEnabled] = useState(false);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
@@ -332,7 +332,7 @@ export default function SafetyReportScreen() {
                 accessibilityRole="switch"
                 accessibilityState={{ checked: isShareEnabled }}
                 hitSlop={scaled(8, scale)}
-              onPress={handleShareTogglePress}
+                onPress={handleShareTogglePress}
                 style={styles.shareToggleButton}
               >
                 <Animated.View
@@ -435,81 +435,81 @@ export default function SafetyReportScreen() {
               최근 4회차 점수 흐름
             </Text>
             <View style={styles.flowChart}>
-            <View style={styles.flowBars}>
-              <Svg
-                height={scaled(2, scale)}
-                style={styles.flowBaseline}
-                width="100%"
-              >
-                <Line
-                  stroke="#D9D9D9"
-                  strokeDasharray="2.19 2.19"
-                  strokeLinecap="butt"
-                  strokeWidth="1.1"
-                  x1="0"
-                  x2="100%"
-                  y1="1"
-                  y2="1"
-                />
-              </Svg>
-              {reportFlows.map((item) => (
-                <View key={item.label} style={styles.flowColumn}>
-                  <View style={styles.flowScoreArea}>
-                    {typeof item.score === "number" ? (
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        style={[
-                          styles.flowScoreText,
-                          item.current && styles.currentFlowScoreText,
-                        ]}
-                      >
-                        {item.score}
-                      </Text>
-                    ) : null}
-                    <Animated.View
-                      style={[
-                        styles.flowBar,
-                        item.current && styles.currentFlowBar,
-                        !item.score && styles.futureFlowBar,
-                        {
-                          height: flowBarProgress.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [
-                              "0%",
-                              `${flowBarHeight(reportFlows, item.score)}%`,
-                            ],
-                          }),
-                        },
-                      ]}
-                    >
-                      {item.current ? (
+              <View style={styles.flowBars}>
+                <Svg
+                  height={scaled(2, scale)}
+                  style={styles.flowBaseline}
+                  width="100%"
+                >
+                  <Line
+                    stroke="#D9D9D9"
+                    strokeDasharray="2.19 2.19"
+                    strokeLinecap="butt"
+                    strokeWidth="1.1"
+                    x1="0"
+                    x2="100%"
+                    y1="1"
+                    y2="1"
+                  />
+                </Svg>
+                {reportFlows.map((item) => (
+                  <View key={item.label} style={styles.flowColumn}>
+                    <View style={styles.flowScoreArea}>
+                      {typeof item.score === "number" ? (
                         <Text
                           maxFontSizeMultiplier={1.1}
-                          style={styles.currentBadgeText}
+                          style={[
+                            styles.flowScoreText,
+                            item.current && styles.currentFlowScoreText,
+                          ]}
                         >
-                          현재
+                          {item.score}
                         </Text>
                       ) : null}
-                    </Animated.View>
+                      <Animated.View
+                        style={[
+                          styles.flowBar,
+                          item.current && styles.currentFlowBar,
+                          !item.score && styles.futureFlowBar,
+                          {
+                            height: flowBarProgress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [
+                                "0%",
+                                `${flowBarHeight(reportFlows, item.score)}%`,
+                              ],
+                            }),
+                          },
+                        ]}
+                      >
+                        {item.current ? (
+                          <Text
+                            maxFontSizeMultiplier={1.1}
+                            style={styles.currentBadgeText}
+                          >
+                            현재
+                          </Text>
+                        ) : null}
+                      </Animated.View>
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))}
+              </View>
+              <View style={styles.flowLabelRow}>
+                {reportFlows.map((item) => (
+                  <Text
+                    key={item.label}
+                    maxFontSizeMultiplier={1.1}
+                    style={[
+                      styles.flowLabel,
+                      item.current && styles.currentFlowLabel,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                ))}
+              </View>
             </View>
-            <View style={styles.flowLabelRow}>
-              {reportFlows.map((item) => (
-                <Text
-                  key={item.label}
-                  maxFontSizeMultiplier={1.1}
-                  style={[
-                    styles.flowLabel,
-                    item.current && styles.currentFlowLabel,
-                  ]}
-                >
-                  {item.label}
-              </Text>
-            ))}
-            </View>
-          </View>
           </View>
 
           <View style={styles.statCard}>
@@ -617,13 +617,6 @@ export default function SafetyReportScreen() {
               {report.spending_alert.text}
             </Text>
           </View>
-          <InfoBox
-            icon={require("../../assets/images/safety-report/safety-report-check.png")}
-            styles={styles}
-            text={report.spending_note}
-            type="success"
-            variant="consumption"
-          />
 
           <View style={styles.band} />
 
@@ -811,7 +804,10 @@ export default function SafetyReportScreen() {
                 },
               ]}
             >
-              <Pressable onPress={closeProductSheet} style={styles.productSheetHandleButton}>
+              <Pressable
+                onPress={closeProductSheet}
+                style={styles.productSheetHandleButton}
+              >
                 <View style={styles.productSheetHandle} />
               </Pressable>
               <ScrollView
@@ -1014,20 +1010,20 @@ const createStyles = (
   scale: number,
   fontScale: number,
   screenWidth: number,
-  screenHeight: number
+  screenHeight: number,
 ) => {
   const widthScale = screenWidth / BASE_WIDTH;
   const heightScale = screenHeight / BASE_HEIGHT;
   const layoutScale = Math.min(widthScale, heightScale, 1.04);
   const horizontalPadding = Math.round(
-    (screenWidth < 380 ? 20 : 24) * Math.min(widthScale, 1.08)
+    (screenWidth < 380 ? 20 : 24) * Math.min(widthScale, 1.08),
   );
   const contentWidth = screenWidth - horizontalPadding * 2;
   const modalWidth = Math.min(350, screenWidth - 48);
   const modalScale = Math.min(modalWidth / 350, 1);
   const productSheetHeight = Math.min(
     Math.round(690 * Math.min(heightScale, 1.04)),
-    Math.round(screenHeight * 0.92)
+    Math.round(screenHeight * 0.92),
   );
   const fixed = (value: number) => Math.round(value * layoutScale);
   const modalFixed = (value: number) => Math.round(value * modalScale);
