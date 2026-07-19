@@ -108,6 +108,8 @@ const ANSWER_LINE_HEIGHT_COMPACT = 31;
 const ANSWER_COMPACT_LINE_THRESHOLD = 5;
 const ANSWER_SCROLL_LINE_THRESHOLD = 6;
 const voiceMicrophoneImage = require("../../assets/images/voice/voice-microphone.png");
+// 발표 데모용: "대화 모드 변경" 버튼으로 턴을 건너뛸 때 제출되는 임의 STT 텍스트
+const DUMMY_TRANSCRIPT = "네, 기억나요. 그때 정말 즐거웠어요.";
 
 type CompleteStatus = "ready" | "pressed" | "done";
 
@@ -617,6 +619,28 @@ export default function VoiceWaitingScreen() {
     completeTimers.current.push(pressedTimer);
   };
 
+  // 발표 데모용: 임의 텍스트를 답변으로 제출하고 다음 턴으로 넘어간다
+  const handleSkipTurn = () => {
+    if (!started || sessionId == null || submitAnswerMutation.isPending) {
+      return;
+    }
+
+    clearAutoCompleteTimer();
+    clearCompleteTimers();
+    stopCurrent();
+    ExpoSpeechRecognitionModule.abort();
+    voiceStartedRef.current = true;
+    answerUriRef.current = null;
+    finalizedRef.current = DUMMY_TRANSCRIPT;
+    transcriptRef.current = DUMMY_TRANSCRIPT;
+    setTranscript(DUMMY_TRANSCRIPT);
+    setIsListening(false);
+    setHasResponse(true);
+    setCompleteStatus("done");
+    setIsAwaitingNext(true);
+    submitAnswerMutation.mutate();
+  };
+
   const startListening = async () => {
     const permission =
       await ExpoSpeechRecognitionModule.requestPermissionsAsync();
@@ -672,7 +696,7 @@ export default function VoiceWaitingScreen() {
             </Text>
           </Pressable>
 
-          <Pressable style={styles.modeButton}>
+          <Pressable onPress={handleSkipTurn} style={styles.modeButton}>
             <Text maxFontSizeMultiplier={1.1} style={styles.modeButtonText}>
               대화 모드 변경
             </Text>
