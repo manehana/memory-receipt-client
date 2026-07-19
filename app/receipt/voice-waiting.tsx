@@ -3,6 +3,7 @@ import VoiceCircle from "@/components/VoiceCircle";
 import { fontScaled, scaled } from "@/constants/responsive";
 import { ApiError, apiGet, apiMultipart, apiPost } from "@/lib/api";
 import { playBase64Wav, stopCurrent } from "@/lib/audio";
+import { File, Paths } from "expo-file-system";
 import type {
   AnswerResponse,
   RecallQuestion,
@@ -110,6 +111,10 @@ const ANSWER_SCROLL_LINE_THRESHOLD = 6;
 const voiceMicrophoneImage = require("../../assets/images/voice/voice-microphone.png");
 // 발표 데모용: "대화 모드 변경" 버튼으로 턴을 건너뛸 때 제출되는 임의 STT 텍스트
 const DUMMY_TRANSCRIPT = "네, 기억나요. 그때 정말 즐거웠어요.";
+// answer API는 file 필드가 필수(multipart)라 스킵 시에도 무음 WAV(16kHz mono 16bit, 50ms)를 첨부한다
+const SILENT_WAV_BASE64 =
+  "UklGRmQGAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YUAGAAAA" +
+  "A".repeat(2132);
 
 type CompleteStatus = "ready" | "pressed" | "done";
 
@@ -630,7 +635,13 @@ export default function VoiceWaitingScreen() {
     stopCurrent();
     ExpoSpeechRecognitionModule.abort();
     voiceStartedRef.current = true;
-    answerUriRef.current = null;
+    const silentFile = new File(Paths.cache, "skip-answer.wav");
+    if (silentFile.exists) {
+      silentFile.delete();
+    }
+    silentFile.create();
+    silentFile.write(SILENT_WAV_BASE64, { encoding: "base64" });
+    answerUriRef.current = silentFile.uri;
     finalizedRef.current = DUMMY_TRANSCRIPT;
     transcriptRef.current = DUMMY_TRANSCRIPT;
     setTranscript(DUMMY_TRANSCRIPT);
