@@ -31,7 +31,7 @@ type VoiceCircleProps = {
 
 const microCircleImage = require("../assets/images/voice/voice-listening-micro-circle.png");
 // 점 파도 한 사이클(위+아래) 길이
-const MICRO_WAVE_CYCLE_MS = 1600;
+const MICRO_WAVE_CYCLE_MS = 1200;
 // 점 사이 위상차 1/4 사이클 — 첫 점이 최하단일 때 마지막 점이 최상단, 가운데 점은 정중앙
 const MICRO_WAVE_PHASE_STEP = 0.25;
 const mint = (alpha: number) => `rgba(42, 189, 131, ${alpha})`;
@@ -61,6 +61,7 @@ function Ring({
   band,
   baseOpacity,
   idleOpacity,
+  volumeReactive,
 }: {
   diameter: number;
   color: string;
@@ -76,18 +77,20 @@ function Ring({
   band: number;
   baseOpacity: number;
   idleOpacity: number;
+  // false면 목소리(음량)에 반응하지 않고 기본 물결만 유지한다
+  volumeReactive: boolean;
 }) {
   const ringStyle = useAnimatedStyle(() => {
     const wave = Math.sin(TWO_PI * (clock.value + phase));
     // 빠른 변화(고음 성분 근사): fast가 slow보다 얼마나 앞서는지
     const hi = Math.min(
       Math.max(volume.value - volumeSlow.value, 0) * 2.5 + volume.value * 0.25,
-      1
+      1,
     );
     // 저음/전체 에너지: 느린 포락선
     const lo = volumeSlow.value;
     // 바깥 링일수록 hi, 안쪽 링일수록 lo 비중이 크다
-    const level = hi * (1 - band) + lo * band;
+    const level = volumeReactive ? hi * (1 - band) + lo * band : 0;
     // 소리가 없으면 움츠러들고(0.93) 소리가 크면 커진다(최대 ~1.13)
     const grow = activeProgress.value * (-0.07 + level * 0.25);
     const amplitude = 0.006 + activeProgress.value * 0.008;
@@ -202,7 +205,7 @@ export default function VoiceCircle({
       microClock.value = 0;
       microClock.value = withRepeat(
         withTiming(1, { duration: MICRO_WAVE_CYCLE_MS, easing: Easing.linear }),
-        -1
+        -1,
       );
     } else {
       cancelAnimation(microClock);
@@ -217,7 +220,7 @@ export default function VoiceCircle({
   useEffect(() => {
     clock.value = withRepeat(
       withTiming(1, { duration: 2600, easing: Easing.linear }),
-      -1
+      -1,
     );
     return () => cancelAnimation(clock);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,6 +285,7 @@ export default function VoiceCircle({
           key={`inner-${index}`}
           phase={-index * phaseStep}
           volume={volume}
+          volumeReactive={index < INNER_RINGS.length - 1}
           volumeSlow={volumeSlow}
         />
       ))}
