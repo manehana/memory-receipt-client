@@ -3,6 +3,7 @@ import VoiceCircle from "@/components/VoiceCircle";
 import { fontScaled, scaled } from "@/constants/responsive";
 import { ApiError, apiGet, apiMultipart, apiPost } from "@/lib/api";
 import { playBase64Wav, stopCurrent } from "@/lib/audio";
+import { isPresentationMode } from "@/lib/presentation";
 import { File, Paths } from "expo-file-system";
 import type {
   AnswerResponse,
@@ -109,6 +110,8 @@ const ANSWER_LINE_HEIGHT_COMPACT = 31;
 const ANSWER_COMPACT_LINE_THRESHOLD = 5;
 const ANSWER_SCROLL_LINE_THRESHOLD = 6;
 const voiceMicrophoneImage = require("../../assets/images/voice/voice-microphone.png");
+// 발표 데모용: 발표 모드에서는 친구 아바타를 딸 공유 이미지로 고정한다
+const presentationFriendAvatarImage = require("../../assets/images/memory-receipt/share_friend_daughter.png");
 // 발표 데모용: "대화 모드 변경" 버튼으로 턴을 건너뛸 때 제출되는 임의 STT 텍스트
 const DUMMY_TRANSCRIPT = "네, 기억나요. 그때 정말 즐거웠어요.";
 // answer API는 file 필드가 필수(multipart)라 스킵 시에도 무음 WAV(16kHz mono 16bit, 50ms)를 첨부한다
@@ -733,7 +736,11 @@ export default function VoiceWaitingScreen() {
             <View style={styles.friendAvatar}>
               <Image
                 resizeMode="contain"
-                source={selectedFriend.icon}
+                source={
+                  isPresentationMode()
+                    ? presentationFriendAvatarImage
+                    : selectedFriend.icon
+                }
                 style={styles.friendAvatarImage}
               />
             </View>
