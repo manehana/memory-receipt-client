@@ -7,11 +7,10 @@ import {
 import { useImageAuthHeaders } from "@/hooks/use-image-auth-headers";
 import { apiGet, sessionImageUrl } from "@/lib/api";
 import type { PaymentResponse, RecallSessionResponse } from "@/lib/types";
-import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "@tanstack/react-query";
 import { Image as ExpoImage } from "expo-image";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -78,7 +77,10 @@ function formatSessionDate(value: string | undefined): string {
   return value.replaceAll("-", ".");
 }
 
-function paymentToFootprint(payment: PaymentResponse, index: number): Footprint {
+function paymentToFootprint(
+  payment: PaymentResponse,
+  index: number,
+): Footprint {
   return {
     id: String(index + 1).padStart(2, "0"),
     amount: formatKRW(payment.amount),
@@ -292,19 +294,23 @@ export default function MemoryReceipt() {
           <Pressable
             accessibilityLabel="뒤로가기"
             hitSlop={scaled(12, scale)}
-            onPress={goBackToPreviousScreen}
+            onPress={() => router.dismissTo("/")}
             style={styles.headerButton}
           >
-            <Ionicons color="#5D5D5D" name="chevron-back" size={scaled(24, scale)} />
+            <Ionicons
+              color="#5D5D5D"
+              name="chevron-back"
+              size={scaled(24, scale)}
+            />
           </Pressable>
 
           <Pressable
-            accessibilityLabel="저장하고 나가기"
+            accessibilityLabel="저장"
             hitSlop={scaled(12, scale)}
             onPress={() => setIsSaveModalVisible(true)}
           >
             <Text maxFontSizeMultiplier={1.1} style={styles.saveText}>
-              저장하고 나가기
+              저장
             </Text>
           </Pressable>
         </View>
@@ -346,11 +352,18 @@ export default function MemoryReceipt() {
                       },
                 ]}
               >
-                <View collapsable={false} ref={receiptPaperRef} style={styles.receiptPaper}>
+                <View
+                  collapsable={false}
+                  ref={receiptPaperRef}
+                  style={styles.receiptPaper}
+                >
                   <View style={styles.receiptInner}>
                     <View style={styles.receiptTitleRow}>
                       <View style={styles.titleDash} />
-                      <Text maxFontSizeMultiplier={1.1} style={styles.receiptTitle}>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.receiptTitle}
+                      >
                         기억 영수증
                       </Text>
                       <View style={styles.titleDash} />
@@ -374,69 +387,72 @@ export default function MemoryReceipt() {
                     )}
 
                     {dayTitle ? (
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        style={styles.dayTitle}
-                      >
+                      <Text maxFontSizeMultiplier={1.1} style={styles.dayTitle}>
                         {dayTitle}
                       </Text>
                     ) : null}
 
                     <SectionTitle label="오늘의 한줄" styles={styles} />
                     <View style={styles.summaryBox}>
-                      <Text maxFontSizeMultiplier={1.1} style={styles.summaryText}>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={styles.summaryText}
+                      >
                         {summary}
                       </Text>
                     </View>
 
                     {footprints.length > 0 ? (
                       <>
-                    <SectionTitle
-                      label="오늘의 발자취"
-                      styles={styles}
-                      style={styles.footprintTitle}
-                    />
-                    <View style={styles.footprintList}>
-                      {footprints.map((item, index) => (
-                        <View key={item.id} style={styles.footprintItem}>
-                          <View style={styles.timelineColumn}>
-                            <View style={styles.timelineCircle}>
+                        <SectionTitle
+                          label="오늘의 발자취"
+                          styles={styles}
+                          style={styles.footprintTitle}
+                        />
+                        <View style={styles.footprintList}>
+                          {footprints.map((item, index) => (
+                            <View key={item.id} style={styles.footprintItem}>
+                              <View style={styles.timelineColumn}>
+                                <View style={styles.timelineCircle}>
+                                  <Text
+                                    maxFontSizeMultiplier={1.1}
+                                    style={styles.timelineNumber}
+                                  >
+                                    {item.id}
+                                  </Text>
+                                </View>
+                                {index < footprints.length - 1 ? (
+                                  <View style={styles.timelineLine} />
+                                ) : null}
+                              </View>
+
+                              <View style={styles.footprintTextBox}>
+                                <Text
+                                  ellipsizeMode="tail"
+                                  maxFontSizeMultiplier={1.1}
+                                  numberOfLines={1}
+                                  style={styles.placeText}
+                                >
+                                  {item.place}
+                                </Text>
+                                <Text
+                                  maxFontSizeMultiplier={1.1}
+                                  style={styles.timeText}
+                                >
+                                  {item.time}
+                                </Text>
+                              </View>
+
                               <Text
                                 maxFontSizeMultiplier={1.1}
-                                style={styles.timelineNumber}
+                                numberOfLines={1}
+                                style={styles.amountText}
                               >
-                                {item.id}
+                                {item.amount}
                               </Text>
                             </View>
-                            {index < footprints.length - 1 ? (
-                              <View style={styles.timelineLine} />
-                            ) : null}
-                          </View>
-
-                          <View style={styles.footprintTextBox}>
-                            <Text
-                              ellipsizeMode="tail"
-                              maxFontSizeMultiplier={1.1}
-                              numberOfLines={1}
-                              style={styles.placeText}
-                            >
-                              {item.place}
-                            </Text>
-                            <Text maxFontSizeMultiplier={1.1} style={styles.timeText}>
-                              {item.time}
-                            </Text>
-                          </View>
-
-                          <Text
-                            maxFontSizeMultiplier={1.1}
-                            numberOfLines={1}
-                            style={styles.amountText}
-                          >
-                            {item.amount}
-                          </Text>
+                          ))}
                         </View>
-                      ))}
-                    </View>
                       </>
                     ) : null}
 
@@ -637,7 +653,10 @@ export default function MemoryReceipt() {
             <Text maxFontSizeMultiplier={1.1} style={styles.saveModalTitle}>
               기억 영수증을 저장할까요?
             </Text>
-            <Text maxFontSizeMultiplier={1.1} style={styles.saveModalDescription}>
+            <Text
+              maxFontSizeMultiplier={1.1}
+              style={styles.saveModalDescription}
+            >
               저장하면 나중에 기억 수첩에서{"\n"}
               다시 볼 수 있어요.
             </Text>
@@ -646,7 +665,10 @@ export default function MemoryReceipt() {
                 onPress={() => setIsSaveModalVisible(false)}
                 style={[styles.saveModalButton, styles.saveModalCancelButton]}
               >
-                <Text maxFontSizeMultiplier={1.1} style={styles.saveModalCancelText}>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.saveModalCancelText}
+                >
                   취소
                 </Text>
               </Pressable>
@@ -657,7 +679,10 @@ export default function MemoryReceipt() {
                 }}
                 style={[styles.saveModalButton, styles.saveModalConfirmButton]}
               >
-                <Text maxFontSizeMultiplier={1.1} style={styles.saveModalConfirmText}>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.saveModalConfirmText}
+                >
                   저장하기
                 </Text>
               </Pressable>
@@ -700,7 +725,8 @@ function SectionTitle({ label, styles, style }: SectionTitleProps) {
 
 const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
   const heightScale = screenHeight / BASE_HEIGHT;
-  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
+  const vertical = (value: number) =>
+    Math.round(value * Math.min(heightScale, 1.04));
   return vertical(157) + bottomInset;
 };
 
@@ -740,17 +766,23 @@ const createStyles = (
     fixed(SLOT_BASE_WIDTH),
     Math.round(screenWidth * 0.92),
   );
-  const slotHeight = Math.round(slotWidth * (SLOT_BASE_HEIGHT / SLOT_BASE_WIDTH));
+  const slotHeight = Math.round(
+    slotWidth * (SLOT_BASE_HEIGHT / SLOT_BASE_WIDTH),
+  );
   const heroWidth = Math.min(
     receiptFixed(PHOTO_BASE_WIDTH),
     receiptWidth - receiptFixed(36),
   );
-  const heroHeight = Math.round(heroWidth * (PHOTO_BASE_HEIGHT / PHOTO_BASE_WIDTH));
+  const heroHeight = Math.round(
+    heroWidth * (PHOTO_BASE_HEIGHT / PHOTO_BASE_WIDTH),
+  );
   const barcodeWidth = receiptFixed(BARCODE_BASE_WIDTH);
   const barcodeHeight = Math.round(
     barcodeWidth * (BARCODE_BASE_HEIGHT / BARCODE_BASE_WIDTH),
   );
-  const tearHeight = Math.round(receiptWidth * (TEAR_BASE_HEIGHT / RECEIPT_BASE_WIDTH));
+  const tearHeight = Math.round(
+    receiptWidth * (TEAR_BASE_HEIGHT / RECEIPT_BASE_WIDTH),
+  );
   const shareBarHeight = getShareBarHeight(screenHeight, bottomInset);
 
   return StyleSheet.create({
