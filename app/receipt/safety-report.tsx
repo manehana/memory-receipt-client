@@ -7,7 +7,7 @@ import {
 import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as WebBrowser from "expo-web-browser";
+import { WebView } from "react-native-webview";
 import { apiGet } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -163,6 +163,7 @@ export default function SafetyReportScreen() {
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
   const [selectedService, setSelectedService] =
     useState<RecommendedService | null>(null);
+  const [isProductWebViewVisible, setIsProductWebViewVisible] = useState(false);
   // 발표 모드에선 /presentation/report, 그 외엔 /report — 실패 시 기본값 유지.
   const { data: reportData } = useQuery({
     queryKey: ["safety-report"],
@@ -930,11 +931,7 @@ export default function SafetyReportScreen() {
                 />
                 <Pressable
                   style={styles.productMainButton}
-                  onPress={() =>
-                    WebBrowser.openBrowserAsync(
-                      "https://m.kebhana.com/cont/hidden/livingtrust/index.html",
-                    )
-                  }
+                  onPress={() => setIsProductWebViewVisible(true)}
                 >
                   <Text
                     maxFontSizeMultiplier={1.1}
@@ -954,6 +951,26 @@ export default function SafetyReportScreen() {
               </View>
             </Animated.View>
           </View>
+        </Modal>
+        <Modal
+          animationType="slide"
+          onRequestClose={() => setIsProductWebViewVisible(false)}
+          visible={isProductWebViewVisible}
+        >
+          <SafeAreaView edges={["top"]} style={styles.productWebViewContainer}>
+            <WebView
+              source={{
+                uri: "https://m.kebhana.com/cont/hidden/livingtrust/index.html",
+              }}
+              style={styles.productWebView}
+            />
+            <Pressable
+              onPress={() => setIsProductWebViewVisible(false)}
+              style={styles.productWebViewCloseButton}
+            >
+              <Ionicons color="#111111" name="close" size={scaled(24, scale)} />
+            </Pressable>
+          </SafeAreaView>
         </Modal>
       </View>
     </SafeAreaView>
@@ -1907,6 +1924,24 @@ const createStyles = (
       lineHeight: font(22),
       marginTop: vertical(16),
       textAlign: "center",
+    },
+    productWebViewContainer: {
+      backgroundColor: "#FFFFFF",
+      flex: 1,
+    },
+    productWebView: {
+      flex: 1,
+    },
+    productWebViewCloseButton: {
+      alignItems: "center",
+      backgroundColor: "rgba(255, 255, 255, 0.9)",
+      borderRadius: fixed(20),
+      height: fixed(40),
+      justifyContent: "center",
+      position: "absolute",
+      right: fixed(16),
+      top: fixed(16),
+      width: fixed(40),
     },
   });
 };
