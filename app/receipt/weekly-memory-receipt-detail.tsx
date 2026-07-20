@@ -10,6 +10,7 @@ import { goBackToPreviousScreen } from "@/utils/navigation";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image as ExpoImage } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -26,6 +27,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { captureRef } from "react-native-view-shot";
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
@@ -97,6 +99,20 @@ export default function WeeklyMemoryReceiptDetail() {
     () => createStyles(width, height, scale, fontScale, insets.bottom),
     [fontScale, height, insets.bottom, scale, width],
   );
+
+  const receiptPaperRef = useRef<View>(null);
+
+  const handleShare = async () => {
+    try {
+      const uri = await captureRef(receiptPaperRef, {
+        format: "png",
+        quality: 1,
+      });
+      await Sharing.shareAsync(uri, { mimeType: "image/png" });
+    } catch (error) {
+      console.warn("영수증 공유 실패", error);
+    }
+  };
 
   const openShareSheet = () => {
     shareSheetProgress.setValue(1);
@@ -210,7 +226,7 @@ export default function WeeklyMemoryReceiptDetail() {
           style={styles.scrollArea}
         >
           <View style={styles.receiptWrap}>
-            <View style={styles.receiptPaper}>
+            <View ref={receiptPaperRef} style={styles.receiptPaper}>
               <View style={styles.receiptInner}>
                 <View style={styles.receiptTitleRow}>
                   <View style={styles.titleDash} />
@@ -345,7 +361,7 @@ export default function WeeklyMemoryReceiptDetail() {
           </View>
           <Pressable
             accessibilityLabel="공유하기"
-            onPress={openShareSheet}
+            onPress={handleShare}
             style={styles.shareButton}
           >
             <Text maxFontSizeMultiplier={1.1} style={styles.shareButtonText}>
