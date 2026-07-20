@@ -5,6 +5,7 @@ import { ApiError, apiGet, apiMultipart, apiPost } from "@/lib/api";
 import { playBase64Wav, stopCurrent } from "@/lib/audio";
 import { isPresentationMode } from "@/lib/presentation";
 import { File, Paths } from "expo-file-system";
+import * as SecureStore from "expo-secure-store";
 import type {
   AnswerResponse,
   RecallQuestion,
@@ -112,8 +113,41 @@ const ANSWER_SCROLL_LINE_THRESHOLD = 6;
 const voiceMicrophoneImage = require("../../assets/images/voice/voice-microphone.png");
 // 발표 데모용: 발표 모드에서는 친구 아바타를 딸 공유 이미지로 고정한다
 const presentationFriendAvatarImage = require("../../assets/images/memory-receipt/share_friend_daughter.png");
-// 발표 데모용: "대화 모드 변경" 버튼으로 턴을 건너뛸 때 제출되는 임의 STT 텍스트
-const DUMMY_TRANSCRIPT = "네, 기억나요. 그때 정말 즐거웠어요.";
+// 발표 데모용: "대화 모드 변경"으로 턴을 건너뛸 때 step별로 재생할 스크립트.
+// 토큰 사이에 " <숫자> "(예: <2>)를 넣으면 그 숫자 초만큼 멈췄다가 다음 단어가 등장한다.
+const DUMMY_TRANSCRIPTS = [
+  "요즘 밤에도 너무 더워서, 자기 전에 에어컨 타이머 맞춰놓고 잤지.",
+  "어제 아침? 산책 겸 나갔다가 '하나빵집' 들러서 식빵 샀지. 아침에 먹기 간편하더라고.",
+  "아니, 오후엔 대박할인마트 가서 두루마리 휴지 샀어.",
+  "아, 휴지 산 걸 깜빡하고 또 사버렸네. 요즘 종종 깜빡한다니까.",
+  "요즘 장바구니 캐리어를 하나 장만했더니, 장 보고 오는 것도 한결 수월해.",
+];
+// <숫자> 마커가 없을 때 단어 사이 기본 간격(ms). 실제 값은 설정 모달에서 조절·저장한다.
+const DUMMY_WORD_REVEAL_MS = 150;
+// 단어 간격 설정 저장 키(expo-secure-store) 및 스테퍼 파라미터
+const WORD_GAP_STORAGE_KEY = "memory_receipt_demo_word_gap_ms";
+const WORD_GAP_STEP_MS = 50; // 스테퍼 0.05초 단위
+const WORD_GAP_MIN_MS = 0;
+const WORD_GAP_MAX_MS = 2000; // 상한 2초
+
+type DummyToken =
+  | { type: "word"; text: string }
+  | { type: "pause"; ms: number };
+
+// 스크립트를 공백 기준으로 나눠 단어/멈춤(<숫자>) 토큰으로 분류한다
+function parseDummyScript(script: string): DummyToken[] {
+  return script
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
+    .map((token) => {
+      const match = token.match(/^<(\d+(?:\.\d+)?)>$/);
+      if (match) {
+        return { type: "pause", ms: parseFloat(match[1]) * 1000 };
+      }
+      return { type: "word", text: token };
+    });
+}
 // answer API는 file 필드가 필수(multipart)라 스킵 시에도 무음 WAV(16kHz mono 16bit, 50ms)를 첨부한다
 const SILENT_WAV_BASE64 =
   "UklGRmQGAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YUAGAAAA" +
@@ -297,6 +331,10 @@ export default function VoiceWaitingScreen() {
   const actionPillRef = useRef<View>(null);
   const answerScrollRef = useRef<ScrollView>(null);
   const [isExitModalVisible, setIsExitModalVisible] = useState(false);
+  // 발표 데모용: 단어 등장 간격(ms). 설정 모달에서 조절하고 SecureStore에 저장한다.
+  const [wordGapMs, setWordGapMs] = useState(DUMMY_WORD_REVEAL_MS);
+  const [isGapModalVisible, setIsGapModalVisible] = useState(false);
+  const [draftGapMs, setDraftGapMs] = useState(DUMMY_WORD_REVEAL_MS);
   const { data: voices = [] } = useQuery({
     queryKey: ["voices"],
     queryFn: () => apiGet<VoiceResponse[]>("/voices"),
@@ -351,14 +389,49 @@ export default function VoiceWaitingScreen() {
     setIsExitModalVisible(true);
   };
 
+  // 저장된 단어 간격을 1회 하이드레이트한다
+  useEffect(() => {
+    SecureStore.getItemAsync(WORD_GAP_STORAGE_KEY).then((value) => {
+      const parsed = Number(value);
+      if (value != null && Number.isFinite(parsed)) {
+        setWordGapMs(parsed);
+      }
+    });
+  }, []);
+
+  const openGapModal = () => {
+    setDraftGapMs(wordGapMs);
+    setIsGapModalVisible(true);
+  };
+
+  const adjustDraftGap = (deltaMs: number) => {
+    setDraftGapMs((prev) =>
+      Math.min(Math.max(prev + deltaMs, WORD_GAP_MIN_MS), WORD_GAP_MAX_MS),
+    );
+  };
+
+  const confirmGap = () => {
+    setWordGapMs(draftGapMs);
+    void SecureStore.setItemAsync(WORD_GAP_STORAGE_KEY, String(draftGapMs));
+    setIsGapModalVisible(false);
+  };
+
   const clearCompleteTimers = () => {
     completeTimers.current.forEach((timer) => clearTimeout(timer));
     completeTimers.current = [];
   };
 
+  // 발표 데모용 스크립트 재생(단어별 등장) 타이머들
+  const revealTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearRevealTimers = () => {
+    revealTimers.current.forEach((timer) => clearTimeout(timer));
+    revealTimers.current = [];
+  };
+
   const confirmExit = () => {
     setIsExitModalVisible(false);
     clearCompleteTimers();
+    clearRevealTimers();
     stopCurrent();
     ExpoSpeechRecognitionModule.abort();
     router.replace("/receipt/main");
@@ -463,6 +536,7 @@ export default function VoiceWaitingScreen() {
   useEffect(() => {
     return () => {
       clearAutoCompleteTimer();
+      clearRevealTimers();
       stopCurrent();
       ExpoSpeechRecognitionModule.abort();
     };
@@ -493,6 +567,7 @@ export default function VoiceWaitingScreen() {
   const enterTurn = useCallback(
     (question: RecallQuestion, index: number) => {
       clearCompleteTimers();
+      clearRevealTimers();
       resetTranscript();
       answerUriRef.current = null;
       voiceStartedRef.current = false;
@@ -627,32 +702,72 @@ export default function VoiceWaitingScreen() {
     completeTimers.current.push(pressedTimer);
   };
 
-  // 발표 데모용: 임의 텍스트를 답변으로 제출하고 다음 턴으로 넘어간다
+  // 발표 데모용: step별 스크립트를 단어별로 등장시키고(중간 <숫자>초 멈춤),
+  // 마지막 단어가 나오면 실제 흐름처럼 "응답 완료" 버튼을 띄운다.
   const handleSkipTurn = () => {
-    if (!started || sessionId == null || submitAnswerMutation.isPending) {
+    if (
+      !started ||
+      sessionId == null ||
+      submitAnswerMutation.isPending ||
+      revealTimers.current.length > 0
+    ) {
       return;
     }
 
+    // 실제 인식/재생 파이프라인 정리 후 데모 재생으로 대체한다
     clearAutoCompleteTimer();
     clearCompleteTimers();
+    clearRevealTimers();
     stopCurrent();
     ExpoSpeechRecognitionModule.abort();
     voiceStartedRef.current = true;
-    const silentFile = new File(Paths.cache, "skip-answer.wav");
-    if (silentFile.exists) {
-      silentFile.delete();
-    }
-    silentFile.create();
-    silentFile.write(SILENT_WAV_BASE64, { encoding: "base64" });
-    answerUriRef.current = silentFile.uri;
-    finalizedRef.current = DUMMY_TRANSCRIPT;
-    transcriptRef.current = DUMMY_TRANSCRIPT;
-    setTranscript(DUMMY_TRANSCRIPT);
-    setIsListening(false);
-    setHasResponse(true);
-    setCompleteStatus("done");
-    setIsAwaitingNext(true);
-    submitAnswerMutation.mutate();
+
+    resetTranscript();
+    setHasResponse(false);
+    setCompleteStatus("ready");
+    // 스크립트 재생 동안 VoiceCircle이 활성 상태로 보이도록 한다
+    setIsListening(true);
+
+    const script =
+      DUMMY_TRANSCRIPTS[currentIndex] ??
+      DUMMY_TRANSCRIPTS[DUMMY_TRANSCRIPTS.length - 1];
+    const tokens = parseDummyScript(script);
+
+    const revealed: string[] = [];
+    let elapsed = 0;
+    tokens.forEach((token) => {
+      if (token.type === "pause") {
+        elapsed += token.ms;
+        return;
+      }
+      revealed.push(token.text);
+      const textSoFar = revealed.join(" ");
+      elapsed += wordGapMs;
+      const timer = setTimeout(() => {
+        transcriptRef.current = textSoFar;
+        setTranscript(textSoFar);
+      }, elapsed);
+      revealTimers.current.push(timer);
+    });
+
+    const fullText = revealed.join(" ");
+    // 마지막 단어 등장 뒤 실제 답변 완료 상태로 전환한다
+    const finishTimer = setTimeout(() => {
+      const silentFile = new File(Paths.cache, "skip-answer.wav");
+      if (silentFile.exists) {
+        silentFile.delete();
+      }
+      silentFile.create();
+      silentFile.write(SILENT_WAV_BASE64, { encoding: "base64" });
+      answerUriRef.current = silentFile.uri;
+      finalizedRef.current = fullText;
+      transcriptRef.current = fullText;
+      setIsListening(false);
+      setHasResponse(true);
+      setCompleteStatus("ready");
+      clearRevealTimers();
+    }, elapsed);
+    revealTimers.current.push(finishTimer);
   };
 
   const startListening = async () => {
@@ -710,7 +825,11 @@ export default function VoiceWaitingScreen() {
             </Text>
           </Pressable>
 
-          <Pressable onPress={handleSkipTurn} style={styles.modeButton}>
+          <Pressable
+            onLongPress={openGapModal}
+            onPress={handleSkipTurn}
+            style={styles.modeButton}
+          >
             <Text maxFontSizeMultiplier={1.1} style={styles.modeButtonText}>
               대화 모드 변경
             </Text>
@@ -982,6 +1101,95 @@ export default function VoiceWaitingScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsGapModalVisible(false)}
+        statusBarTranslucent
+        transparent
+        visible={isGapModalVisible}
+      >
+        <View style={styles.exitModalOverlay}>
+          <View style={styles.exitModalBackdrop} />
+          <View style={styles.exitModalCenter}>
+            <View style={styles.exitModalCard}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.exitModalTitle}>
+                단어 간격 설정
+              </Text>
+              <Text
+                maxFontSizeMultiplier={1.1}
+                style={styles.exitModalDescription}
+              >
+                단어가 하나씩 등장하는{"\n"}사이 간격을 조절해요.
+              </Text>
+              <View style={styles.gapStepperRow}>
+                <Pressable
+                  disabled={draftGapMs <= WORD_GAP_MIN_MS}
+                  onPress={() => adjustDraftGap(-WORD_GAP_STEP_MS)}
+                  style={[
+                    styles.gapStepperButton,
+                    draftGapMs <= WORD_GAP_MIN_MS &&
+                      styles.gapStepperButtonDisabled,
+                  ]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.gapStepperButtonText}
+                  >
+                    −
+                  </Text>
+                </Pressable>
+                <Text maxFontSizeMultiplier={1.1} style={styles.gapValueText}>
+                  {(draftGapMs / 1000).toFixed(2)}초
+                </Text>
+                <Pressable
+                  disabled={draftGapMs >= WORD_GAP_MAX_MS}
+                  onPress={() => adjustDraftGap(WORD_GAP_STEP_MS)}
+                  style={[
+                    styles.gapStepperButton,
+                    draftGapMs >= WORD_GAP_MAX_MS &&
+                      styles.gapStepperButtonDisabled,
+                  ]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.gapStepperButtonText}
+                  >
+                    +
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={styles.exitModalButtonRow}>
+                <Pressable
+                  onPress={() => setIsGapModalVisible(false)}
+                  style={[styles.exitModalButton, styles.exitModalCancelButton]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.exitModalCancelText}
+                  >
+                    취소
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={confirmGap}
+                  style={[
+                    styles.exitModalButton,
+                    styles.exitModalConfirmButton,
+                  ]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.exitModalConfirmText}
+                  >
+                    확인
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1093,6 +1301,38 @@ const createStyles = (
       flexDirection: "row",
       gap: scaled(10, scale),
       marginTop: scaled(24, scale),
+    },
+    gapStepperRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: scaled(20, scale),
+      marginTop: scaled(22, scale),
+    },
+    gapStepperButton: {
+      alignItems: "center",
+      backgroundColor: "#EEEEEE",
+      borderRadius: scaled(24, scale),
+      height: scaled(48, scale),
+      justifyContent: "center",
+      width: scaled(48, scale),
+    },
+    gapStepperButtonDisabled: {
+      opacity: 0.4,
+    },
+    gapStepperButtonText: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(26, fontScale),
+      lineHeight: fontScaled(30, fontScale),
+      marginTop: scaled(-2, scale),
+    },
+    gapValueText: {
+      color: "#353535",
+      fontFamily: "PretendardBold",
+      fontSize: fontScaled(24, fontScale),
+      minWidth: scaled(88, scale),
+      textAlign: "center",
     },
     exitModalButton: {
       alignItems: "center",
