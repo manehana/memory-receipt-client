@@ -4,8 +4,6 @@ import { fontScaled, scaled } from "@/constants/responsive";
 import { ApiError, apiGet, apiMultipart, apiPost } from "@/lib/api";
 import { playBase64Wav, stopCurrent } from "@/lib/audio";
 import { isPresentationMode } from "@/lib/presentation";
-import { File, Paths } from "expo-file-system";
-import * as SecureStore from "expo-secure-store";
 import type {
   AnswerResponse,
   RecallQuestion,
@@ -14,7 +12,9 @@ import type {
 } from "@/lib/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { File, Paths } from "expo-file-system";
 import { router, useLocalSearchParams } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
@@ -30,6 +30,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
   type StyleProp,
@@ -116,16 +117,17 @@ const presentationFriendAvatarImage = require("../../assets/images/memory-receip
 // 발표 데모용: "대화 모드 변경"으로 턴을 건너뛸 때 step별로 재생할 스크립트.
 // 토큰 사이에 " <숫자> "(예: <2>)를 넣으면 그 숫자 초만큼 멈췄다가 다음 단어가 등장한다.
 const DUMMY_TRANSCRIPTS = [
-  "요즘 밤에도 너무 더워서, 자기 전에 에어컨 타이머 맞춰놓고 잤지.",
-  "어제 아침? 산책 겸 나갔다가 '하나빵집' 들러서 식빵 샀지. 아침에 먹기 간편하더라고.",
-  "아니, 오후엔 대박할인마트 가서 두루마리 휴지 샀어.",
-  "아, 휴지 산 걸 깜빡하고 또 사버렸네. 요즘 종종 깜빡한다니까.",
-  "요즘 장바구니 캐리어를 하나 장만했더니, 장 보고 오는 것도 한결 수월해.",
+  "요즘 밤에도 너무 더워서 자기 전에 에어컨 타이머 맞춰놓고 잤지",
+  "어제 아침 산책 겸 나갔다가 하나 빵집 들러서 식빵 샀지 아침에 먹기 간편하더라고",
+  "아니 오후엔 대박할인마트 가서 두루마리 휴지 샀어",
+  "아 휴지 산 걸 깜빡하고 또 사버렸네 요즘 종종 깜빡한다니까",
+  "요즘 장바구니 캐리어를 하나 장만했더니 장 보고 오는 것도 한결 수월해",
 ];
-// <숫자> 마커가 없을 때 단어 사이 기본 간격(ms). 실제 값은 설정 모달에서 조절·저장한다.
+// 단어별 개별 간격의 기본값(ms). 설정 모달에서 단어마다 따로 조절·저장한다.
 const DUMMY_WORD_REVEAL_MS = 150;
-// 단어 간격 설정 저장 키(expo-secure-store) 및 스테퍼 파라미터
-const WORD_GAP_STORAGE_KEY = "memory_receipt_demo_word_gap_ms";
+// 데모 설정 저장 키(expo-secure-store) 및 스테퍼 파라미터.
+// 저장 포맷: { scripts: string[], wordGaps: number[][] }. 스크립트도 편집 가능해지며 config로 키를 올린다.
+const WORD_GAP_STORAGE_KEY = "memory_receipt_demo_config_v3";
 const WORD_GAP_STEP_MS = 50; // 스테퍼 0.05초 단위
 const WORD_GAP_MIN_MS = 0;
 const WORD_GAP_MAX_MS = 2000; // 상한 2초
@@ -147,6 +149,52 @@ function parseDummyScript(script: string): DummyToken[] {
       }
       return { type: "word", text: token };
     });
+}
+
+// 스크립트에서 "단어 토큰" 텍스트만 뽑는다. 간격 설정 UI(칩)와 저장 배열의 기준.
+// (pause 토큰 <숫자>는 제외 — 개별 조절 대상이 아니라 스크립트에 고정된 멈춤이다)
+function parseScriptWords(script: string): string[] {
+  return parseDummyScript(script)
+    .filter((token): token is { type: "word"; text: string } =>
+      token.type === "word",
+    )
+    .map((token) => token.text);
+}
+
+function clampGap(ms: number): number {
+  return Math.min(Math.max(ms, WORD_GAP_MIN_MS), WORD_GAP_MAX_MS);
+}
+
+// 문장 배열에 맞춘 단어별 기본 간격(모두 DUMMY_WORD_REVEAL_MS로 시작).
+function makeDefaultWordGaps(scripts: string[]): number[][] {
+  return scripts.map((script) =>
+    parseScriptWords(script).map(() => DUMMY_WORD_REVEAL_MS),
+  );
+}
+
+// 스크립트가 바뀌어 단어 수가 달라져도 기존 간격을 최대한 살려 재정렬한다.
+// (같은 위치의 단어는 기존 값 유지, 새로 생긴 단어는 기본값)
+function reconcileWordGaps(scripts: string[], gaps: number[][]): number[][] {
+  return scripts.map((script, sentenceIndex) => {
+    const words = parseScriptWords(script);
+    const prevRow = gaps[sentenceIndex] ?? [];
+    return words.map((_, wordIndex) => {
+      const prev = prevRow[wordIndex];
+      return typeof prev === "number" && Number.isFinite(prev)
+        ? clampGap(prev)
+        : DUMMY_WORD_REVEAL_MS;
+    });
+  });
+}
+
+// 저장된 설정(스크립트 + 간격)의 스크립트 부분만 형태 검증한다.
+// 문장 수는 기본 스크립트와 같아야 하고, 각 항목은 문자열이어야 한다.
+function isValidScripts(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length === DUMMY_TRANSCRIPTS.length &&
+    value.every((item) => typeof item === "string")
+  );
 }
 // answer API는 file 필드가 필수(multipart)라 스킵 시에도 무음 WAV(16kHz mono 16bit, 50ms)를 첨부한다
 const SILENT_WAV_BASE64 =
@@ -331,10 +379,21 @@ export default function VoiceWaitingScreen() {
   const actionPillRef = useRef<View>(null);
   const answerScrollRef = useRef<ScrollView>(null);
   const [isExitModalVisible, setIsExitModalVisible] = useState(false);
-  // 발표 데모용: 단어 등장 간격(ms). 설정 모달에서 조절하고 SecureStore에 저장한다.
-  const [wordGapMs, setWordGapMs] = useState(DUMMY_WORD_REVEAL_MS);
+  // 발표 데모용: 스킵 재생에 쓰는 문장 스크립트와 문장별·단어별 등장 간격(ms).
+  // 설정 모달에서 문장 텍스트와 단어 간격을 편집하고 SecureStore에 저장한다.
+  const [scripts, setScripts] = useState<string[]>(DUMMY_TRANSCRIPTS);
+  const [wordGaps, setWordGaps] = useState<number[][]>(() =>
+    makeDefaultWordGaps(DUMMY_TRANSCRIPTS),
+  );
   const [isGapModalVisible, setIsGapModalVisible] = useState(false);
-  const [draftGapMs, setDraftGapMs] = useState(DUMMY_WORD_REVEAL_MS);
+  // 모달 편집 중 임시 값(확인 시 scripts/wordGaps로 커밋)
+  const [draftScripts, setDraftScripts] = useState<string[]>(DUMMY_TRANSCRIPTS);
+  const [draftWordGaps, setDraftWordGaps] = useState<number[][]>(() =>
+    makeDefaultWordGaps(DUMMY_TRANSCRIPTS),
+  );
+  // 모달에서 현재 편집 중인 문장 인덱스와 선택된 단어 인덱스
+  const [gapSentenceIndex, setGapSentenceIndex] = useState(0);
+  const [selectedWordIndex, setSelectedWordIndex] = useState(0);
   const { data: voices = [] } = useQuery({
     queryKey: ["voices"],
     queryFn: () => apiGet<VoiceResponse[]>("/voices"),
@@ -389,30 +448,87 @@ export default function VoiceWaitingScreen() {
     setIsExitModalVisible(true);
   };
 
-  // 저장된 단어 간격을 1회 하이드레이트한다
+  // 저장된 설정(스크립트 + 단어 간격)을 1회 하이드레이트한다(형태가 어긋나면 기본값 유지)
   useEffect(() => {
     SecureStore.getItemAsync(WORD_GAP_STORAGE_KEY).then((value) => {
-      const parsed = Number(value);
-      if (value != null && Number.isFinite(parsed)) {
-        setWordGapMs(parsed);
+      if (value == null) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && isValidScripts(parsed.scripts)) {
+          const nextScripts = parsed.scripts;
+          setScripts(nextScripts);
+          // 저장된 간격을 현재 스크립트 단어 수에 맞춰 재정렬한다
+          setWordGaps(
+            reconcileWordGaps(
+              nextScripts,
+              Array.isArray(parsed.wordGaps) ? parsed.wordGaps : [],
+            ),
+          );
+        }
+      } catch {
+        // 저장 포맷이 깨졌으면 기본값을 그대로 쓴다
       }
     });
   }, []);
 
   const openGapModal = () => {
-    setDraftGapMs(wordGapMs);
+    // 편집용으로 깊은 복사본을 만들어 취소 시 원본이 유지되게 한다
+    setDraftScripts([...scripts]);
+    setDraftWordGaps(wordGaps.map((row) => [...row]));
+    // 지금 재생될 문장을 기본으로 열되, 첫 단어를 선택 상태로 둔다
+    setGapSentenceIndex(Math.min(currentIndex, scripts.length - 1));
+    setSelectedWordIndex(0);
     setIsGapModalVisible(true);
   };
 
-  const adjustDraftGap = (deltaMs: number) => {
-    setDraftGapMs((prev) =>
-      Math.min(Math.max(prev + deltaMs, WORD_GAP_MIN_MS), WORD_GAP_MAX_MS),
+  const selectGapSentence = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= scripts.length) {
+      return;
+    }
+    setGapSentenceIndex(nextIndex);
+    setSelectedWordIndex(0);
+  };
+
+  // 현재 문장의 텍스트를 편집하고, 바뀐 단어 수에 맞춰 간격/선택을 재정렬한다
+  const editDraftScript = (text: string) => {
+    setDraftScripts((prev) =>
+      prev.map((script, index) => (index === gapSentenceIndex ? text : script)),
+    );
+    setDraftWordGaps((prev) =>
+      prev.map((row, index) =>
+        index === gapSentenceIndex
+          ? reconcileWordGaps([text], [row])[0]
+          : row,
+      ),
+    );
+    // 단어가 줄면 선택 인덱스를 범위 안으로 당긴다
+    const nextWordCount = parseScriptWords(text).length;
+    setSelectedWordIndex((index) =>
+      Math.min(index, Math.max(0, nextWordCount - 1)),
+    );
+  };
+
+  const adjustSelectedGap = (deltaMs: number) => {
+    setDraftWordGaps((prev) =>
+      prev.map((row, sentenceIndex) =>
+        sentenceIndex === gapSentenceIndex
+          ? row.map((gap, wordIndex) =>
+              wordIndex === selectedWordIndex ? clampGap(gap + deltaMs) : gap,
+            )
+          : row,
+      ),
     );
   };
 
   const confirmGap = () => {
-    setWordGapMs(draftGapMs);
-    void SecureStore.setItemAsync(WORD_GAP_STORAGE_KEY, String(draftGapMs));
+    setScripts(draftScripts);
+    setWordGaps(draftWordGaps);
+    void SecureStore.setItemAsync(
+      WORD_GAP_STORAGE_KEY,
+      JSON.stringify({ scripts: draftScripts, wordGaps: draftWordGaps }),
+    );
     setIsGapModalVisible(false);
   };
 
@@ -728,13 +844,14 @@ export default function VoiceWaitingScreen() {
     // 스크립트 재생 동안 VoiceCircle이 활성 상태로 보이도록 한다
     setIsListening(true);
 
-    const script =
-      DUMMY_TRANSCRIPTS[currentIndex] ??
-      DUMMY_TRANSCRIPTS[DUMMY_TRANSCRIPTS.length - 1];
+    const script = scripts[currentIndex] ?? scripts[scripts.length - 1];
     const tokens = parseDummyScript(script);
 
+    // 이 문장의 단어별 간격 배열(저장 인덱스는 DUMMY_TRANSCRIPTS와 정렬됨)
+    const gaps = wordGaps[Math.min(currentIndex, wordGaps.length - 1)] ?? [];
     const revealed: string[] = [];
     let elapsed = 0;
+    let wordIndex = 0;
     tokens.forEach((token) => {
       if (token.type === "pause") {
         elapsed += token.ms;
@@ -742,7 +859,9 @@ export default function VoiceWaitingScreen() {
       }
       revealed.push(token.text);
       const textSoFar = revealed.join(" ");
-      elapsed += wordGapMs;
+      // 각 단어는 자신의 개별 간격만큼 이전 단어 뒤에 등장한다
+      elapsed += gaps[wordIndex] ?? DUMMY_WORD_REVEAL_MS;
+      wordIndex += 1;
       const timer = setTimeout(() => {
         transcriptRef.current = textSoFar;
         setTranscript(textSoFar);
@@ -810,6 +929,13 @@ export default function VoiceWaitingScreen() {
 
   const questionNumber = currentIndex + 1;
   const isMicActionDisabled = isListening || hasResponse;
+
+  // 간격 설정 모달에서 현재 편집 중인 문장의 텍스트·단어들과 선택된 단어의 간격
+  const gapScriptText = draftScripts[gapSentenceIndex] ?? "";
+  const gapWords = parseScriptWords(gapScriptText);
+  const selectedGapMs =
+    draftWordGaps[gapSentenceIndex]?.[selectedWordIndex] ??
+    DUMMY_WORD_REVEAL_MS;
 
   return (
     <View style={styles.container}>
@@ -1120,15 +1246,110 @@ export default function VoiceWaitingScreen() {
                 maxFontSizeMultiplier={1.1}
                 style={styles.exitModalDescription}
               >
-                단어가 하나씩 등장하는{"\n"}사이 간격을 조절해요.
+                문장을 고쳐 쓰고, 단어를 눌러{"\n"}그 단어가 등장하는 간격을 조절해요.
               </Text>
+
+              {/* 문장 이동: 모든 문장의 텍스트/단어 간격을 여기서 편집한다 */}
+              <View style={styles.gapSentenceRow}>
+                <Pressable
+                  disabled={gapSentenceIndex <= 0}
+                  onPress={() => selectGapSentence(gapSentenceIndex - 1)}
+                  style={[
+                    styles.gapNavButton,
+                    gapSentenceIndex <= 0 && styles.gapStepperButtonDisabled,
+                  ]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.gapNavButtonText}
+                  >
+                    ‹
+                  </Text>
+                </Pressable>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  style={styles.gapSentenceLabel}
+                >
+                  문장 {gapSentenceIndex + 1}/{scripts.length}
+                </Text>
+                <Pressable
+                  disabled={gapSentenceIndex >= scripts.length - 1}
+                  onPress={() => selectGapSentence(gapSentenceIndex + 1)}
+                  style={[
+                    styles.gapNavButton,
+                    gapSentenceIndex >= scripts.length - 1 &&
+                      styles.gapStepperButtonDisabled,
+                  ]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={styles.gapNavButtonText}
+                  >
+                    ›
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* 문장 텍스트 편집: 저장하면 스킵 재생 스크립트로 쓰인다 */}
+              <TextInput
+                multiline
+                onChangeText={editDraftScript}
+                placeholder="문장을 입력하세요"
+                placeholderTextColor="#BDBDBD"
+                style={styles.gapScriptInput}
+                value={gapScriptText}
+              />
+              <Text maxFontSizeMultiplier={1.1} style={styles.gapScriptHint}>
+                띄어쓰기로 단어가 나뉘고, {"<0.5>"} 처럼 넣으면 그 초만큼 멈춰요.
+              </Text>
+
+              {/* 단어 칩: 탭해서 선택, 각 칩에 현재 간격(초) 표시 */}
+              <View style={styles.gapChipsWrap}>
+                {gapWords.map((word, wordIndex) => {
+                  const isSelected = wordIndex === selectedWordIndex;
+                  const chipGapMs =
+                    draftWordGaps[gapSentenceIndex]?.[wordIndex] ??
+                    DUMMY_WORD_REVEAL_MS;
+                  return (
+                    <Pressable
+                      key={`${gapSentenceIndex}-${wordIndex}`}
+                      onPress={() => setSelectedWordIndex(wordIndex)}
+                      style={[
+                        styles.gapChip,
+                        isSelected && styles.gapChipSelected,
+                      ]}
+                    >
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={[
+                          styles.gapChipText,
+                          isSelected && styles.gapChipTextSelected,
+                        ]}
+                      >
+                        {word}
+                      </Text>
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={[
+                          styles.gapChipGap,
+                          isSelected && styles.gapChipGapSelected,
+                        ]}
+                      >
+                        {(chipGapMs / 1000).toFixed(2)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* 선택된 단어의 간격 스테퍼 */}
               <View style={styles.gapStepperRow}>
                 <Pressable
-                  disabled={draftGapMs <= WORD_GAP_MIN_MS}
-                  onPress={() => adjustDraftGap(-WORD_GAP_STEP_MS)}
+                  disabled={selectedGapMs <= WORD_GAP_MIN_MS}
+                  onPress={() => adjustSelectedGap(-WORD_GAP_STEP_MS)}
                   style={[
                     styles.gapStepperButton,
-                    draftGapMs <= WORD_GAP_MIN_MS &&
+                    selectedGapMs <= WORD_GAP_MIN_MS &&
                       styles.gapStepperButtonDisabled,
                   ]}
                 >
@@ -1140,14 +1361,14 @@ export default function VoiceWaitingScreen() {
                   </Text>
                 </Pressable>
                 <Text maxFontSizeMultiplier={1.1} style={styles.gapValueText}>
-                  {(draftGapMs / 1000).toFixed(2)}초
+                  {(selectedGapMs / 1000).toFixed(2)}초
                 </Text>
                 <Pressable
-                  disabled={draftGapMs >= WORD_GAP_MAX_MS}
-                  onPress={() => adjustDraftGap(WORD_GAP_STEP_MS)}
+                  disabled={selectedGapMs >= WORD_GAP_MAX_MS}
+                  onPress={() => adjustSelectedGap(WORD_GAP_STEP_MS)}
                   style={[
                     styles.gapStepperButton,
-                    draftGapMs >= WORD_GAP_MAX_MS &&
+                    selectedGapMs >= WORD_GAP_MAX_MS &&
                       styles.gapStepperButtonDisabled,
                   ]}
                 >
@@ -1302,12 +1523,102 @@ const createStyles = (
       gap: scaled(10, scale),
       marginTop: scaled(24, scale),
     },
+    gapSentenceRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: scaled(16, scale),
+      marginTop: scaled(18, scale),
+    },
+    gapScriptInput: {
+      backgroundColor: "#F7F7F7",
+      borderColor: "#E4E4E4",
+      borderRadius: scaled(10, scale),
+      borderWidth: scaled(1, scale),
+      color: "#353535",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(15, fontScale),
+      lineHeight: fontScaled(22, fontScale),
+      marginTop: scaled(14, scale),
+      minHeight: scaled(72, scale),
+      paddingHorizontal: scaled(12, scale),
+      paddingVertical: scaled(10, scale),
+      textAlignVertical: "top",
+    },
+    gapScriptHint: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(11, fontScale),
+      lineHeight: fontScaled(16, fontScale),
+      marginTop: scaled(6, scale),
+      textAlign: "center",
+    },
+    gapNavButton: {
+      alignItems: "center",
+      backgroundColor: "#EEEEEE",
+      borderRadius: scaled(20, scale),
+      height: scaled(40, scale),
+      justifyContent: "center",
+      width: scaled(40, scale),
+    },
+    gapNavButtonText: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(24, fontScale),
+      lineHeight: fontScaled(28, fontScale),
+      marginTop: scaled(-2, scale),
+    },
+    gapSentenceLabel: {
+      color: "#353535",
+      fontFamily: "PretendardSemiBold",
+      fontSize: fontScaled(16, fontScale),
+      minWidth: scaled(84, scale),
+      textAlign: "center",
+    },
+    gapChipsWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: scaled(8, scale),
+      justifyContent: "center",
+      marginTop: scaled(16, scale),
+    },
+    gapChip: {
+      alignItems: "center",
+      backgroundColor: "#F4F4F4",
+      borderColor: "#F4F4F4",
+      borderRadius: scaled(10, scale),
+      borderWidth: scaled(1.5, scale),
+      paddingHorizontal: scaled(10, scale),
+      paddingVertical: scaled(6, scale),
+    },
+    gapChipSelected: {
+      backgroundColor: "#EAF1FF",
+      borderColor: "#2E7DFF",
+    },
+    gapChipText: {
+      color: "#353535",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(15, fontScale),
+    },
+    gapChipTextSelected: {
+      color: "#1E4FA8",
+      fontFamily: "PretendardSemiBold",
+    },
+    gapChipGap: {
+      color: "#9F9F9F",
+      fontFamily: "PretendardMedium",
+      fontSize: fontScaled(11, fontScale),
+      marginTop: scaled(1, scale),
+    },
+    gapChipGapSelected: {
+      color: "#2E7DFF",
+    },
     gapStepperRow: {
       alignItems: "center",
       flexDirection: "row",
       justifyContent: "center",
       gap: scaled(20, scale),
-      marginTop: scaled(22, scale),
+      marginTop: scaled(18, scale),
     },
     gapStepperButton: {
       alignItems: "center",
