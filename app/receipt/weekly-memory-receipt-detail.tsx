@@ -40,20 +40,20 @@ const footprints = [
   {
     id: "01",
     amount: "4,800원",
-    place: "스텔라플레이스 종로점",
-    time: "오전 11:43",
+    place: "제일내과의원 종로점",
+    time: "오전 10:43",
   },
   {
     id: "02",
-    amount: "34,000원",
-    place: "하나로마트 종로점",
-    time: "오후 14:03",
+    amount: "12,100원",
+    place: "하나약국 종로점",
+    time: "오전 11:05",
   },
   {
     id: "03",
-    amount: "7,000원",
+    amount: "7,600원",
     place: "Hana 택시",
-    time: "오후 21:12",
+    time: "오후 12:26",
   },
 ];
 
@@ -67,7 +67,8 @@ const shareGuardians = [
 
 const getShareBarHeight = (screenHeight: number, bottomInset: number) => {
   const heightScale = screenHeight / BASE_HEIGHT;
-  const vertical = (value: number) => Math.round(value * Math.min(heightScale, 1.04));
+  const vertical = (value: number) =>
+    Math.round(value * Math.min(heightScale, 1.04));
   return vertical(157) + bottomInset;
 };
 
@@ -173,7 +174,11 @@ export default function WeeklyMemoryReceiptDetail() {
             onPress={goBackToPreviousScreen}
             style={styles.backButton}
           >
-            <Ionicons color="#5D5D5D" name="chevron-back" size={scaled(24, scale)} />
+            <Ionicons
+              color="#5D5D5D"
+              name="chevron-back"
+              size={scaled(24, scale)}
+            />
           </Pressable>
 
           <Text
@@ -190,7 +195,11 @@ export default function WeeklyMemoryReceiptDetail() {
             hitSlop={scaled(12, scale)}
             style={styles.moreButton}
           >
-            <Ionicons color="#5D5D5D" name="ellipsis-vertical" size={scaled(24, scale)} />
+            <Ionicons
+              color="#5D5D5D"
+              name="ellipsis-vertical"
+              size={scaled(24, scale)}
+            />
           </Pressable>
         </View>
 
@@ -231,8 +240,7 @@ export default function WeeklyMemoryReceiptDetail() {
                 <SectionTitle label="오늘의 한줄" styles={styles} />
                 <View style={styles.summaryBox}>
                   <Text maxFontSizeMultiplier={1.1} style={styles.summaryText}>
-                    친구들과 스텔라플레이스에서 음료를 마시며 하루를 나누는
-                    시간이 가장 따뜻하게 남았어요.
+                    오전 10시, 혈압약을 타러 제일내과의원에 다녀왔어요.
                   </Text>
                 </View>
 
@@ -267,7 +275,10 @@ export default function WeeklyMemoryReceiptDetail() {
                         >
                           {item.place}
                         </Text>
-                        <Text maxFontSizeMultiplier={1.1} style={styles.timeText}>
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          style={styles.timeText}
+                        >
                           {item.time}
                         </Text>
                       </View>
@@ -470,7 +481,11 @@ export default function WeeklyMemoryReceiptDetail() {
                   source={require("../../assets/images/memory-receipt/memory-receipt-share-send.png")}
                   style={styles.toastIcon}
                 />
-                <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.toastText}>
+                <Text
+                  maxFontSizeMultiplier={1.1}
+                  numberOfLines={1}
+                  style={styles.toastText}
+                >
                   {toast}
                 </Text>
               </Animated.View>
@@ -530,12 +545,16 @@ const createStyles = (
     receiptFixed(PHOTO_BASE_WIDTH),
     receiptWidth - receiptFixed(36),
   );
-  const heroHeight = Math.round(heroWidth * (PHOTO_BASE_HEIGHT / PHOTO_BASE_WIDTH));
+  const heroHeight = Math.round(
+    heroWidth * (PHOTO_BASE_HEIGHT / PHOTO_BASE_WIDTH),
+  );
   const barcodeWidth = receiptFixed(BARCODE_BASE_WIDTH);
   const barcodeHeight = Math.round(
     barcodeWidth * (BARCODE_BASE_HEIGHT / BARCODE_BASE_WIDTH),
   );
-  const tearHeight = Math.round(receiptWidth * (TEAR_BASE_HEIGHT / RECEIPT_BASE_WIDTH));
+  const tearHeight = Math.round(
+    receiptWidth * (TEAR_BASE_HEIGHT / RECEIPT_BASE_WIDTH),
+  );
   const shareBarHeight = getShareBarHeight(screenHeight, bottomInset);
 
   return StyleSheet.create({
